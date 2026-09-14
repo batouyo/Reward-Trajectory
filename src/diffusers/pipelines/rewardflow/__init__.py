@@ -48,6 +48,10 @@ else:
     ]
     _import_structure["pipeline_rewardflow_flux"] = ["FluxRewardFlowPipeline"]
     _import_structure["pipeline_flux_kontext_strength_trajectory"] = ["FluxKontextStrengthTrajectoryPipeline"]
+    _import_structure["pipeline_flux_kontext_terminal_control"] = [
+        "FluxKontextTerminalControlPipeline",
+        "KontextTerminalControlInputs",
+    ]
     _import_structure["strength_trajectory"] = [
         "StrengthBranchLayout",
         "StrengthRewardBatchContext",
@@ -77,6 +81,18 @@ else:
         "StaticRewardGuidance",
         "qwen_vqa_token_reward",
     ]
+    _import_structure["terminal_control"] = [
+        "BlueEndpointTargetLoss",
+        "EndpointPixelTargetLoss",
+        "TerminalControlUnrollOutput",
+        "TerminalObjectiveOutput",
+        "blue_direction_score",
+        "endpoint_soft_mask",
+        "freeze_terminal_control_modules",
+        "initialize_velocity_controls",
+        "normalized_control_energy",
+        "unroll_terminal_velocity_controls",
+    ]
 if TYPE_CHECKING or DIFFUSERS_SLOW_IMPORT:
     try:
         if not (is_transformers_available() and is_torch_available()):
@@ -96,6 +112,10 @@ if TYPE_CHECKING or DIFFUSERS_SLOW_IMPORT:
             sample_langevin_noise,
         )
         from .pipeline_flux_kontext_strength_trajectory import FluxKontextStrengthTrajectoryPipeline
+        from .pipeline_flux_kontext_terminal_control import (
+            FluxKontextTerminalControlPipeline,
+            KontextTerminalControlInputs,
+        )
         from .pipeline_rewardflow_flux import FluxRewardFlowPipeline
         from .rewards import (
             Qwen25VQAReward,
@@ -125,6 +145,18 @@ if TYPE_CHECKING or DIFFUSERS_SLOW_IMPORT:
             unflatten_strength_branches,
             validate_strength_reward_context,
             validate_trajectory_mode,
+        )
+        from .terminal_control import (
+            BlueEndpointTargetLoss,
+            EndpointPixelTargetLoss,
+            TerminalControlUnrollOutput,
+            TerminalObjectiveOutput,
+            blue_direction_score,
+            endpoint_soft_mask,
+            freeze_terminal_control_modules,
+            initialize_velocity_controls,
+            normalized_control_energy,
+            unroll_terminal_velocity_controls,
         )
 
     from .semantic_parser import (

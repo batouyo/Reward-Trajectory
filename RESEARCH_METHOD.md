@@ -89,3 +89,24 @@ temporal/spatial gating, partially correlated noise, training, or model-weight c
 
 After divergence, K branches still require K Transformer evaluations. Chunking bounds peak batch memory but does not
 reduce total branch compute, and reward-active chunks still retain one denoiser/decoder graph per chunk.
+
+## Terminal early-velocity control experiment
+
+The terminal-control path is a separate mechanism-validation experiment. It does not change the branch-local reward
+contract above. For one fixed initial latent, it adds FP32 master controls to the model velocity only at a configured
+prefix of steps:
+
+```text
+v_effective[t] = v_native(z[t]) + delta_velocity[t]  for t < control_steps
+v_effective[t] = v_native(z[t])                      otherwise
+```
+
+The normal deterministic Euler update consumes `v_effective`; a control is never passed as `reward_drift`, whose sign
+has different semantics. A differentiable final VAE decode produces an endpoint-relative diagnostic loss. Backward
+then traverses every later native Kontext evaluation to the early controls. Model parameters stay frozen, but latent
+Jacobians remain enabled. Non-reentrant per-step checkpointing recomputes future Transformer forwards to bound peak
+activation memory. No trajectory state or native velocity is detached inside the loss graph; detached velocity copies
+exist only for norm and cosine logging.
+
+The blue-direction and pixel-interpolation endpoint targets are controllability probes, not semantic interpolation
+claims. This path adds no SDE, model training, local per-step reward, or production strength-reward implementation.
