@@ -5,6 +5,7 @@ import warnings
 from dataclasses import dataclass
 from typing import Protocol, Sequence
 
+import numpy as np
 import PIL
 import torch
 import torch.nn.functional as F
@@ -64,6 +65,25 @@ def _get_vision_attr(cfg: object, name: str, fallback=None):
 class RewardFn(Protocol):
     def __call__(self, image: torch.Tensor, prompt: str | list[str]) -> torch.Tensor:
         """Return a scalar reward (higher is better)."""
+
+
+def _reward_device(reward: object, fallback: torch.device) -> torch.device:
+    """Resolve a reward's current device after any onload operation."""
+
+    model = getattr(reward, "model", None)
+    parameters = getattr(model, "parameters", None)
+    if callable(parameters):
+        try:
+            return next(parameters()).device
+        except StopIteration:
+            pass
+    explicit_device = getattr(reward, "device", None)
+    if explicit_device is not None:
+        try:
+            return torch.device(explicit_device)
+        except (TypeError, RuntimeError):
+            pass
+    return fallback
 
 
 @dataclass
@@ -165,12 +185,12 @@ class RewardGuidance:
                 maybe_offload()
 
 
-class StaticRewardGuidance:
-    """Transparent, differentiable reward fusion with caller-supplied weights.
+class ResearchStaticRewardGuidance:
+    """Research utility for transparent fusion with caller-supplied weights.
 
-    ASSUMPTION: Static weights are an explicit engineering interface for this
-    phase, not a reconstruction of the paper's unspecified adaptive-policy
-    configuration.
+    This is not a reproduction or static approximation of RewardFlow's
+    prompt-aware adaptive softmax policy. Signed weights are intentionally
+    supported for controlled research compositions.
 
     Unlike the legacy ``RewardGuidance``, this class performs no running
     normalization, softmax, scheduling, or value-dependent reweighting.
@@ -195,7 +215,11 @@ class StaticRewardGuidance:
             maybe_onload = getattr(reward, "maybe_onload", None)
             if callable(maybe_onload):
                 maybe_onload()
-            value = reward(image=image, prompt=prompt)
+            target_device = _reward_device(reward, image.device)
+            # Device copies are autograd operations. Do not detach here: the
+            # reward gradient must cross back to the original clean image.
+            reward_image = image if target_device == image.device else image.to(target_device)
+            value = reward(image=reward_image, prompt=prompt)
             if not torch.is_tensor(value):
                 raise TypeError(f"Reward `{name}` must return a torch.Tensor, got {type(value)}.")
             if value.dim() > 0:
@@ -212,6 +236,11 @@ class StaticRewardGuidance:
             maybe_offload = getattr(reward, "maybe_offload", None)
             if callable(maybe_offload):
                 maybe_offload()
+
+
+# Backwards-compatible name for the first paper-mode implementation. New code
+# should prefer the explicit research-oriented name above.
+StaticRewardGuidance = ResearchStaticRewardGuidance
 
 
 class SigLIPReward:
@@ -652,21 +681,26 @@ class Qwen25VQAReward:
         )
         return input_ids, attention_mask, answer_ids.to(device), target_positions
 
-    def prepare(self, prompt: str | list[str], device: torch.device | None = None):
-        return None
-
-    def __call__(self, image: torch.Tensor, prompt: str | list[str]) -> torch.Tensor:
-        pixel_values, image_grid_thw = self._differentiable_image_inputs(image)
+    def _model_device_and_dtype(self) -> tuple[torch.device, torch.dtype]:
         try:
             model_device = next(self.model.parameters()).device
             visual = getattr(self.model, "visual", None)
             if visual is None:
                 visual = self.model.model.visual
-            model_dtype = visual.dtype
+            return model_device, visual.dtype
         except (StopIteration, AttributeError) as exc:
             raise NotImplementedError(
                 "Cannot determine Qwen2.5-VL model device/dtype for differentiable input."
             ) from exc
+
+    def _aligned_answer_logits(
+        self,
+        pixel_values: torch.Tensor,
+        image_grid_thw: torch.Tensor,
+    ) -> tuple[torch.Tensor, torch.Tensor]:
+        """Run Qwen and return next-token logits aligned to the target answer."""
+
+        model_device, model_dtype = self._model_device_and_dtype()
         pixel_values = pixel_values.to(device=model_device, dtype=model_dtype)
         image_grid_thw = image_grid_thw.to(model_device)
         input_ids, attention_mask, answer_ids, target_positions = self._teacher_forced_inputs(
@@ -680,7 +714,106 @@ class Qwen25VQAReward:
             use_cache=False,
             return_dict=True,
         )
-        aligned_logits = outputs.logits[0, target_positions]
+        return outputs.logits[0, target_positions], answer_ids
+
+    @staticmethod
+    def _fidelity_image_pair(image: PIL.Image.Image | torch.Tensor) -> tuple[PIL.Image.Image, torch.Tensor]:
+        """Create quantization-aligned PIL and [1, C, H, W] tensor views for diagnostics."""
+
+        if isinstance(image, PIL.Image.Image):
+            pil_image = image.convert("RGB")
+        elif torch.is_tensor(image):
+            tensor = image.detach().to(device="cpu", dtype=torch.float32)
+            if tensor.ndim == 4:
+                if tensor.shape[0] != 1:
+                    raise ValueError("Processor fidelity diagnostics support one image.")
+                tensor = tensor[0]
+            if tensor.ndim != 3 or tensor.shape[0] != 3:
+                raise ValueError("Processor fidelity diagnostics require RGB tensor shape [3, H, W].")
+            array = tensor.clamp(0, 1).mul(255).round().to(torch.uint8).permute(1, 2, 0).numpy()
+            pil_image = PIL.Image.fromarray(array, mode="RGB")
+        else:
+            raise TypeError("Processor fidelity diagnostics require a PIL image or torch tensor.")
+
+        array = np.asarray(pil_image, dtype=np.uint8).copy()
+        tensor_image = torch.from_numpy(array).permute(2, 0, 1).float().div(255).unsqueeze(0)
+        return pil_image, tensor_image
+
+    def compare_with_official_processor(self, image: PIL.Image.Image | torch.Tensor) -> dict[str, object]:
+        """Compare the differentiable adapter with the official Qwen processor.
+
+        This test/debug helper intentionally uses a non-differentiable PIL
+        reference path. Production reward evaluation never calls it.
+        """
+
+        pil_image, tensor_image = self._fidelity_image_pair(image)
+        official = self.processor.image_processor(images=pil_image, return_tensors="pt")
+        official_pixels = official["pixel_values"].float()
+        official_grid = official["image_grid_thw"].to(torch.long)
+        differentiable_pixels, differentiable_grid = self._differentiable_image_inputs(tensor_image)
+        differentiable_pixels = differentiable_pixels.float()
+
+        pixel_difference = differentiable_pixels - official_pixels
+        pixel_cosine = F.cosine_similarity(
+            differentiable_pixels.reshape(1, -1), official_pixels.reshape(1, -1), dim=1
+        )[0]
+
+        # This helper is diagnostic only. The production differentiable path
+        # remains grad-enabled through `_aligned_answer_logits` and `__call__`.
+        with torch.no_grad():
+            official_logits, official_targets = self._aligned_answer_logits(official_pixels, official_grid)
+            differentiable_logits, differentiable_targets = self._aligned_answer_logits(
+                differentiable_pixels, differentiable_grid
+            )
+            if not torch.equal(official_targets, differentiable_targets):
+                raise RuntimeError("Official and differentiable paths produced different answer token IDs.")
+
+            official_logits = official_logits.float()
+            differentiable_logits = differentiable_logits.float()
+            target_ids = official_targets[:, None]
+            official_target_logits = official_logits.gather(1, target_ids).squeeze(1)
+            differentiable_target_logits = differentiable_logits.gather(1, target_ids).squeeze(1)
+            official_logprobs = F.log_softmax(official_logits, dim=-1).gather(1, target_ids).squeeze(1)
+            differentiable_logprobs = F.log_softmax(differentiable_logits, dim=-1).gather(1, target_ids).squeeze(1)
+            official_reward = qwen_vqa_token_reward(
+                official_logits,
+                official_targets,
+                margin=self.margin,
+                lambda_margin=self.lambda_margin,
+            )
+            differentiable_reward = qwen_vqa_token_reward(
+                differentiable_logits,
+                differentiable_targets,
+                margin=self.margin,
+                lambda_margin=self.lambda_margin,
+            )
+
+        reward_difference = differentiable_reward - official_reward
+        return {
+            "official_image_grid_thw": official_grid.tolist(),
+            "differentiable_image_grid_thw": differentiable_grid.cpu().tolist(),
+            "official_pixel_values_shape": list(official_pixels.shape),
+            "differentiable_pixel_values_shape": list(differentiable_pixels.shape),
+            "pixel_mse": float(pixel_difference.square().mean()),
+            "pixel_mae": float(pixel_difference.abs().mean()),
+            "pixel_cosine": float(pixel_cosine),
+            "pixel_max_abs_difference": float(pixel_difference.abs().max()),
+            "aligned_logits_mse": float((differentiable_logits - official_logits).square().mean()),
+            "target_logits_mse": float((differentiable_target_logits - official_target_logits).square().mean()),
+            "target_token_logprob_mean_difference": float((differentiable_logprobs - official_logprobs).mean()),
+            "target_token_logprob_mae": float((differentiable_logprobs - official_logprobs).abs().mean()),
+            "official_reward": float(official_reward),
+            "differentiable_reward": float(differentiable_reward),
+            "reward_difference": float(reward_difference),
+            "reward_abs_difference": float(reward_difference.abs()),
+        }
+
+    def prepare(self, prompt: str | list[str], device: torch.device | None = None):
+        return None
+
+    def __call__(self, image: torch.Tensor, prompt: str | list[str]) -> torch.Tensor:
+        pixel_values, image_grid_thw = self._differentiable_image_inputs(image)
+        aligned_logits, answer_ids = self._aligned_answer_logits(pixel_values, image_grid_thw)
         return qwen_vqa_token_reward(
             aligned_logits,
             answer_ids,

@@ -1,14 +1,18 @@
+import json
 import os
 from pathlib import Path
 from types import SimpleNamespace
 
+import numpy as np
 import pytest
 import torch
+from PIL import Image
 
 from diffusers import FlowMatchEulerDiscreteScheduler
 from diffusers.pipelines.rewardflow.paper_components import (
     PaperRewardFlowConfig,
     clean_latent_kl_energy,
+    freeze_module_parameters,
     paper_euler_update,
     paper_gamma_schedule,
     predict_clean_latent,
@@ -17,14 +21,18 @@ from diffusers.pipelines.rewardflow.paper_components import (
 from diffusers.pipelines.rewardflow.pipeline_rewardflow_flux import FluxRewardFlowPipeline
 from diffusers.pipelines.rewardflow.rewards import (
     Qwen25VQAReward,
+    ResearchStaticRewardGuidance,
     SigLIPReward,
     StaticRewardGuidance,
     qwen_vqa_token_reward,
 )
 from diffusers.pipelines.rewardflow.semantic_parser import (
+    SEMANTIC_PARSER_VERSION,
     SemanticParseResult,
     build_semantic_parser_prompt,
+    fingerprint_image,
     load_cached_parse,
+    make_semantic_cache_key,
     parse_semantic_parser_json,
     save_cached_parse,
 )
@@ -185,9 +193,9 @@ def test_paper_config_rejects_unknown_hyperparameters():
         )
 
 
-def test_static_reward_guidance_uses_exact_named_weights():
+def test_static_reward_guidance_research_signed_weights_still_supported():
     image = torch.tensor([[[[0.25]]]], requires_grad=True)
-    guidance = StaticRewardGuidance(
+    guidance = ResearchStaticRewardGuidance(
         rewards={
             "linear": lambda image, prompt: image.sum(),
             "quadratic": lambda image, prompt: image.square().sum(),
@@ -201,6 +209,41 @@ def test_static_reward_guidance_uses_exact_named_weights():
     assert set(values) == {"linear", "quadratic"}
     assert total.item() == pytest.approx(2.0 * 0.25 - 0.5 * 0.25**2)
     assert grad.item() == pytest.approx(2.0 - 0.25)
+    assert StaticRewardGuidance is ResearchStaticRewardGuidance
+
+
+def test_static_reward_guidance_routes_across_devices_without_detach():
+    if not torch.cuda.is_available():
+        pytest.skip("Cross-device autograd routing requires CUDA.")
+
+    source_device = torch.device("cuda:0")
+    reward_device = torch.device("cuda:1" if torch.cuda.device_count() >= 2 else "cpu")
+
+    class OnloadedReward:
+        def __init__(self):
+            self.model = torch.nn.Linear(1, 1, bias=False)
+            self.target_device = reward_device
+            self.onload_called = False
+
+        def maybe_onload(self):
+            self.model.to(self.target_device)
+            self.onload_called = True
+
+        def __call__(self, image, prompt):
+            assert self.onload_called
+            assert image.device == self.target_device
+            return self.model(image.mean().reshape(1, 1)).sum()
+
+    reward = OnloadedReward()
+    image = torch.rand(1, 3, 8, 8, device=source_device, requires_grad=True)
+    guidance = ResearchStaticRewardGuidance({"remote": reward}, {"remote": 1.0})
+    total, _ = guidance.compute(image, "unused")
+    grad = torch.autograd.grad(total, image)[0]
+
+    assert total.device == source_device
+    assert grad is not None
+    assert torch.isfinite(grad).all()
+    assert grad.abs().sum() > 0
 
 
 def test_paper_reward_step_backpropagates_through_denoiser_without_normalization():
@@ -295,10 +338,8 @@ def test_semantic_parser_rejects_invalid_schema(payload, match):
         parse_semantic_parser_json(payload)
 
 
-def test_semantic_parser_cache_round_trip(tmp_path):
-    path = tmp_path / "nested" / "semantic-cache.json"
-    instruction = "Turn the car blue."
-    result = SemanticParseResult(
+def _semantic_result() -> SemanticParseResult:
+    return SemanticParseResult(
         short_prompts=[
             "Make car blue",
             "Preserve car shape",
@@ -310,11 +351,115 @@ def test_semantic_parser_cache_round_trip(tmp_path):
         answer="Blue.",
     )
 
-    assert load_cached_parse(path, instruction) is None
-    save_cached_parse(path, instruction, result)
 
-    assert load_cached_parse(path, instruction) == result
-    assert load_cached_parse(path, "Different instruction") is None
+def test_semantic_image_fingerprint_is_deterministic():
+    tensor = torch.tensor([[[0.0, 0.5], [1.0, 0.0]]])
+    pil = Image.new("RGB", (2, 2), color=(12, 34, 56))
+
+    assert fingerprint_image(tensor) == fingerprint_image(tensor.clone().to(torch.float64))
+    if torch.cuda.is_available():
+        assert fingerprint_image(tensor) == fingerprint_image(tensor.cuda())
+    assert fingerprint_image(pil) == fingerprint_image(pil.copy())
+
+
+def test_semantic_cache_same_image_same_instruction_hits(tmp_path):
+    path = tmp_path / "nested" / "semantic-cache.json"
+    instruction = "Turn the car blue."
+    image_fingerprint = fingerprint_image(Image.new("RGB", (4, 4), color="red"))
+    result = _semantic_result()
+
+    assert load_cached_parse(path, instruction, image_fingerprint) is None
+    save_cached_parse(path, instruction, image_fingerprint, result)
+
+    assert load_cached_parse(path, instruction, image_fingerprint) == result
+
+
+def test_semantic_cache_different_images_do_not_collide(tmp_path):
+    path = tmp_path / "semantic-cache.json"
+    instruction = "Make the person older."
+    first = fingerprint_image(Image.new("RGB", (4, 4), color="red"))
+    second = fingerprint_image(Image.new("RGB", (4, 4), color="blue"))
+
+    save_cached_parse(path, instruction, first, _semantic_result())
+
+    assert first != second
+    assert load_cached_parse(path, instruction, second) is None
+
+
+def test_semantic_cache_same_image_different_instruction_misses(tmp_path):
+    path = tmp_path / "semantic-cache.json"
+    image_fingerprint = fingerprint_image(torch.zeros(3, 4, 4))
+    save_cached_parse(path, "Turn the car blue.", image_fingerprint, _semantic_result())
+
+    assert load_cached_parse(path, "Turn the car red.", image_fingerprint) is None
+
+
+def test_semantic_cache_parser_version_changes_key(tmp_path):
+    path = tmp_path / "semantic-cache.json"
+    instruction = "Turn the car blue."
+    image_fingerprint = fingerprint_image(torch.zeros(3, 4, 4))
+    next_version = "rewardflow-figure10-v2-test"
+
+    assert SEMANTIC_PARSER_VERSION == "rewardflow-figure10-v1"
+    assert make_semantic_cache_key(instruction, image_fingerprint) != make_semantic_cache_key(
+        instruction, image_fingerprint, next_version
+    )
+    save_cached_parse(path, instruction, image_fingerprint, _semantic_result())
+    assert load_cached_parse(path, instruction, image_fingerprint, parser_version=next_version) is None
+
+
+def test_semantic_cache_v1_is_not_reused(tmp_path):
+    path = tmp_path / "semantic-cache.json"
+    path.write_text('{"version": 1, "entries": {}}', encoding="utf-8")
+
+    with pytest.raises(ValueError, match="unsupported schema"):
+        load_cached_parse(path, "Turn the car blue.", "image-fingerprint")
+
+
+def test_paper_frozen_model_still_has_input_gradient():
+    model = torch.nn.Linear(3, 2, bias=False)
+    freeze_module_parameters(model)
+    latent = torch.randn(1, 3, requires_grad=True)
+
+    reward = model(latent).square().sum()
+    latent_grad = torch.autograd.grad(reward, latent)[0]
+
+    assert latent_grad is not None
+    assert torch.isfinite(latent_grad).all()
+    assert latent_grad.abs().sum() > 0
+
+
+def test_paper_frozen_model_parameters_have_no_grad():
+    model = torch.nn.Linear(3, 2, bias=False)
+    model.weight.grad = torch.ones_like(model.weight)
+    frozen_count = freeze_module_parameters(model)
+    latent = torch.randn(1, 3, requires_grad=True)
+
+    model(latent).sum().backward()
+
+    assert frozen_count == 1
+    assert latent.grad is not None
+    assert all(not parameter.requires_grad for parameter in model.parameters())
+    assert all(parameter.grad is None for parameter in model.parameters())
+
+
+def test_pipeline_freezes_all_paper_inference_modules():
+    class WrappedReward:
+        def __init__(self):
+            self.model = torch.nn.Linear(1, 1)
+
+    pipe = SimpleNamespace(
+        transformer=torch.nn.Linear(1, 1),
+        vae=torch.nn.Linear(1, 1),
+        text_encoder=torch.nn.Linear(1, 1),
+    )
+    reward = WrappedReward()
+
+    frozen_count = FluxRewardFlowPipeline._freeze_paper_inference_modules(pipe, {"toy": reward})
+
+    assert frozen_count == 8
+    modules = [pipe.transformer, pipe.vae, pipe.text_encoder, reward.model]
+    assert all(not parameter.requires_grad for module in modules for parameter in module.parameters())
 
 
 def test_qwen_vqa_token_objective_matches_negative_ce_plus_margin():
@@ -400,14 +545,15 @@ def test_siglip_reward_gradient_through_paper_step_when_local_model_is_available
     assert pipe.last_paper_trace[0]["reward_grad_norm"] > 0
 
 
-def test_qwen_vqa_image_gradient_when_local_model_is_available():
+@pytest.fixture(scope="module")
+def qwen_reward_model():
     model_path = os.getenv("REWARDFLOW_QWEN_VQA_MODEL")
     if not model_path or not Path(model_path).exists():
         pytest.skip("Set REWARDFLOW_QWEN_VQA_MODEL to run the Qwen2.5-VL image-gradient integration test.")
     if not torch.cuda.is_available():
         pytest.skip("Qwen2.5-VL integration test requires CUDA.")
 
-    reward_model = Qwen25VQAReward(
+    return Qwen25VQAReward(
         question="What color is the square?",
         answer="Red.",
         model_id=model_path,
@@ -417,15 +563,65 @@ def test_qwen_vqa_image_gradient_when_local_model_is_available():
         dtype=torch.bfloat16,
         local_files_only=True,
     )
+
+
+@pytest.fixture(scope="module")
+def qwen_processor_fidelity_diagnostics(qwen_reward_model):
+    structured = np.zeros((73, 91, 3), dtype=np.uint8)
+    structured[:, :] = (20, 40, 180)
+    structured[18:57, 25:70] = (230, 25, 20)
+    random_pixels = np.random.default_rng(20260914).integers(0, 256, size=(65, 83, 3), dtype=np.uint8)
+    cases = {
+        "structured": Image.fromarray(structured, mode="RGB"),
+        "seeded_random": Image.fromarray(random_pixels, mode="RGB"),
+    }
+    diagnostics = {name: qwen_reward_model.compare_with_official_processor(image) for name, image in cases.items()}
+    print("QWEN_PROCESSOR_FIDELITY=" + json.dumps(diagnostics, sort_keys=True))
+    return diagnostics
+
+
+def test_qwen_differentiable_processor_grid_matches_official(qwen_processor_fidelity_diagnostics):
+    for diagnostics in qwen_processor_fidelity_diagnostics.values():
+        assert diagnostics["differentiable_image_grid_thw"] == diagnostics["official_image_grid_thw"]
+        assert diagnostics["differentiable_pixel_values_shape"] == diagnostics["official_pixel_values_shape"]
+
+
+def test_qwen_differentiable_processor_output_is_reasonably_close_to_official(
+    qwen_processor_fidelity_diagnostics,
+):
+    # ENGINEERING SANITY THRESHOLDS, NOT PAPER VALUES. These leave roughly
+    # 4-20x headroom over the two H20 reference cases recorded in this test.
+    for diagnostics in qwen_processor_fidelity_diagnostics.values():
+        assert np.isfinite(diagnostics["pixel_mse"])
+        assert np.isfinite(diagnostics["pixel_mae"])
+        assert np.isfinite(diagnostics["pixel_cosine"])
+        assert np.isfinite(diagnostics["pixel_max_abs_difference"])
+        assert diagnostics["pixel_cosine"] > 0.995
+        assert diagnostics["pixel_mse"] < 0.005
+        assert diagnostics["pixel_mae"] < 0.05
+        assert diagnostics["pixel_max_abs_difference"] < 1.0
+
+
+def test_qwen_official_and_differentiable_reward_are_reasonably_consistent(
+    qwen_processor_fidelity_diagnostics,
+):
+    # ENGINEERING SANITY THRESHOLDS, NOT PAPER VALUES. They reject changes
+    # large enough to alter the teacher-forced reward qualitatively while
+    # allowing platform-dependent PIL/torch interpolation differences.
+    for diagnostics in qwen_processor_fidelity_diagnostics.values():
+        assert np.isfinite(diagnostics["aligned_logits_mse"])
+        assert np.isfinite(diagnostics["target_token_logprob_mean_difference"])
+        assert np.isfinite(diagnostics["target_token_logprob_mae"])
+        assert np.isfinite(diagnostics["reward_difference"])
+        assert diagnostics["aligned_logits_mse"] < 0.05
+        assert diagnostics["target_logits_mse"] < 0.1
+        assert diagnostics["target_token_logprob_mae"] < 0.5
+        assert diagnostics["reward_abs_difference"] < 0.5
+
+
+def test_qwen_vqa_image_gradient_when_local_model_is_available(qwen_reward_model):
+    reward_model = qwen_reward_model
     image = torch.rand(1, 3, 56, 56, device="cuda", requires_grad=True)
-    native_pixels, native_grid = reward_model._differentiable_image_inputs(image)
-    reference = reward_model.processor.image_processor(
-        images=image.detach().cpu(),
-        do_rescale=False,
-        return_tensors="pt",
-    )
-    torch.testing.assert_close(native_grid.cpu(), reference["image_grid_thw"])
-    torch.testing.assert_close(native_pixels.detach().cpu(), reference["pixel_values"], rtol=1e-4, atol=1e-4)
 
     reward = reward_model(image, "unused")
     grad = torch.autograd.grad(reward, image)[0]

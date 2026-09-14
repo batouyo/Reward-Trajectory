@@ -39,6 +39,8 @@ class PaperRewardFlowConfig:
     gamma_rho: float | None = None
 
     collect_trace: bool = False
+    # Research-only static fusion; this is not the paper's adaptive softmax
+    # policy and signed values are intentionally permitted.
     static_reward_weights: dict[str, float] | None = None
 
     # ASSUMPTION: The paper defines one source z0 but does not define how a
@@ -74,6 +76,37 @@ class PaperRewardFlowConfig:
                     "Paper SDE noise requires explicit values for " + ", ".join(f"`{name}`" for name in missing) + "."
                 )
             _validate_gamma_parameters(self.gamma_min, self.gamma_max, self.gamma_rho)
+
+
+def freeze_module_parameters(module: object | None) -> int:
+    """Freeze an inference module without disabling gradients for its inputs.
+
+    Reward wrappers may either be ``torch.nn.Module`` instances themselves or
+    expose their model through ``.model``. Existing parameter gradients are
+    cleared so a paper-mode call cannot be mistaken for training.
+    """
+
+    if module is None:
+        return 0
+    owners = [module]
+    nested_model = getattr(module, "model", None)
+    if nested_model is not None and nested_model is not module:
+        owners.append(nested_model)
+
+    frozen = 0
+    seen = set()
+    for owner in owners:
+        parameters = getattr(owner, "parameters", None)
+        if not callable(parameters):
+            continue
+        for parameter in parameters():
+            if id(parameter) in seen:
+                continue
+            seen.add(id(parameter))
+            parameter.requires_grad_(False)
+            parameter.grad = None
+            frozen += 1
+    return frozen
 
 
 def _broadcast_scalar_or_batch(value: float | torch.Tensor, reference: torch.Tensor, name: str) -> torch.Tensor:

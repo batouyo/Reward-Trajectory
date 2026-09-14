@@ -15,9 +15,13 @@ _additional_imports = {}
 _import_structure = {
     "pipeline_output": ["FluxRewardFlowPipelineOutput"],
     "semantic_parser": [
+        "SEMANTIC_CACHE_SCHEMA_VERSION",
+        "SEMANTIC_PARSER_VERSION",
         "SemanticParseResult",
         "build_semantic_parser_prompt",
+        "fingerprint_image",
         "load_cached_parse",
+        "make_semantic_cache_key",
         "parse_semantic_parser_json",
         "save_cached_parse",
     ],
@@ -35,6 +39,7 @@ else:
         "PaperRewardFlowConfig",
         "clean_latent_kl_energy",
         "flow_step_size",
+        "freeze_module_parameters",
         "paper_euler_update",
         "paper_gamma_schedule",
         "predict_clean_latent",
@@ -42,7 +47,12 @@ else:
         "sample_langevin_noise",
     ]
     _import_structure["pipeline_rewardflow_flux"] = ["FluxRewardFlowPipeline"]
-    _import_structure["rewards"] = ["Qwen25VQAReward", "StaticRewardGuidance", "qwen_vqa_token_reward"]
+    _import_structure["rewards"] = [
+        "Qwen25VQAReward",
+        "ResearchStaticRewardGuidance",
+        "StaticRewardGuidance",
+        "qwen_vqa_token_reward",
+    ]
 if TYPE_CHECKING or DIFFUSERS_SLOW_IMPORT:
     try:
         if not (is_transformers_available() and is_torch_available()):
@@ -54,6 +64,7 @@ if TYPE_CHECKING or DIFFUSERS_SLOW_IMPORT:
             PaperRewardFlowConfig,
             clean_latent_kl_energy,
             flow_step_size,
+            freeze_module_parameters,
             paper_euler_update,
             paper_gamma_schedule,
             predict_clean_latent,
@@ -61,12 +72,21 @@ if TYPE_CHECKING or DIFFUSERS_SLOW_IMPORT:
             sample_langevin_noise,
         )
         from .pipeline_rewardflow_flux import FluxRewardFlowPipeline
-        from .rewards import Qwen25VQAReward, StaticRewardGuidance, qwen_vqa_token_reward
+        from .rewards import (
+            Qwen25VQAReward,
+            ResearchStaticRewardGuidance,
+            StaticRewardGuidance,
+            qwen_vqa_token_reward,
+        )
 
     from .semantic_parser import (
+        SEMANTIC_CACHE_SCHEMA_VERSION,
+        SEMANTIC_PARSER_VERSION,
         SemanticParseResult,
         build_semantic_parser_prompt,
+        fingerprint_image,
         load_cached_parse,
+        make_semantic_cache_key,
         parse_semantic_parser_json,
         save_cached_parse,
     )

@@ -31,6 +31,7 @@ from .paper_components import (
     PaperRewardFlowConfig,
     clean_latent_kl_energy,
     flow_step_size,
+    freeze_module_parameters,
     paper_euler_update,
     paper_gamma_schedule,
     predict_clean_latent,
@@ -39,9 +40,9 @@ from .paper_components import (
 from .pipeline_output import FluxRewardFlowPipelineOutput
 from .rewards import (
     RegionCLIPReward,
+    ResearchStaticRewardGuidance,
     RewardGuidance,
     SigLIPReward,
-    StaticRewardGuidance,
 )
 
 
@@ -526,6 +527,14 @@ class FluxRewardFlowPipeline(DiffusionPipeline, FluxRewardFlowLoraLoaderMixin):
         """Keep the official RewardFlow scheduler path isolated from paper mode."""
 
         return self.scheduler.step(model_output, timestep, sample, return_dict=False)[0]
+
+    def _freeze_paper_inference_modules(self, rewards: dict[str, Callable] | None = None) -> int:
+        """Freeze paper-mode model weights once while preserving input autograd."""
+
+        modules = [self.transformer, self.vae, self.text_encoder]
+        if rewards:
+            modules.extend(rewards.values())
+        return sum(freeze_module_parameters(module) for module in modules)
 
     def _paper_langevin_step(
         self,
@@ -1215,6 +1224,7 @@ class FluxRewardFlowPipeline(DiffusionPipeline, FluxRewardFlowLoraLoaderMixin):
                 dtype=self.vae.dtype,
             )
 
+        paper_rewards = {}
         paper_reward_guidance = None
         if paper_config.enabled and paper_config.static_reward_weights:
             if prompt is None:
@@ -1236,7 +1246,7 @@ class FluxRewardFlowPipeline(DiffusionPipeline, FluxRewardFlowLoraLoaderMixin):
                 raise TypeError(
                     "Paper reward guidance requires a named `reward_fns` dict; list order is not used to guess names."
                 )
-            paper_reward_guidance = StaticRewardGuidance(
+            paper_reward_guidance = ResearchStaticRewardGuidance(
                 rewards=paper_rewards,
                 weights=paper_config.static_reward_weights,
             )
@@ -1244,6 +1254,9 @@ class FluxRewardFlowPipeline(DiffusionPipeline, FluxRewardFlowLoraLoaderMixin):
                 prepare_fn = getattr(reward_fn, "prepare", None)
                 if callable(prepare_fn):
                     prepare_fn(prompt=prompt, device=device)
+
+        if paper_config.enabled:
+            self._freeze_paper_inference_modules(paper_rewards)
 
         paper_config.validate(
             reward_enabled=paper_reward_guidance is not None,

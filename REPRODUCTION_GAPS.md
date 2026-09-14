@@ -49,12 +49,18 @@ The legacy `reward_guidance=True` path remains separate.
   batch size one; the paper does not specify multi-sample loss reduction.
 - The paper defines one source `z0`. Multi-reference KL therefore requires explicit `source_image_index`; it never
   silently chooses a reference.
-- Static named reward weights are a transparent first-stage substitute, not the paper's prompt-aware adaptive policy.
-- The semantic cache uses a versioned JSON file keyed by SHA-256 of the edit instruction; the paper only says parses
-  are cached.
+- `ResearchStaticRewardGuidance` is a signed-weight research utility. It is not the paper's non-negative,
+  simplex-valued prompt-aware adaptive softmax policy; `StaticRewardGuidance` remains only as a compatibility alias.
+- The semantic cache uses schema v2 and binds its SHA-256 key to an image-content fingerprint, normalized instruction,
+  and parser-prompt version. The paper says parses are cached but does not specify the fingerprint or file format;
+  schema v1 instruction-only entries are deliberately rejected rather than reused.
 - Qwen image preprocessing reproduces checkpoint resize bounds, normalization, channel order, temporal duplication,
   patch order, and grid construction with torch operations. Differentiable bicubic interpolation is not bit-identical
-  to the reference PIL/NumPy bicubic path.
+  to the reference PIL/NumPy bicubic path. Official-vs-differentiable fidelity assertions use explicitly labeled
+  engineering sanity thresholds derived from observed local-model diagnostics, not paper values.
+- Paper mode freezes transformer, VAE, text-encoder, and reward-model parameters once before sampling while retaining
+  input autograd. Static reward routing may use differentiable device copies across GPUs; neither behavior changes the
+  paper's reward-gradient objective.
 - The Qwen chat prefix comes from the checkpoint's official chat template. Only raw target-answer tokens, excluding
   the assistant terminator, are scored because the paper does not define the exact serialized answer boundary.
 - Qwen VQA currently accepts one image per reward call. The paper reports batch size one for editing and does not
