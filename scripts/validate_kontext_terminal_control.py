@@ -1,7 +1,7 @@
-"""Validate long-horizon early velocity control on a real FLUX.1-Kontext model.
+"""Validate spatiotemporally masked shared-direction Kontext terminal control.
 
-Endpoint blue and pixel objectives are diagnostic controllability probes, not
-semantic edit-strength rewards. Every strength reuses one fixed native setup.
+Pixel endpoint interpolation is an oracle controllability diagnostic, not a
+semantic edit-strength definition. Native Kontext velocity is never scaled.
 """
 
 from __future__ import annotations
@@ -24,11 +24,11 @@ from diffusers.pipelines.rewardflow.pipeline_flux_kontext_terminal_control impor
     FluxKontextTerminalControlPipeline,
 )
 from diffusers.pipelines.rewardflow.terminal_control import (
-    BlueEndpointTargetLoss,
     EndpointPixelTargetLoss,
     endpoint_soft_mask,
     initialize_velocity_controls,
-    normalized_control_energy,
+    masked_effective_controls,
+    normalized_effective_control_energy,
     update_best_control_checkpoint,
 )
 
@@ -50,31 +50,32 @@ def _parse_args():
     parser.add_argument("--dtype", choices=("bfloat16", "float16"), default="bfloat16")
     parser.add_argument("--device", default="cuda:0")
     parser.add_argument("--strengths", type=float, nargs="+", default=(0.2, 0.5, 0.8))
-    parser.add_argument("--control-steps", type=int, default=2)
+    parser.add_argument("--control-steps", type=int, choices=(2, 3, 4), default=2)
+    parser.add_argument("--control-mode", choices=("independent", "shared-linear"), default="independent")
+    parser.add_argument("--control-mask-mode", choices=("none", "velocity-topk"), default="none")
+    parser.add_argument("--control-mask-topk-fraction", type=float, default=0.25)
     parser.add_argument("--outer-iters", type=int, default=20)
     parser.add_argument("--control-lr", type=float, default=0.1)
     parser.add_argument("--lambda-control", type=float, default=1e-4)
     parser.add_argument("--grad-clip", type=float, default=None)
-    parser.add_argument("--terminal-objective", choices=("blue", "pixel"), default="blue")
-    parser.add_argument("--endpoint-soft-mask", action="store_true")
     parser.add_argument("--use-checkpointing", action=argparse.BooleanOptionalAction, default=True)
     args = parser.parse_args()
     if not args.model:
         parser.error("Set FLUX_KONTEXT_MODEL_PATH or pass --model.")
-    if args.steps < 1:
-        parser.error("--steps must be positive.")
-    if not 1 <= args.control_steps <= args.steps:
-        parser.error("--control-steps must lie in [1, steps].")
+    if args.steps < args.control_steps:
+        parser.error("--steps must be at least --control-steps.")
     if args.outer_iters < 0:
         parser.error("--outer-iters must be non-negative.")
     if args.control_lr <= 0 or not math.isfinite(args.control_lr):
         parser.error("--control-lr must be finite and positive.")
     if args.lambda_control < 0 or not math.isfinite(args.lambda_control):
         parser.error("--lambda-control must be finite and non-negative.")
+    if not 0 < args.control_mask_topk_fraction <= 1:
+        parser.error("--control-mask-topk-fraction must lie in (0, 1].")
     if args.grad_clip is not None and (args.grad_clip <= 0 or not math.isfinite(args.grad_clip)):
         parser.error("--grad-clip must be finite and positive when provided.")
-    if any(not 0 <= strength <= 1 for strength in args.strengths):
-        parser.error("Every strength must lie in [0, 1].")
+    if len(set(args.strengths)) != len(args.strengths) or any(not 0 <= value <= 1 for value in args.strengths):
+        parser.error("Strengths must be unique values in [0, 1].")
     return args
 
 
@@ -110,37 +111,8 @@ def _model_has_gradient(pipe) -> bool:
     )
 
 
-def _control_step_diagnostics(controls, native_velocities) -> list[dict[str, float | int | None]]:
-    diagnostics = []
-    for step_index, (control, native) in enumerate(zip(controls, native_velocities)):
-        control_flat = control.detach().float().flatten()
-        native_flat = native.detach().float().flatten()
-        control_norm = torch.linalg.vector_norm(control_flat).item()
-        native_norm = torch.linalg.vector_norm(native_flat).item()
-        diagnostics.append(
-            {
-                "step_index": step_index,
-                "control_norm": control_norm,
-                "native_velocity_norm": native_norm,
-                "control_native_ratio": control_norm / native_norm if native_norm > 0 else None,
-                "control_native_cosine": (
-                    F.cosine_similarity(control_flat[None], native_flat[None]).item()
-                    if control_norm > 0 and native_norm > 0
-                    else None
-                ),
-            }
-        )
-    return diagnostics
-
-
-def _make_objective(name, source_image, full_image, weight):
-    if name == "blue":
-        return BlueEndpointTargetLoss(source_image, full_image, weight=weight)
-    return EndpointPixelTargetLoss(source_image, full_image, weight=weight)
-
-
-def _pixel_target(source_image: torch.Tensor, full_image: torch.Tensor, strength: float) -> torch.Tensor:
-    return (1 - strength) * source_image + strength * full_image
+def _pixel_target(source: torch.Tensor, full: torch.Tensor, strength: float) -> torch.Tensor:
+    return (1 - strength) * source + strength * full
 
 
 def _weighted_mean(value: torch.Tensor, weight: torch.Tensor) -> torch.Tensor:
@@ -148,39 +120,28 @@ def _weighted_mean(value: torch.Tensor, weight: torch.Tensor) -> torch.Tensor:
     return (value * expanded).sum() / expanded.sum().clamp_min(torch.finfo(value.dtype).eps)
 
 
-def _endpoint_distance_metrics(image, source, full, target, weight) -> dict[str, float | None]:
+def _endpoint_metrics(image, source, full, target, endpoint_weight, velocity_image_mask) -> dict[str, float]:
     differences = {
         "source": image.float() - source.float(),
         "full": image.float() - full.float(),
-        "pixel_target": image.float() - target.float(),
+        "target": image.float() - target.float(),
     }
     metrics = {}
     for name, difference in differences.items():
         metrics[f"mse_to_{name}"] = difference.square().mean().item()
         metrics[f"mad_to_{name}"] = difference.abs().mean().item()
-    metrics.update(
-        {
-            "masked_mse_to_source": None,
-            "masked_mse_to_full": None,
-            "masked_mse_to_target": None,
-            "background_mse_to_source": None,
-            "background_mse_to_full": None,
-        }
-    )
-    if weight is not None:
-        metrics["masked_mse_to_source"] = (weight * differences["source"].square()).mean().item()
-        metrics["masked_mse_to_full"] = (weight * differences["full"].square()).mean().item()
-        metrics["masked_mse_to_target"] = (weight * differences["pixel_target"].square()).mean().item()
-        unit_mask = (weight / weight.amax(dim=(2, 3), keepdim=True).clamp_min(1e-8)).clamp(0, 1)
-        background = 1 - unit_mask
-        metrics["background_mse_to_source"] = _weighted_mean(differences["source"].square(), background).item()
-        metrics["background_mse_to_full"] = _weighted_mean(differences["full"].square(), background).item()
+    unit_endpoint = (endpoint_weight / endpoint_weight.amax(dim=(2, 3), keepdim=True).clamp_min(1e-8)).clamp(0, 1)
+    background = 1 - unit_endpoint
+    metrics["background_mse_to_source"] = _weighted_mean(differences["source"].square(), background).item()
+    metrics["background_mad_to_source"] = _weighted_mean(differences["source"].abs(), background).item()
+    inside = velocity_image_mask
+    outside = 1 - inside
+    metrics["inside_velocity_mask_mse_to_source"] = _weighted_mean(differences["source"].square(), inside).item()
+    metrics["outside_velocity_mask_mse_to_source"] = _weighted_mean(differences["source"].square(), outside).item()
     return metrics
 
 
 def _trajectory_distances(unroll, native_states) -> list[dict[str, float | int]]:
-    if len(unroll.states) != len(native_states):
-        raise RuntimeError("Controlled and native trajectories have different state counts.")
     rows = []
     for state_index, (controlled, native) in enumerate(zip(unroll.states, native_states)):
         difference = controlled.detach().float() - native.detach().float()
@@ -195,190 +156,420 @@ def _trajectory_distances(unroll, native_states) -> list[dict[str, float | int]]
     return rows
 
 
-def _evaluate_controls(pipe, inputs, controls, objective, strength, native_states, source, full, target, weight):
+def _active_energy(controls, masks) -> torch.Tensor:
+    values = []
+    for control, mask in zip(controls, masks):
+        expanded = mask.to(control).expand_as(control)
+        values.append((control.float().square() * expanded).sum() / expanded.sum().clamp_min(1))
+    return torch.stack(values).mean()
+
+
+def _control_diagnostics(directions, controls, native_velocities, masks):
+    rows = []
+    for step_index, (direction, control, native, mask) in enumerate(
+        zip(directions, controls, native_velocities, masks)
+    ):
+        direction_flat = direction.detach().float().flatten()
+        control_float = control.detach().float()
+        native_float = native.detach().float()
+        control_flat = control_float.flatten()
+        native_flat = native_float.flatten()
+        expanded_mask = mask.to(control_float).expand_as(control_float)
+        active_count = expanded_mask.sum().clamp_min(1)
+        control_norm = torch.linalg.vector_norm(control_flat).item()
+        native_norm = torch.linalg.vector_norm(native_flat).item()
+        active_control_rms = ((control_float.square() * expanded_mask).sum() / active_count).sqrt().item()
+        active_native_rms = ((native_float.square() * expanded_mask).sum() / active_count).sqrt().item()
+        rows.append(
+            {
+                "step_index": step_index,
+                "raw_direction_norm": torch.linalg.vector_norm(direction_flat).item(),
+                "effective_control_norm": control_norm,
+                "native_velocity_norm": native_norm,
+                "active_region_effective_control_rms": active_control_rms,
+                "active_region_native_velocity_rms": active_native_rms,
+                "active_control_native_ratio": active_control_rms / active_native_rms if active_native_rms else None,
+                "global_effective_control_rms": control_float.square().mean().sqrt().item(),
+                "global_native_velocity_rms": native_float.square().mean().sqrt().item(),
+                "global_control_native_ratio": control_norm / native_norm if native_norm else None,
+                "control_native_cosine": (
+                    F.cosine_similarity(control_flat[None], native_flat[None]).item()
+                    if control_norm and native_norm
+                    else None
+                ),
+                "mask_active_fraction": mask.float().mean().item(),
+                "max_control_outside_mask": (control_float * (1 - expanded_mask)).abs().max().item(),
+            }
+        )
+    return rows
+
+
+def _evaluate(
+    pipe,
+    inputs,
+    directions,
+    masks,
+    strength,
+    shared,
+    objective,
+    native_states,
+    source,
+    full,
+    target,
+    endpoint_weight,
+    velocity_image_mask,
+):
+    controls = masked_effective_controls(directions, masks, strength=strength if shared else None)
     with torch.no_grad():
         unroll = pipe.unroll_terminal_controls(inputs, controls, use_checkpointing=False)
         image = pipe.decode_terminal_latent(unroll.final_latent, inputs).detach()
-        objective_output = objective(image, strength)
+        output = objective(image, strength)
     return {
         "image": image.cpu(),
-        "objective_error": objective_output.objective_error.item(),
-        "terminal_objective_loss": objective_output.loss.item(),
-        "source_blue_score": objective_output.source_score.mean().item(),
-        "full_blue_score": objective_output.full_score.mean().item(),
-        "target_blue_score": objective_output.target_score.mean().item(),
-        "achieved_blue_score": objective_output.achieved_score.mean().item(),
-        "final_latent_norm": torch.linalg.vector_norm(unroll.final_latent.float()).item(),
-        "controlled_steps": _control_step_diagnostics(controls, unroll.native_control_velocities),
+        "objective_error": output.objective_error.item(),
+        "terminal_objective_loss": output.loss.item(),
+        "source_blue_score": output.source_score.mean().item(),
+        "full_blue_score": output.full_score.mean().item(),
+        "target_blue_score": output.target_score.mean().item(),
+        "achieved_blue_score": output.achieved_score.mean().item(),
+        "controlled_steps": _control_diagnostics(directions, controls, unroll.native_control_velocities, masks),
         "trajectory_distances": _trajectory_distances(unroll, native_states),
-        "endpoint_distances": _endpoint_distance_metrics(image, source, full, target, weight),
+        "endpoint_distances": _endpoint_metrics(image, source, full, target, endpoint_weight, velocity_image_mask),
     }
 
 
-def _optimize_strength(pipe, inputs, objective, args, strength, native_states, source, full, target, weight):
-    controls = initialize_velocity_controls(inputs.initial_latent, args.control_steps)
-    optimizer = torch.optim.Adam(controls, lr=args.control_lr)
-    trace = []
-    initial = _evaluate_controls(
-        pipe, inputs, controls, objective, strength, native_states, source, full, target, weight
+def _independent_optimize(
+    pipe, inputs, masks, objective, args, strength, native_states, source, full, target, endpoint_weight, image_mask
+):
+    directions = initialize_velocity_controls(inputs.initial_latent, args.control_steps)
+    optimizer = torch.optim.Adam(directions, lr=args.control_lr)
+    initial = _evaluate(
+        pipe,
+        inputs,
+        directions,
+        masks,
+        strength,
+        False,
+        objective,
+        native_states,
+        source,
+        full,
+        target,
+        endpoint_weight,
+        image_mask,
     )
     best = update_best_control_checkpoint(
-        None,
-        iteration=-1,
-        objective_error=torch.tensor(initial["objective_error"], device=inputs.initial_latent.device),
-        controls=controls,
+        None, iteration=0, objective_error=torch.tensor(initial["objective_error"]), controls=directions
     )
-
-    for outer_iter in range(args.outer_iters):
+    trace = []
+    for iteration in range(1, args.outer_iters + 1):
         optimizer.zero_grad(set_to_none=True)
-        torch.cuda.empty_cache()
-        torch.cuda.reset_peak_memory_stats(args.device)
-        torch.cuda.synchronize(args.device)
+        controls = masked_effective_controls(directions, masks)
         started = time.perf_counter()
         unroll = pipe.unroll_terminal_controls(inputs, controls, use_checkpointing=args.use_checkpointing)
-        final_image = pipe.decode_terminal_latent(unroll.final_latent, inputs)
-        objective_output = objective(final_image, strength)
+        image = pipe.decode_terminal_latent(unroll.final_latent, inputs)
+        output = objective(image, strength)
         best = update_best_control_checkpoint(
             best,
-            iteration=outer_iter,
-            objective_error=objective_output.objective_error,
-            controls=controls,
+            iteration=iteration - 1,
+            objective_error=output.objective_error,
+            controls=directions,
         )
-        control_regularization = normalized_control_energy(controls)
-        total_loss = objective_output.loss + args.lambda_control * control_regularization
+        regularization = normalized_effective_control_energy([controls])
+        total_loss = output.loss + args.lambda_control * regularization
         total_loss.backward()
-
-        gradients = [control.grad for control in controls]
-        if any(gradient is None for gradient in gradients):
-            raise RuntimeError("Terminal loss did not reach every configured early control.")
-        if any(not torch.isfinite(gradient).all() for gradient in gradients):
-            raise RuntimeError("A terminal-control gradient contains non-finite values.")
-        if not any(gradient.abs().sum() > 0 for gradient in gradients):
-            raise RuntimeError("Terminal loss produced only zero early-control gradients.")
+        if any(parameter.grad is None or not torch.isfinite(parameter.grad).all() for parameter in directions):
+            raise RuntimeError("Independent control gradients are missing or non-finite.")
         if _model_has_gradient(pipe):
-            raise RuntimeError("Frozen Kontext/VAE/text parameters unexpectedly received gradients.")
-
-        grad_norms = [torch.linalg.vector_norm(gradient.detach().float()).item() for gradient in gradients]
-        controlled_steps = _control_step_diagnostics(controls, unroll.native_control_velocities)
-        for diagnostic, grad_norm in zip(controlled_steps, grad_norms):
-            diagnostic["control_gradient_norm"] = grad_norm
+            raise RuntimeError("Frozen model parameters unexpectedly received gradients.")
+        diagnostics = _control_diagnostics(directions, controls, unroll.native_control_velocities, masks)
+        for row, parameter in zip(diagnostics, directions):
+            row["direction_gradient_norm"] = torch.linalg.vector_norm(parameter.grad.detach().float()).item()
         if args.grad_clip is not None:
-            torch.nn.utils.clip_grad_norm_(controls, args.grad_clip)
+            torch.nn.utils.clip_grad_norm_(directions, args.grad_clip)
         optimizer.step()
-        torch.cuda.synchronize(args.device)
         trace.append(
             {
+                "outer_iter": iteration,
                 "strength": strength,
-                "outer_iter": outer_iter,
-                "objective_name": objective_output.objective_name,
-                "objective_error": objective_output.objective_error.detach().item(),
-                "terminal_objective_loss": objective_output.loss.detach().item(),
-                "total_loss": total_loss.detach().item(),
-                "control_regularization": control_regularization.detach().item(),
-                "weighted_control_regularization": (args.lambda_control * control_regularization).detach().item(),
-                "source_blue_score": objective_output.source_score.detach().mean().item(),
-                "full_blue_score": objective_output.full_score.detach().mean().item(),
-                "target_blue_score": objective_output.target_score.detach().mean().item(),
-                "achieved_blue_score": objective_output.achieved_score.detach().mean().item(),
-                "controlled_step_indices": list(unroll.controlled_step_indices),
-                "controlled_steps": controlled_steps,
-                "final_latent_norm": torch.linalg.vector_norm(unroll.final_latent.detach().float()).item(),
+                "objective_error_before_step": output.objective_error.detach().item(),
+                "terminal_objective_loss_before_step": output.loss.detach().item(),
+                "global_control_energy": regularization.detach().item(),
+                "active_control_energy": _active_energy(controls, masks).detach().item(),
+                "controlled_steps": diagnostics,
                 "elapsed_seconds": time.perf_counter() - started,
-                "peak_cuda_allocated_mb": torch.cuda.max_memory_allocated(args.device) / 2**20,
-                "peak_cuda_reserved_mb": torch.cuda.max_memory_reserved(args.device) / 2**20,
             }
         )
-        del final_image, total_loss, objective_output, unroll
-
-    final = _evaluate_controls(
-        pipe, inputs, controls, objective, strength, native_states, source, full, target, weight
+        del image, output, total_loss, unroll
+    final = _evaluate(
+        pipe,
+        inputs,
+        directions,
+        masks,
+        strength,
+        False,
+        objective,
+        native_states,
+        source,
+        full,
+        target,
+        endpoint_weight,
+        image_mask,
     )
     best = update_best_control_checkpoint(
-        best,
-        iteration=args.outer_iters,
-        objective_error=torch.tensor(final["objective_error"], device=inputs.initial_latent.device),
-        controls=controls,
+        best, iteration=args.outer_iters, objective_error=torch.tensor(final["objective_error"]), controls=directions
     )
-    best_result = _evaluate_controls(
-        pipe, inputs, best.controls, objective, strength, native_states, source, full, target, weight
+    best_result = _evaluate(
+        pipe,
+        inputs,
+        best.controls,
+        masks,
+        strength,
+        False,
+        objective,
+        native_states,
+        source,
+        full,
+        target,
+        endpoint_weight,
+        image_mask,
     )
+    controls = masked_effective_controls(directions, masks)
+    global_energy = normalized_effective_control_energy([controls]).detach().item()
+    reduction = initial["objective_error"] - final["objective_error"]
     return {
-        "objective_name": objective.__class__.__name__,
-        "controlled_step_indices": list(range(args.control_steps)),
         "initial": initial,
-        "final": final,
         "best": best_result,
+        "final": final,
         "best_iter": best.iteration,
         "best_objective_error": best.objective_error,
         "final_objective_error": final["objective_error"],
+        "global_control_energy": global_energy,
+        "active_control_energy": _active_energy(controls, masks).detach().item(),
+        "error_reduction": reduction,
+        "error_reduction_per_global_control_energy": reduction / global_energy if global_energy else None,
         "trace": trace,
     }
 
 
-def _write_trace_csv(path: Path, rows: list[dict]) -> None:
-    if not rows:
-        path.write_text("", encoding="utf-8")
-        return
-    normalized = []
-    for row in rows:
-        normalized.append(
-            {key: json.dumps(value) if isinstance(value, (list, dict)) else value for key, value in row.items()}
+def _shared_optimize(
+    pipe, inputs, masks, objective, args, strengths, native_states, source, full, targets, endpoint_weight, image_mask
+):
+    directions = initialize_velocity_controls(inputs.initial_latent, args.control_steps)
+    optimizer = torch.optim.Adam(directions, lr=args.control_lr)
+
+    def evaluate_all(parameters):
+        return {
+            strength: _evaluate(
+                pipe,
+                inputs,
+                parameters,
+                masks,
+                strength,
+                True,
+                objective,
+                native_states,
+                source,
+                full,
+                targets[strength],
+                endpoint_weight,
+                image_mask,
+            )
+            for strength in strengths
+        }
+
+    initial = evaluate_all(directions)
+    initial_mean = sum(item["objective_error"] for item in initial.values()) / len(strengths)
+    best = update_best_control_checkpoint(
+        None, iteration=0, objective_error=torch.tensor(initial_mean), controls=directions
+    )
+    trace = []
+    for iteration in range(1, args.outer_iters + 1):
+        optimizer.zero_grad(set_to_none=True)
+        branch_errors = []
+        for strength in strengths:
+            controls = masked_effective_controls(directions, masks, strength=strength)
+            started = time.perf_counter()
+            unroll = pipe.unroll_terminal_controls(inputs, controls, use_checkpointing=args.use_checkpointing)
+            image = pipe.decode_terminal_latent(unroll.final_latent, inputs)
+            output = objective(image, strength)
+            (output.loss / len(strengths)).backward()
+            branch_errors.append(output.objective_error.detach())
+            trace.append(
+                {
+                    "outer_iter": iteration,
+                    "strength": strength,
+                    "objective_error_before_step": output.objective_error.detach().item(),
+                    "terminal_objective_loss_before_step": output.loss.detach().item(),
+                    "controlled_steps": _control_diagnostics(
+                        directions, controls, unroll.native_control_velocities, masks
+                    ),
+                    "elapsed_seconds": time.perf_counter() - started,
+                }
+            )
+            del image, output, unroll
+        regularization_controls = [
+            masked_effective_controls(directions, masks, strength=strength) for strength in strengths
+        ]
+        regularization = normalized_effective_control_energy(regularization_controls)
+        (args.lambda_control * regularization).backward()
+        if any(parameter.grad is None or not torch.isfinite(parameter.grad).all() for parameter in directions):
+            raise RuntimeError("Shared direction gradients are missing or non-finite.")
+        if _model_has_gradient(pipe):
+            raise RuntimeError("Frozen model parameters unexpectedly received gradients.")
+        mean_error = torch.stack(branch_errors).mean()
+        best = update_best_control_checkpoint(
+            best, iteration=iteration - 1, objective_error=mean_error, controls=directions
         )
-    with path.open("w", newline="", encoding="utf-8") as handle:
-        writer = csv.DictWriter(handle, fieldnames=list(normalized[0]))
-        writer.writeheader()
-        writer.writerows(normalized)
+        active_energy = torch.stack([_active_energy(controls, masks) for controls in regularization_controls]).mean()
+        gradient_norms = [torch.linalg.vector_norm(parameter.grad.detach().float()).item() for parameter in directions]
+        for row in trace[-len(strengths) :]:
+            row["global_control_energy"] = regularization.detach().item()
+            row["active_control_energy"] = active_energy.detach().item()
+            row["shared_direction_gradient_norms"] = gradient_norms
+        if args.grad_clip is not None:
+            torch.nn.utils.clip_grad_norm_(directions, args.grad_clip)
+        optimizer.step()
+
+    final = evaluate_all(directions)
+    final_mean = sum(item["objective_error"] for item in final.values()) / len(strengths)
+    best = update_best_control_checkpoint(
+        best, iteration=args.outer_iters, objective_error=torch.tensor(final_mean), controls=directions
+    )
+    best_results = evaluate_all(best.controls)
+    families = [masked_effective_controls(directions, masks, strength=s) for s in strengths]
+    global_energy = normalized_effective_control_energy(families).detach().item()
+    active_energy = torch.stack([_active_energy(controls, masks) for controls in families]).mean().detach().item()
+    results = {}
+    for strength in strengths:
+        reduction = initial[strength]["objective_error"] - final[strength]["objective_error"]
+        results[strength] = {
+            "initial": initial[strength],
+            "best": best_results[strength],
+            "final": final[strength],
+            "best_iter": best.iteration,
+            "best_family_mean_objective_error": best.objective_error,
+            "final_objective_error": final[strength]["objective_error"],
+            "global_control_energy": global_energy,
+            "active_control_energy": active_energy,
+            "error_reduction": reduction,
+            "error_reduction_per_global_control_energy": reduction / global_energy if global_energy else None,
+            "trace": [row for row in trace if row["strength"] == strength],
+        }
+    stats = {
+        "raw_shared_direction_norms": [
+            torch.linalg.vector_norm(direction.detach().float()).item() for direction in directions
+        ],
+        "strength_scaling": {str(strength): 1 - strength for strength in strengths},
+        "number_of_direction_parameter_tensors": len(directions),
+        "has_branch_specific_direction_parameters": False,
+        "best_family_mean_objective_error": best.objective_error,
+        "final_family_mean_objective_error": final_mean,
+    }
+    return results, stats
 
 
-def _make_comparison_grid(source, native, targets, results, result_name):
-    images = [source, native]
-    labels = ["Source", "Native Full"]
+def _score_to_pil(score: torch.Tensor, token_height: int, token_width: int, image_size):
+    value = score.reshape(1, 1, token_height, token_width)
+    minimum, maximum = value.amin(), value.amax()
+    normalized = ((value - minimum) / (maximum - minimum).clamp_min(1e-8))[0, 0]
+    rgb = torch.stack([normalized, 1 - (2 * normalized - 1).abs(), 1 - normalized])
+    array = rgb.mul(255).to(torch.uint8).permute(1, 2, 0).cpu().numpy()
+    return Image.fromarray(array, mode="RGB").resize(image_size, Image.Resampling.NEAREST)
+
+
+def _mask_to_pil(mask: torch.Tensor, token_height: int, token_width: int, image_size):
+    array = mask[0, :, 0].reshape(token_height, token_width).mul(255).to(torch.uint8).cpu().numpy()
+    return Image.fromarray(array, mode="L").convert("RGB").resize(image_size, Image.Resampling.NEAREST)
+
+
+def _save_mask_visualizations(output_dir, scores, masks, token_height, token_width, image_size):
+    panels = []
+    for step, (score, mask) in enumerate(zip(scores, masks)):
+        score_image = _score_to_pil(score, token_height, token_width, image_size)
+        mask_image = _mask_to_pil(mask, token_height, token_width, image_size)
+        score_image.save(output_dir / f"velocity_score_step{step}.png")
+        mask_image.save(output_dir / f"velocity_mask_step{step}.png")
+        panels.extend([(score_image, f"Score step {step}"), (mask_image, f"Mask step {step}")])
+    width, height = image_size
+    grid = Image.new("RGB", (width * len(panels), height + 30), "white")
+    draw = ImageDraw.Draw(grid)
+    for index, (panel, label) in enumerate(panels):
+        draw.text((index * width + 6, 8), label, fill="black")
+        grid.paste(panel, (index * width, 30))
+    grid.save(output_dir / "velocity_masks_grid.png")
+
+
+def _make_grid(source, native, targets, results, result_name):
+    images = [source]
+    labels = ["Source"]
     for strength, target in targets.items():
         images.extend([_tensor_to_pil(target[0]), _tensor_to_pil(results[strength][result_name]["image"][0])])
         labels.extend([f"Target {strength:g}", f"{result_name.title()} {strength:g}"])
+    images.append(native)
+    labels.append("Native Full")
     width, height = source.size
-    header = 30
-    grid = Image.new("RGB", (width * len(images), height + header), "white")
+    grid = Image.new("RGB", (width * len(images), height + 30), "white")
     draw = ImageDraw.Draw(grid)
     for index, (image, label) in enumerate(zip(images, labels)):
-        left = index * width
-        draw.text((left + 6, 8), label, fill="black")
-        grid.paste(image.resize((width, height), Image.Resampling.LANCZOS), (left, header))
+        draw.text((index * width + 6, 8), label, fill="black")
+        grid.paste(image.resize((width, height), Image.Resampling.LANCZOS), (index * width, 30))
     return grid
 
 
-def _serializable_result(result):
-    serialized = {}
+def _write_trace(path, rows):
+    normalized = [
+        {key: json.dumps(value) if isinstance(value, (list, dict)) else value for key, value in row.items()}
+        for row in rows
+    ]
+    with path.open("w", newline="", encoding="utf-8") as handle:
+        if normalized:
+            writer = csv.DictWriter(handle, fieldnames=list(normalized[0]))
+            writer.writeheader()
+            writer.writerows(normalized)
+
+
+def _serializable(result):
+    output = {}
     for key, value in result.items():
         if key == "trace":
             continue
-        if key in {"initial", "final", "best"}:
-            serialized[key] = {
-                nested_key: nested_value for nested_key, nested_value in value.items() if nested_key != "image"
-            }
+        if key in {"initial", "best", "final"}:
+            output[key] = {nested: item for nested, item in value.items() if nested != "image"}
         else:
-            serialized[key] = value
-    return serialized
+            output[key] = value
+    return output
 
 
 def main():
     args = _parse_args()
     if not torch.cuda.is_available():
-        raise RuntimeError("Real Kontext terminal-control validation requires CUDA.")
+        raise RuntimeError("Real Kontext validation requires CUDA.")
     output_dir = Path(args.output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
     source_pil = Image.open(args.source).convert("RGB").resize((args.width, args.height), Image.Resampling.LANCZOS)
     source_pil.save(output_dir / "source.png")
+    config = vars(args).copy()
+    config["model"] = os.path.realpath(args.model)
+    config["source"] = os.path.realpath(args.source)
+    (output_dir / "config.json").write_text(json.dumps(config, indent=2), encoding="utf-8")
 
     device = torch.device(args.device)
     dtype = torch.bfloat16 if args.dtype == "bfloat16" else torch.float16
     torch.cuda.set_device(device)
-    print(f"Loading {args.model} on {device} as {dtype}", flush=True)
     pipe = FluxKontextTerminalControlPipeline.from_pretrained(args.model, torch_dtype=dtype, local_files_only=True).to(
         device
     )
     pipe.set_progress_bar_config(disable=True)
-
+    inputs = pipe.prepare_terminal_control_inputs(
+        image=source_pil,
+        prompt=args.prompt,
+        height=args.height,
+        width=args.width,
+        num_inference_steps=args.steps,
+        guidance_scale=args.guidance_scale,
+        generator=torch.Generator(device=device).manual_seed(args.seed),
+    )
     common = {
         "image": source_pil,
         "prompt": args.prompt,
@@ -390,116 +581,124 @@ def main():
         "guidance_scale": args.guidance_scale,
         "output_type": "latent",
     }
-    inputs = pipe.prepare_terminal_control_inputs(
-        image=source_pil,
-        prompt=args.prompt,
-        height=args.height,
-        width=args.width,
-        num_inference_steps=args.steps,
-        guidance_scale=args.guidance_scale,
-        generator=torch.Generator(device=device).manual_seed(args.seed),
-    )
     official = FluxKontextPipeline.__call__(
         pipe, **common, generator=torch.Generator(device=device).manual_seed(args.seed)
     ).images
-    zero_controls = initialize_velocity_controls(inputs.initial_latent, args.control_steps)
-    with torch.no_grad():
-        zero_unroll = pipe.unroll_terminal_controls(inputs, zero_controls, use_checkpointing=False)
-    official_vs_native = _latent_parity(inputs.native_final_latent, official)
-    zero_vs_native = _latent_parity(zero_unroll.final_latent, inputs.native_final_latent)
-    print(
-        json.dumps({"official_vs_native": official_vs_native, "zero_vs_native": zero_vs_native}, indent=2), flush=True
+    velocity_masks, native_unroll = pipe.prepare_velocity_edit_masks(
+        inputs,
+        control_steps=args.control_steps,
+        mode=args.control_mask_mode,
+        topk_fraction=args.control_mask_topk_fraction,
     )
-    if official_vs_native["max_absolute_error"] != 0 or zero_vs_native["max_absolute_error"] != 0:
-        raise RuntimeError("Zero-control parity failed; refusing to start terminal-control optimization.")
+    official_parity = _latent_parity(inputs.native_final_latent, official)
+    zero_parity = _latent_parity(native_unroll.final_latent, inputs.native_final_latent)
+    if official_parity["max_absolute_error"] != 0 or zero_parity["max_absolute_error"] != 0:
+        raise RuntimeError("Zero-control parity failed; optimization was not started.")
 
+    _save_mask_visualizations(
+        output_dir,
+        velocity_masks.scores,
+        velocity_masks.masks,
+        inputs.sampling_token_height,
+        inputs.sampling_token_width,
+        source_pil.size,
+    )
+    union_mask = (
+        torch.stack(velocity_masks.masks)
+        .amax(dim=0)
+        .permute(0, 2, 1)
+        .reshape(1, 1, inputs.sampling_token_height, inputs.sampling_token_width)
+    )
+    velocity_image_mask = F.interpolate(union_mask, size=(args.height, args.width), mode="nearest")
+    source = _pil_to_tensor(source_pil, device)
     with torch.no_grad():
-        native_full_image = pipe.decode_terminal_latent(inputs.native_final_latent, inputs).detach()
-    native_full_pil = _tensor_to_pil(native_full_image[0])
-    native_full_pil.save(output_dir / "native_full.png")
-    source_image = _pil_to_tensor(source_pil, device)
-    weight = endpoint_soft_mask(source_image, native_full_image) if args.endpoint_soft_mask else None
-    objective = _make_objective(args.terminal_objective, source_image, native_full_image, weight)
-    targets = {
-        float(strength): _pixel_target(source_image, native_full_image, float(strength)).detach().cpu()
-        for strength in args.strengths
-    }
+        full = pipe.decode_terminal_latent(inputs.native_final_latent, inputs).detach()
+    native_pil = _tensor_to_pil(full[0])
+    native_pil.save(output_dir / "native_full.png")
+    endpoint_weight = endpoint_soft_mask(source, full)
+    objective = EndpointPixelTargetLoss(source, full)
+    strengths = tuple(float(value) for value in args.strengths)
+    targets = {strength: _pixel_target(source, full, strength).detach() for strength in strengths}
     for strength, target in targets.items():
-        _tensor_to_pil(target[0]).save(output_dir / f"target_s{_float_tag(strength)}.png")
+        _tensor_to_pil(target[0]).save(output_dir / f"target_{_float_tag(strength)}.png")
 
-    torch.save(
-        {
-            "initial_latent": inputs.initial_latent.detach().cpu(),
-            "native_final_latent": inputs.native_final_latent.detach().cpu(),
-            "sigmas": inputs.sigmas.detach().cpu(),
-            "timesteps": torch.stack([t.detach().cpu() for t in inputs.timesteps]),
-        },
-        output_dir / "fixed_trajectory.pt",
-    )
-
-    results = {}
-    trace_rows = []
-    native_states = zero_unroll.states
-    for strength in args.strengths:
-        strength = float(strength)
-        print(f"Optimizing terminal controls for strength={strength:g}", flush=True)
-        target = targets[strength].to(device)
-        result = _optimize_strength(
+    if args.control_mode == "shared-linear":
+        results, shared_stats = _shared_optimize(
             pipe,
             inputs,
+            velocity_masks.masks,
             objective,
             args,
-            strength,
-            native_states,
-            source_image,
-            native_full_image,
-            target,
-            weight,
+            strengths,
+            native_unroll.states,
+            source,
+            full,
+            targets,
+            endpoint_weight,
+            velocity_image_mask,
         )
-        results[strength] = result
-        trace_rows.extend(result["trace"])
+        (output_dir / "shared_direction_stats.json").write_text(json.dumps(shared_stats, indent=2), encoding="utf-8")
+    else:
+        shared_stats = None
+        results = {
+            strength: _independent_optimize(
+                pipe,
+                inputs,
+                velocity_masks.masks,
+                objective,
+                args,
+                strength,
+                native_unroll.states,
+                source,
+                full,
+                targets[strength],
+                endpoint_weight,
+                velocity_image_mask,
+            )
+            for strength in strengths
+        }
+
+    trace = []
+    for strength, result in results.items():
+        trace.extend(result["trace"])
         tag = _float_tag(strength)
-        _tensor_to_pil(result["initial"]["image"][0]).save(output_dir / f"strength_{tag}_iter_initial.png")
-        _tensor_to_pil(result["best"]["image"][0]).save(output_dir / f"strength_{tag}_best.png")
-        _tensor_to_pil(result["final"]["image"][0]).save(output_dir / f"strength_{tag}_final.png")
-        print(json.dumps({"strength": strength, **_serializable_result(result)}, indent=2), flush=True)
+        for result_name in ("best", "final"):
+            _tensor_to_pil(result[result_name]["image"][0]).save(output_dir / f"{result_name}_{tag}.png")
+    _make_grid(source_pil, native_pil, targets, results, "best").save(output_dir / "comparison_grid_best.png")
+    _make_grid(source_pil, native_pil, targets, results, "final").save(output_dir / "comparison_grid_final.png")
+    _write_trace(output_dir / "trace.csv", trace)
 
-    _make_comparison_grid(source_pil, native_full_pil, targets, results, "best").save(
-        output_dir / "terminal_control_grid_best.png"
-    )
-    _make_comparison_grid(source_pil, native_full_pil, targets, results, "final").save(
-        output_dir / "terminal_control_grid_final.png"
-    )
-    _write_trace_csv(output_dir / "terminal_control_trace.csv", trace_rows)
-    with (output_dir / "terminal_control_trace.json").open("w", encoding="utf-8") as handle:
-        json.dump(trace_rows, handle, indent=2)
-
+    source_order = [results[strength]["final"]["endpoint_distances"]["mse_to_source"] for strength in strengths]
+    full_order = [results[strength]["final"]["endpoint_distances"]["mse_to_full"] for strength in strengths]
     report = {
-        "scope": "terminal early-velocity control with diagnostic endpoint targets",
-        "model_path": os.path.realpath(args.model),
-        "source_path": os.path.realpath(args.source),
-        "prompt": args.prompt,
+        "scope": "oracle controller validation; pixel interpolation is not semantic strength",
+        **config,
         "gpu_name": torch.cuda.get_device_name(device),
-        "device": str(device),
-        "dtype": str(dtype),
-        "steps": args.steps,
-        "seed": args.seed,
-        "guidance_scale": args.guidance_scale,
-        "control_steps": args.control_steps,
+        "official_vs_native_parity": official_parity,
+        "zero_control_vs_native_parity": zero_parity,
+        "source_alignment": {
+            "sampling_shape": list(inputs.initial_latent.shape),
+            "aligned_source_shape": list(inputs.source_clean_latent.shape),
+            "sampling_token_grid": [inputs.sampling_token_height, inputs.sampling_token_width],
+        },
         "controlled_step_indices": list(range(args.control_steps)),
-        "outer_iters": args.outer_iters,
-        "control_lr": args.control_lr,
-        "lambda_control": args.lambda_control,
-        "use_checkpointing": args.use_checkpointing,
-        "objective_name": args.terminal_objective,
-        "endpoint_soft_mask": args.endpoint_soft_mask,
-        "official_vs_native_parity": official_vs_native,
-        "zero_control_vs_native_parity": zero_vs_native,
+        "mask_active_fractions": [mask.float().mean().item() for mask in velocity_masks.masks],
+        "max_absolute_effective_control_outside_mask": max(
+            row["max_control_outside_mask"]
+            for result in results.values()
+            for row in result["final"]["controlled_steps"]
+        ),
+        "strength_ordering": {
+            "mse_to_source_non_decreasing": all(a <= b for a, b in zip(source_order, source_order[1:])),
+            "mse_to_full_non_increasing": all(a >= b for a, b in zip(full_order, full_order[1:])),
+            "mse_to_source": source_order,
+            "mse_to_full": full_order,
+        },
         "model_parameters_have_gradient": _model_has_gradient(pipe),
-        "results": {str(strength): _serializable_result(result) for strength, result in results.items()},
+        "shared_direction_stats": shared_stats,
+        "results": {str(strength): _serializable(result) for strength, result in results.items()},
     }
-    with (output_dir / "terminal_control_report.json").open("w", encoding="utf-8") as handle:
-        json.dump(report, handle, indent=2)
+    (output_dir / "report.json").write_text(json.dumps(report, indent=2), encoding="utf-8")
     print("FINAL_REPORT=" + json.dumps(report, sort_keys=True), flush=True)
 
 

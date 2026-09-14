@@ -110,3 +110,31 @@ exist only for norm and cosine logging.
 
 The blue-direction and pixel-interpolation endpoint targets are controllability probes, not semantic interpolation
 claims. This path adds no SDE, model training, local per-step reward, or production strength-reward implementation.
+
+### Spatiotemporally masked shared-direction diagnostic
+
+The extended controller can restrict the early prefix to a fixed, native-trajectory-defined token support. At each
+controlled step, the analytic source-restoring reference velocity is
+
+```text
+v_ref[t] = (z_native[t] - z_source) / sigma[t]
+```
+
+because the FlowMatch clean prediction `z_native[t] - sigma[t] * v_ref[t]` is exactly `z_source`. The per-token RMS
+discrepancy between `v_native[t]` and `v_ref[t]` ranks the velocity-defined edit region. A top-k mask is computed once
+from the zero-control native trajectory, detached, and shared by every strength and optimization iteration. Source
+and sampling tokens are aligned by validating their official Kontext position IDs; unequal grids use the official
+unpack layout, spatial interpolation, and official repacking. Direct control is exactly zero outside the mask, but
+subsequent global Transformer dynamics can still alter the final background.
+
+The `shared-linear` diagnostic learns one FP32 direction per controlled step and jointly accumulates terminal losses
+from all strengths:
+
+```text
+effective_control[t, s] = (1 - s) * mask[t] * shared_direction[t]
+```
+
+There are no branch-specific residual directions. Regularization is applied to these effective controls averaged
+over strengths and steps, rather than to the unscaled directions. This is an experimental controller-capacity test:
+the pixel-interpolated endpoint remains an oracle target and is not a semantic edit-strength reward or a claim that
+continuous semantic editing has been solved.

@@ -7,9 +7,12 @@ from diffusers.pipelines.rewardflow.paper_components import paper_euler_update
 from diffusers.pipelines.rewardflow.terminal_control import (
     BlueEndpointTargetLoss,
     EndpointPixelTargetLoss,
+    build_velocity_edit_masks,
     freeze_terminal_control_modules,
     initialize_velocity_controls,
+    masked_effective_controls,
     normalized_control_energy,
+    normalized_effective_control_energy,
     unroll_terminal_velocity_controls,
     update_best_control_checkpoint,
 )
@@ -48,6 +51,116 @@ def test_control_steps_two_explicitly_controls_steps_zero_and_one():
     )
 
     assert result.controlled_step_indices == (0, 1)
+
+
+@pytest.mark.parametrize(
+    ("control_steps", "expected_indices"),
+    [(3, (0, 1, 2)), (4, (0, 1, 2, 3))],
+)
+def test_extended_control_prefix_has_exact_indices(control_steps, expected_indices):
+    initial = torch.zeros(1, 2, 3)
+    controls = initialize_velocity_controls(initial, control_steps=control_steps)
+    result = unroll_terminal_velocity_controls(
+        initial,
+        [torch.tensor(float(index)) for index in range(control_steps, 0, -1)],
+        torch.linspace(1, 0, control_steps + 1),
+        _linear_velocity(0.1),
+        controls,
+    )
+
+    assert result.controlled_step_indices == expected_indices
+
+
+def test_velocity_topk_masks_are_fixed_finite_deterministic_and_exact_size():
+    states = [torch.zeros(1, 8, 2), torch.ones(1, 8, 2)]
+    native = [torch.arange(16, dtype=torch.float32).reshape(1, 8, 2), torch.zeros(1, 8, 2)]
+    source = torch.full((1, 8, 2), 0.25)
+    first = build_velocity_edit_masks(
+        states, native, source, torch.tensor([1.0, 0.5]), mode="velocity-topk", topk_fraction=0.25
+    )
+    second = build_velocity_edit_masks(
+        states, native, source, torch.tensor([1.0, 0.5]), mode="velocity-topk", topk_fraction=0.25
+    )
+
+    for first_score, second_score, first_mask, second_mask in zip(
+        first.scores, second.scores, first.masks, second.masks
+    ):
+        assert first_score.requires_grad is False
+        assert first_mask.requires_grad is False
+        assert torch.isfinite(first_score).all()
+        assert first_mask.sum().item() == 2
+        torch.testing.assert_close(first_score, second_score, rtol=0, atol=0)
+        torch.testing.assert_close(first_mask, second_mask, rtol=0, atol=0)
+
+
+def test_masked_effective_control_is_exactly_zero_outside_mask():
+    direction = torch.arange(12, dtype=torch.float32).reshape(1, 4, 3) + 1
+    mask = torch.tensor([[[1.0], [0.0], [1.0], [0.0]]])
+    effective = masked_effective_controls([direction], [mask])[0]
+
+    assert effective[:, [1, 3]].abs().max().item() == 0
+    torch.testing.assert_close(effective[:, [0, 2]], direction[:, [0, 2]], rtol=0, atol=0)
+
+
+def test_shared_linear_controls_use_one_direction_and_exact_strength_scaling():
+    direction = torch.nn.Parameter(torch.full((1, 3, 2), 2.0))
+    mask = torch.ones(1, 3, 1)
+    controls = {
+        strength: masked_effective_controls([direction], [mask], strength=strength)[0]
+        for strength in (0.2, 0.5, 0.8, 1.0)
+    }
+
+    torch.testing.assert_close(controls[0.2], torch.full_like(direction, 1.6))
+    torch.testing.assert_close(controls[0.5], torch.full_like(direction, 1.0))
+    torch.testing.assert_close(controls[0.8], torch.full_like(direction, 0.4))
+    assert controls[1.0].abs().max().item() == 0
+    assert tuple(direction for _ in range(1)) == (direction,)
+
+
+def test_strength_one_shared_control_has_exact_native_parity():
+    initial = torch.ones(1, 2, 3)
+    direction = torch.nn.Parameter(torch.randn_like(initial))
+    controls = masked_effective_controls([direction], [torch.ones(1, 2, 1)], strength=1.0)
+    timesteps = [torch.tensor(1.0)]
+    sigmas = torch.tensor([1.0, 0.0])
+    native = unroll_terminal_velocity_controls(initial, timesteps, sigmas, _linear_velocity(0.1)).final_latent
+    shared = unroll_terminal_velocity_controls(
+        initial, timesteps, sigmas, _linear_velocity(0.1), controls
+    ).final_latent
+
+    torch.testing.assert_close(shared, native, rtol=0, atol=0)
+
+
+def test_joint_multi_strength_losses_accumulate_into_one_shared_direction():
+    initial = torch.zeros(1, 2, 3)
+    direction = torch.nn.Parameter(torch.full_like(initial, 0.1))
+    mask = torch.ones(1, 2, 1)
+    targets = {0.2: 0.2, 0.5: 0.5, 0.8: 0.8}
+    for strength, target in targets.items():
+        controls = masked_effective_controls([direction], [mask], strength=strength)
+        output = unroll_terminal_velocity_controls(
+            initial,
+            [torch.tensor(1.0)],
+            torch.tensor([1.0, 0.0]),
+            _linear_velocity(0.0),
+            controls,
+            use_checkpointing=False,
+        )
+        ((output.final_latent - target).square().mean() / len(targets)).backward()
+
+    assert direction.grad is not None
+    assert torch.isfinite(direction.grad).all()
+    assert direction.grad.abs().sum() > 0
+    assert len(list(torch.nn.ParameterList([direction]).parameters())) == 1
+
+
+def test_effective_control_regularization_uses_strength_scaled_controls():
+    direction = torch.full((1, 2, 2), 2.0)
+    mask = torch.ones(1, 2, 1)
+    families = [masked_effective_controls([direction], [mask], strength=s) for s in (0.2, 0.5, 0.8)]
+    expected = torch.tensor(((1.6**2) + (1.0**2) + (0.4**2)) / 3)
+
+    torch.testing.assert_close(normalized_effective_control_energy(families), expected)
 
 
 @pytest.mark.parametrize("use_checkpointing", [False, True])
@@ -199,3 +312,4 @@ def test_best_checkpoint_tracking_does_not_change_final_controls():
     assert best.objective_error == 0.5
     torch.testing.assert_close(best.controls[0], torch.tensor([1.0]))
     torch.testing.assert_close(controls[0], torch.tensor([2.0]))
+    (build_velocity_edit_masks,)

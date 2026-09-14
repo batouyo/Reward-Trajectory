@@ -53,6 +53,14 @@ class BestTerminalControlCheckpoint:
     controls: tuple[torch.Tensor, ...]
 
 
+@dataclass(frozen=True)
+class VelocityEditMasks:
+    """Fixed native-trajectory token scores and broadcastable control masks."""
+
+    scores: tuple[torch.Tensor, ...]
+    masks: tuple[torch.Tensor, ...]
+
+
 def update_best_control_checkpoint(
     current: BestTerminalControlCheckpoint | None,
     *,
@@ -103,6 +111,110 @@ def normalized_control_energy(controls: Sequence[torch.Tensor]) -> torch.Tensor:
     if any(control.shape != reference_shape for control in controls):
         raise ValueError("All terminal velocity controls must have the same shape.")
     return torch.stack([control.float().square().mean() for control in controls]).mean()
+
+
+def source_restoring_velocity(
+    latent: torch.Tensor,
+    source_clean_latent: torch.Tensor,
+    sigma: torch.Tensor | float,
+) -> torch.Tensor:
+    """Return the analytic velocity whose flow clean prediction is the source.
+
+    With the scheduler convention ``clean = latent - sigma * velocity``, this
+    velocity satisfies ``clean == source_clean_latent`` exactly up to floating
+    point arithmetic.
+    """
+
+    if latent.shape != source_clean_latent.shape:
+        raise ValueError("Source clean latent must exactly match the sampling latent shape.")
+    sigma = torch.as_tensor(sigma, device=latent.device, dtype=latent.dtype)
+    if sigma.numel() != 1 or not torch.isfinite(sigma) or bool((sigma <= 0).item()):
+        raise ValueError("Source-restoring velocity requires one finite positive sigma.")
+    return (latent - source_clean_latent.to(device=latent.device, dtype=latent.dtype)) / sigma
+
+
+def velocity_edit_score(native_velocity: torch.Tensor, reference_velocity: torch.Tensor) -> torch.Tensor:
+    """Compute per-token RMS discrepancy between native and restoring velocities."""
+
+    if native_velocity.shape != reference_velocity.shape or native_velocity.ndim != 3:
+        raise ValueError("Velocity pairs must share shape [B, image_tokens, channels].")
+    return (native_velocity.float() - reference_velocity.float()).square().mean(dim=-1).sqrt().detach().clone()
+
+
+def velocity_topk_mask(scores: torch.Tensor, fraction: float) -> torch.Tensor:
+    """Select the highest-scoring token fraction as a detached binary mask."""
+
+    if scores.ndim != 2 or scores.shape[1] < 1:
+        raise ValueError("Velocity scores must have shape [B, image_tokens].")
+    if not torch.isfinite(scores).all():
+        raise ValueError("Velocity scores must be finite.")
+    fraction = float(fraction)
+    if not 0 < fraction <= 1:
+        raise ValueError("Top-k mask fraction must lie in (0, 1].")
+    active_tokens = max(1, int(torch.ceil(torch.tensor(scores.shape[1] * fraction)).item()))
+    # Stable sorting makes equal-score selection deterministic as well.
+    indices = torch.argsort(scores, dim=1, descending=True, stable=True)[:, :active_tokens]
+    mask = torch.zeros((*scores.shape, 1), device=scores.device, dtype=torch.float32)
+    mask.scatter_(1, indices.unsqueeze(-1), 1.0)
+    return mask.detach().clone()
+
+
+def build_velocity_edit_masks(
+    native_states: Sequence[torch.Tensor],
+    native_velocities: Sequence[torch.Tensor],
+    source_clean_latent: torch.Tensor,
+    sigmas: torch.Tensor | Sequence[float],
+    *,
+    mode: str,
+    topk_fraction: float = 0.25,
+) -> VelocityEditMasks:
+    """Build fixed per-step masks exclusively from one native trajectory."""
+
+    if mode not in {"none", "velocity-topk"}:
+        raise ValueError("Control mask mode must be `none` or `velocity-topk`.")
+    if len(native_states) != len(native_velocities):
+        raise ValueError("Each native velocity requires its corresponding pre-step state.")
+    sigmas = torch.as_tensor(sigmas, device=source_clean_latent.device)
+    if sigmas.ndim != 1 or sigmas.numel() < len(native_states):
+        raise ValueError("One sigma is required for every masked native step.")
+    scores = []
+    masks = []
+    for step_index, (state, native_velocity) in enumerate(zip(native_states, native_velocities)):
+        reference = source_restoring_velocity(state, source_clean_latent, sigmas[step_index])
+        score = velocity_edit_score(native_velocity, reference)
+        if mode == "none":
+            mask = torch.ones((*score.shape, 1), device=score.device, dtype=torch.float32)
+        else:
+            mask = velocity_topk_mask(score, topk_fraction)
+        scores.append(score)
+        masks.append(mask.detach().clone())
+    return VelocityEditMasks(scores=tuple(scores), masks=tuple(masks))
+
+
+def masked_effective_controls(
+    directions: Sequence[torch.Tensor],
+    masks: Sequence[torch.Tensor],
+    *,
+    strength: float | None = None,
+) -> tuple[torch.Tensor, ...]:
+    """Apply fixed spatial masks and optional shared-linear ``1-strength`` scaling."""
+
+    if len(directions) != len(masks):
+        raise ValueError("Every direction requires one control mask.")
+    scale = 1.0 if strength is None else 1.0 - _validate_strength(strength)
+    effective = []
+    for direction, mask in zip(directions, masks):
+        if direction.ndim != 3 or mask.shape != (*direction.shape[:2], 1):
+            raise ValueError("Direction [B,T,C] requires mask [B,T,1].")
+        effective.append(direction * mask.to(device=direction.device, dtype=direction.dtype) * scale)
+    return tuple(effective)
+
+
+def normalized_effective_control_energy(control_families: Sequence[Sequence[torch.Tensor]]) -> torch.Tensor:
+    """Average squared energy over all strengths, controlled steps, tokens, and channels."""
+
+    controls = [control for family in control_families for control in family]
+    return normalized_control_energy(controls)
 
 
 def freeze_terminal_control_modules(*modules: object | None) -> int:
