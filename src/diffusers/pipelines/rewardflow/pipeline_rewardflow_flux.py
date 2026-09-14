@@ -562,6 +562,30 @@ class FluxRewardFlowPipeline(DiffusionPipeline, FluxRewardFlowLoraLoaderMixin):
             modules.append(strength_reward)
         return sum(freeze_module_parameters(module) for module in modules)
 
+    def _prepare_strength_reward_guidance(
+        self,
+        strength_reward: StrengthRewardFn | None,
+        strength_reward_context: StrengthRewardContext,
+        *,
+        lambda_strength_reward: float,
+        device: torch.device,
+        base_batch_size: int,
+        num_strengths: int,
+    ) -> StrengthRewardGuidance | None:
+        """Freeze all inference modules before preparing fixed reward context."""
+
+        self._freeze_trajectory_inference_modules(strength_reward)
+        if strength_reward is None or lambda_strength_reward <= 0:
+            return None
+        guidance = StrengthRewardGuidance(strength_reward)
+        guidance.prepare_context(
+            strength_reward_context,
+            device=device,
+            base_batch_size=base_batch_size,
+            num_strengths=num_strengths,
+        )
+        return guidance
+
     @staticmethod
     def _materialize_strength_trajectory_batch(
         num_strengths: int,
@@ -1580,15 +1604,14 @@ class FluxRewardFlowPipeline(DiffusionPipeline, FluxRewardFlowLoraLoaderMixin):
                     prompt=[item for item in prompt for _ in range(num_images_per_prompt)]
                 )
             validate_strength_reward_context(strength_reward_context, base_batch_size)
-            if strength_reward is not None and trajectory_config.lambda_strength_reward > 0:
-                strength_reward_guidance = StrengthRewardGuidance(strength_reward)
-                strength_reward_guidance.prepare_context(
-                    strength_reward_context,
-                    device=latents.device,
-                    base_batch_size=base_batch_size,
-                    num_strengths=num_strengths,
-                )
-            self._freeze_trajectory_inference_modules(strength_reward)
+            strength_reward_guidance = self._prepare_strength_reward_guidance(
+                strength_reward,
+                strength_reward_context,
+                lambda_strength_reward=trajectory_config.lambda_strength_reward,
+                device=latents.device,
+                base_batch_size=base_batch_size,
+                num_strengths=num_strengths,
+            )
             lazy_branch_materialization = trajectory_config.lazy_branch_materialization
             if callback_on_step_end is not None and lazy_branch_materialization:
                 logger.warning_once(

@@ -448,23 +448,24 @@ class StrengthRewardGuidance:
         reward_device = _strength_reward_device(self.reward, torch.device(device))
         prepare_context = getattr(self.reward, "prepare_context", None)
         if callable(prepare_context):
-            base_layout = make_strength_branch_layout(
-                torch.arange(base_batch_size, device=reward_device) * num_strengths,
-                base_batch_size,
-                num_strengths,
-            )
-            base_context = align_strength_reward_context(context, base_layout, reward_device)
-            prepare_context(
-                StrengthRewardContext(
-                    prompt=base_context.prompt,
-                    source_endpoint=base_context.source_endpoint,
-                    target_endpoint=base_context.target_endpoint,
-                    metadata=base_context.metadata,
-                ),
-                device=reward_device,
-                base_batch_size=base_batch_size,
-                num_strengths=num_strengths,
-            )
+            with torch.no_grad():
+                base_layout = make_strength_branch_layout(
+                    torch.arange(base_batch_size, device=reward_device) * num_strengths,
+                    base_batch_size,
+                    num_strengths,
+                )
+                base_context = align_strength_reward_context(context, base_layout, reward_device)
+                prepare_context(
+                    StrengthRewardContext(
+                        prompt=base_context.prompt,
+                        source_endpoint=base_context.source_endpoint,
+                        target_endpoint=base_context.target_endpoint,
+                        metadata=base_context.metadata,
+                    ),
+                    device=reward_device,
+                    base_batch_size=base_batch_size,
+                    num_strengths=num_strengths,
+                )
 
     def compute(
         self,

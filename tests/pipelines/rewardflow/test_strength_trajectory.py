@@ -710,6 +710,87 @@ def test_strength_reward_context_prepare_called_once_per_pipeline_call():
     assert reward.clear_calls == 1
 
 
+class PreparationProbeReward:
+    def __init__(self):
+        self.model = torch.nn.Linear(1, 1, bias=False)
+        torch.nn.init.ones_(self.model.weight)
+        self.prepare_grad_enabled = None
+        self.parameters_frozen_during_prepare = None
+        self.prepared_endpoint_requires_grad = None
+        self.cached_feature = None
+        self.compute_grad_enabled = None
+
+    def prepare_context(self, context, *, device, base_batch_size, num_strengths):
+        self.prepare_grad_enabled = torch.is_grad_enabled()
+        self.parameters_frozen_during_prepare = all(
+            not parameter.requires_grad for parameter in self.model.parameters()
+        )
+        self.prepared_endpoint_requires_grad = context.source_endpoint.requires_grad
+        endpoint_value = context.source_endpoint.flatten(1).mean(dim=1, keepdim=True)
+        self.cached_feature = self.model(endpoint_value)
+
+    def __call__(self, *, image, target_strength, context):
+        self.compute_grad_enabled = torch.is_grad_enabled()
+        progress = self.model(image.flatten(1).mean(dim=1, keepdim=True)).squeeze(1)
+        return -(progress - target_strength).square()
+
+
+def _prepare_probe_guidance():
+    reward = PreparationProbeReward()
+    pipe = SimpleNamespace(
+        transformer=torch.nn.Linear(1, 1),
+        vae=torch.nn.Linear(1, 1),
+        text_encoder=torch.nn.Linear(1, 1),
+    )
+    pipe._freeze_trajectory_inference_modules = (
+        lambda strength_reward: FluxRewardFlowPipeline._freeze_trajectory_inference_modules(pipe, strength_reward)
+    )
+    context = StrengthRewardContext(source_endpoint=torch.ones(1, 1, 2, 2, requires_grad=True))
+    guidance = FluxRewardFlowPipeline._prepare_strength_reward_guidance(
+        pipe,
+        reward,
+        context,
+        lambda_strength_reward=1.0,
+        device=torch.device("cpu"),
+        base_batch_size=1,
+        num_strengths=2,
+    )
+    return reward, guidance, context
+
+
+def test_strength_reward_is_frozen_before_context_preparation():
+    reward, _, _ = _prepare_probe_guidance()
+
+    assert reward.parameters_frozen_during_prepare is True
+    assert all(not parameter.requires_grad for parameter in reward.model.parameters())
+
+
+def test_strength_reward_context_preparation_disables_autograd():
+    reward, _, _ = _prepare_probe_guidance()
+
+    assert reward.prepare_grad_enabled is False
+    assert reward.prepared_endpoint_requires_grad is False
+    assert reward.cached_feature.requires_grad is False
+
+
+def test_strength_reward_compute_remains_differentiable_after_context_preparation():
+    reward, guidance, context = _prepare_probe_guidance()
+    image = torch.rand(2, 3, 2, 2, requires_grad=True)
+    rewards = guidance.compute(
+        image=image,
+        target_strength=torch.tensor([0.2, 0.8]),
+        context=context,
+        layout=make_strength_branch_layout(torch.arange(2), 1, 2),
+    )
+
+    gradient = torch.autograd.grad(rewards.sum(), image)[0]
+
+    assert reward.compute_grad_enabled is True
+    assert gradient is not None
+    assert torch.isfinite(gradient).all()
+    assert gradient.abs().sum() > 0
+
+
 def test_without_strength_reward_all_branches_remain_identical():
     config = StrengthTrajectoryConfig(
         enabled=True,
