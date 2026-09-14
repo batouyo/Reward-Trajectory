@@ -37,12 +37,25 @@ from .paper_components import (
     predict_clean_latent,
     sample_langevin_noise,
 )
-from .pipeline_output import FluxRewardFlowPipelineOutput
+from .pipeline_output import FluxRewardFlowPipelineOutput, StrengthTrajectoryPipelineOutput
 from .rewards import (
     RegionCLIPReward,
     ResearchStaticRewardGuidance,
     RewardGuidance,
     SigLIPReward,
+)
+from .strength_trajectory import (
+    StrengthRewardContext,
+    StrengthRewardFn,
+    StrengthRewardGuidance,
+    StrengthTrajectoryConfig,
+    expand_for_strengths,
+    expand_shared_initial_latents,
+    make_flat_strength_tensor,
+    max_shared_noise_difference,
+    sample_shared_langevin_noise,
+    unflatten_strength_branches,
+    validate_trajectory_mode,
 )
 
 
@@ -221,6 +234,7 @@ class FluxRewardFlowPipeline(DiffusionPipeline, FluxRewardFlowLoraLoaderMixin):
         self.default_sample_size = 128
         self._reward_fns = self._get_default_reward_fns(device=self.text_encoder.device, dtype=self.text_encoder.dtype)
         self.last_paper_trace = []
+        self.last_strength_trajectory_trace = []
 
     @staticmethod
     def _get_qwen3_prompt_embeds(
@@ -535,6 +549,148 @@ class FluxRewardFlowPipeline(DiffusionPipeline, FluxRewardFlowLoraLoaderMixin):
         if rewards:
             modules.extend(rewards.values())
         return sum(freeze_module_parameters(module) for module in modules)
+
+    def _freeze_trajectory_inference_modules(self, strength_reward: StrengthRewardFn | None = None) -> int:
+        """Freeze trajectory inference weights while preserving image-to-latent autograd."""
+
+        modules = [self.transformer, self.vae, self.text_encoder]
+        if strength_reward is not None:
+            modules.append(strength_reward)
+        return sum(freeze_module_parameters(module) for module in modules)
+
+    def _strength_trajectory_step(
+        self,
+        *,
+        latents: torch.Tensor,
+        step_index: int,
+        timestep: torch.Tensor,
+        latent_ids: torch.Tensor,
+        prompt_embeds: torch.Tensor,
+        text_ids: torch.Tensor,
+        image_latents: torch.Tensor | None,
+        image_latent_ids: torch.Tensor | None,
+        negative_prompt_embeds: torch.Tensor | None,
+        negative_text_ids: torch.Tensor | None,
+        guidance_scale: float,
+        trajectory_config: StrengthTrajectoryConfig,
+        target_strengths: torch.Tensor,
+        strength_reward_guidance: StrengthRewardGuidance | None,
+        strength_reward_context: StrengthRewardContext,
+        base_batch_size: int,
+        num_strengths: int,
+        generator: torch.Generator | list[torch.Generator] | None,
+    ) -> torch.Tensor:
+        """Advance coupled strength branches without entering the paper or legacy paths."""
+
+        if step_index + 1 >= len(self.scheduler.sigmas):
+            raise IndexError("Trajectory sampling requires both sigma[i] and sigma[i + 1].")
+
+        sigma = self.scheduler.sigmas[step_index].to(device=latents.device)
+        sigma_next = self.scheduler.sigmas[step_index + 1].to(device=latents.device)
+        eta = flow_step_size(sigma, sigma_next, latents.float())
+        latent_var = latents.detach().requires_grad_(True)
+        branch_rewards = None
+        branch_reward_grad_norms = torch.zeros(
+            (base_batch_size, num_strengths), device=latents.device, dtype=torch.float32
+        )
+        reward_drift = torch.zeros_like(latents)
+
+        with torch.enable_grad():
+            velocity = self._predict_velocity(
+                latent_var,
+                timestep,
+                latent_ids,
+                prompt_embeds,
+                text_ids,
+                image_latents,
+                image_latent_ids,
+                negative_prompt_embeds,
+                negative_text_ids,
+                guidance_scale,
+            )
+            clean_pred = predict_clean_latent(latent_var, velocity, sigma)
+
+            if strength_reward_guidance is not None:
+                clean_image = self._decode_clean_latent_for_reward(clean_pred, latent_ids)
+                branch_rewards = strength_reward_guidance.compute(
+                    image=clean_image,
+                    target_strength=target_strengths,
+                    context=strength_reward_context,
+                )
+                if not branch_rewards.requires_grad:
+                    raise RuntimeError("Strength reward is not differentiable with respect to the clean image.")
+                # Sum is intentional: every branch is an independent trajectory. A
+                # mean would silently divide each branch drift by B*K.
+                reward_grad = torch.autograd.grad(branch_rewards.sum(), latent_var, allow_unused=True)[0]
+                if reward_grad is None:
+                    raise RuntimeError(
+                        "Strength reward gradient did not reach the current latent through the denoiser and decoder."
+                    )
+                if not torch.isfinite(reward_grad).all():
+                    raise RuntimeError("Strength reward gradient contains non-finite values.")
+                reward_drift = trajectory_config.lambda_strength_reward * reward_grad
+                grouped_reward_grad = unflatten_strength_branches(reward_grad.detach(), base_batch_size, num_strengths)
+                branch_reward_grad_norms = torch.linalg.vector_norm(
+                    grouped_reward_grad.float().flatten(start_dim=2), dim=2
+                )
+
+        gamma = torch.zeros((), device=latents.device, dtype=latents.dtype)
+        shared_noise = torch.zeros_like(latents)
+        if trajectory_config.use_shared_sde_noise:
+            sigma_start = self.scheduler.sigmas[0].to(device=latents.device)
+            gamma = paper_gamma_schedule(
+                sigma,
+                sigma_start,
+                gamma_min=trajectory_config.gamma_min,
+                gamma_max=trajectory_config.gamma_max,
+                rho=trajectory_config.gamma_rho,
+            )
+            shared_noise = sample_shared_langevin_noise(
+                latents,
+                gamma,
+                eta,
+                base_batch_size=base_batch_size,
+                num_strengths=num_strengths,
+                generator=generator,
+            )
+
+        updated = paper_euler_update(
+            latent_var.detach(),
+            velocity.detach(),
+            sigma,
+            sigma_next,
+            reward_drift=reward_drift.detach(),
+            langevin_noise=shared_noise,
+        )
+
+        if trajectory_config.collect_trace:
+            grouped_latents = unflatten_strength_branches(updated.detach(), base_batch_size, num_strengths)
+            branch_latent_norms = torch.linalg.vector_norm(grouped_latents.float().flatten(start_dim=2), dim=2)
+            self.last_strength_trajectory_trace.append(
+                {
+                    "step": step_index,
+                    "timestep": float(timestep[0].detach().cpu()),
+                    "sigma": float(sigma.detach().cpu()),
+                    "sigma_next": float(sigma_next.detach().cpu()),
+                    "eta": float((sigma - sigma_next).detach().cpu()),
+                    "gamma": float(gamma.detach().cpu()),
+                    "strengths": list(trajectory_config.strengths),
+                    "branch_rewards": (
+                        None
+                        if branch_rewards is None
+                        else unflatten_strength_branches(branch_rewards.detach(), base_batch_size, num_strengths)
+                        .cpu()
+                        .tolist()
+                    ),
+                    "branch_reward_grad_norms": branch_reward_grad_norms.cpu().tolist(),
+                    "branch_latent_norms": branch_latent_norms.cpu().tolist(),
+                    "shared_noise_norm": float(torch.linalg.vector_norm(shared_noise.float()).cpu()),
+                    "max_shared_noise_difference": float(
+                        max_shared_noise_difference(shared_noise, base_batch_size, num_strengths).detach().cpu()
+                    ),
+                }
+            )
+        return updated
 
     def _paper_langevin_step(
         self,
@@ -993,6 +1149,9 @@ class FluxRewardFlowPipeline(DiffusionPipeline, FluxRewardFlowLoraLoaderMixin):
         reward_model_ids: dict[str, str] | None = None,
         reward_model_kwargs: dict[str, Any] | None = None,
         paper_config: PaperRewardFlowConfig | dict[str, Any] | None = None,
+        trajectory_config: StrengthTrajectoryConfig | dict[str, Any] | None = None,
+        strength_reward: StrengthRewardFn | None = None,
+        strength_reward_context: StrengthRewardContext | dict[str, Any] | None = None,
     ):
         r"""
         Function invoked when calling the pipeline for generation.
@@ -1080,6 +1239,13 @@ class FluxRewardFlowPipeline(DiffusionPipeline, FluxRewardFlowLoraLoaderMixin):
             paper_config (`PaperRewardFlowConfig` or `dict`, *optional*):
                 Opt-in configuration for the paper-faithful clean-prediction and Langevin path. When omitted or
                 disabled, the legacy RewardFlow behavior is unchanged.
+            trajectory_config (`StrengthTrajectoryConfig` or `dict`, *optional*):
+                Opt-in research configuration for coupled multi-strength branches. This path is separate from both
+                legacy reward guidance and the paper-faithful reproduction.
+            strength_reward (`StrengthRewardFn`, *optional*):
+                Differentiable callable returning exactly one scalar per flat B-major/K-minor branch.
+            strength_reward_context (`StrengthRewardContext` or `dict`, *optional*):
+                Explicit auxiliary inputs for the strength reward.
 
         Examples:
 
@@ -1103,17 +1269,41 @@ class FluxRewardFlowPipeline(DiffusionPipeline, FluxRewardFlowLoraLoaderMixin):
             paper_config = PaperRewardFlowConfig(**paper_config)
         elif not isinstance(paper_config, PaperRewardFlowConfig):
             raise TypeError("`paper_config` must be a PaperRewardFlowConfig, dict, or None.")
+        if trajectory_config is None:
+            trajectory_config = StrengthTrajectoryConfig()
+        elif isinstance(trajectory_config, dict):
+            trajectory_config = StrengthTrajectoryConfig(**trajectory_config)
+        elif not isinstance(trajectory_config, StrengthTrajectoryConfig):
+            raise TypeError("`trajectory_config` must be a StrengthTrajectoryConfig, dict, or None.")
+        strength_reward_context_provided = strength_reward_context is not None
+        if strength_reward_context is None:
+            strength_reward_context = StrengthRewardContext(prompt=prompt)
+        elif isinstance(strength_reward_context, dict):
+            strength_reward_context = StrengthRewardContext(**strength_reward_context)
+        elif not isinstance(strength_reward_context, StrengthRewardContext):
+            raise TypeError("`strength_reward_context` must be a StrengthRewardContext, dict, or None.")
+        validate_trajectory_mode(
+            trajectory_config,
+            paper_enabled=paper_config.enabled,
+            legacy_reward_guidance=reward_guidance,
+            strength_reward=strength_reward,
+        )
         if paper_config.enabled and reward_guidance:
             raise ValueError(
                 "`paper_config.enabled=True` and legacy `reward_guidance=True` are mutually exclusive. "
                 "Pass rewards through the paper configuration path instead."
             )
+        if not trajectory_config.enabled and strength_reward_context_provided:
+            raise ValueError("`strength_reward_context` requires `trajectory_config.enabled=True`.")
 
         self._attention_kwargs = attention_kwargs
         self._current_timestep = None
-        self._guidance_scale = guidance_scale if (reward_guidance or paper_config.enabled) else 1.0
+        self._guidance_scale = (
+            guidance_scale if (reward_guidance or paper_config.enabled or trajectory_config.enabled) else 1.0
+        )
         self._interrupt = False
         self.last_paper_trace = []
+        self.last_strength_trajectory_trace = []
 
         # 2. Define call parameters
         if prompt is not None and isinstance(prompt, str):
@@ -1147,7 +1337,7 @@ class FluxRewardFlowPipeline(DiffusionPipeline, FluxRewardFlowLoraLoaderMixin):
                 if callable(prepare_fn):
                     prepare_fn(prompt=reward_prompt, device=device)
 
-        if not reward_guidance and not paper_config.enabled and image is not None:
+        if not reward_guidance and not paper_config.enabled and not trajectory_config.enabled and image is not None:
             raise ValueError(
                 "Passing `image` is not supported when `reward_guidance=False`. Please set `reward_guidance=True` to use image conditioning."
             )
@@ -1202,8 +1392,14 @@ class FluxRewardFlowPipeline(DiffusionPipeline, FluxRewardFlowLoraLoaderMixin):
         #     reward_guidance=False
         num_channels_latents = self.transformer.config.in_channels // 4
         width = width or self.default_sample_size * self.vae_scale_factor
+        base_batch_size = batch_size * num_images_per_prompt
+        if trajectory_config.enabled and latents is not None and latents.shape[0] != base_batch_size:
+            raise ValueError(
+                "Explicit trajectory `latents` must contain the base batch B before strength expansion; "
+                f"expected {base_batch_size}, got {latents.shape[0]}. Do not pass an already expanded B*K tensor."
+            )
         latents, latent_ids = self.prepare_latents(
-            batch_size=batch_size * num_images_per_prompt,
+            batch_size=base_batch_size,
             num_latents_channels=num_channels_latents,
             height=height,
             width=width,
@@ -1218,11 +1414,35 @@ class FluxRewardFlowPipeline(DiffusionPipeline, FluxRewardFlowLoraLoaderMixin):
         if condition_images is not None:
             image_latents, image_latent_ids = self.prepare_image_latents(
                 images=condition_images,
-                batch_size=batch_size * num_images_per_prompt,
+                batch_size=base_batch_size,
                 generator=generator,
                 device=device,
                 dtype=self.vae.dtype,
             )
+
+        strength_reward_guidance = None
+        flat_strengths = None
+        num_strengths = 1
+        if trajectory_config.enabled:
+            num_strengths = len(trajectory_config.strengths)
+            latents = expand_shared_initial_latents(latents, num_strengths)
+            latent_ids = expand_for_strengths(latent_ids, num_strengths)
+            prompt_embeds = expand_for_strengths(prompt_embeds, num_strengths)
+            text_ids = expand_for_strengths(text_ids, num_strengths)
+            image_latents = expand_for_strengths(image_latents, num_strengths)
+            image_latent_ids = expand_for_strengths(image_latent_ids, num_strengths)
+            if self.do_classifier_free_guidance:
+                negative_prompt_embeds = expand_for_strengths(negative_prompt_embeds, num_strengths)
+                negative_text_ids = expand_for_strengths(negative_text_ids, num_strengths)
+            flat_strengths = make_flat_strength_tensor(
+                trajectory_config.strengths,
+                base_batch_size,
+                device=latents.device,
+                dtype=latents.dtype,
+            )
+            if strength_reward is not None and trajectory_config.lambda_strength_reward > 0:
+                strength_reward_guidance = StrengthRewardGuidance(strength_reward)
+            self._freeze_trajectory_inference_modules(strength_reward)
 
         paper_rewards = {}
         paper_reward_guidance = None
@@ -1306,7 +1526,28 @@ class FluxRewardFlowPipeline(DiffusionPipeline, FluxRewardFlowLoraLoaderMixin):
                 timestep = t.expand(latents.shape[0]).to(latents.dtype)
 
                 latents_dtype = latents.dtype
-                if paper_config.enabled:
+                if trajectory_config.enabled:
+                    latents = self._strength_trajectory_step(
+                        latents=latents,
+                        step_index=i,
+                        timestep=timestep,
+                        latent_ids=latent_ids,
+                        prompt_embeds=prompt_embeds,
+                        text_ids=text_ids,
+                        image_latents=image_latents,
+                        image_latent_ids=image_latent_ids,
+                        negative_prompt_embeds=negative_prompt_embeds if self.do_classifier_free_guidance else None,
+                        negative_text_ids=negative_text_ids if self.do_classifier_free_guidance else None,
+                        guidance_scale=guidance_scale,
+                        trajectory_config=trajectory_config,
+                        target_strengths=flat_strengths,
+                        strength_reward_guidance=strength_reward_guidance,
+                        strength_reward_context=strength_reward_context,
+                        base_batch_size=base_batch_size,
+                        num_strengths=num_strengths,
+                        generator=generator,
+                    )
+                elif paper_config.enabled:
                     latents = self._paper_langevin_step(
                         latents=latents,
                         step_index=i,
@@ -1388,9 +1629,20 @@ class FluxRewardFlowPipeline(DiffusionPipeline, FluxRewardFlowLoraLoaderMixin):
         # Offload all models
         if paper_reward_guidance is not None:
             paper_reward_guidance.maybe_offload()
+        if strength_reward_guidance is not None:
+            strength_reward_guidance.maybe_offload()
         self.maybe_free_model_hooks()
 
         if not return_dict:
+            if trajectory_config.enabled:
+                return image, tuple(trajectory_config.strengths)
             return (image,)
 
+        if trajectory_config.enabled:
+            return StrengthTrajectoryPipelineOutput(
+                images=image,
+                strengths=tuple(trajectory_config.strengths),
+                base_batch_size=base_batch_size,
+                num_strengths=num_strengths,
+            )
         return FluxRewardFlowPipelineOutput(images=image)

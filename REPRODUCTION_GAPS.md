@@ -1,5 +1,7 @@
 # RewardFlow Paper-Faithful Reproduction Ledger
 
+The strength trajectory research path is intentionally separate from RewardFlow paper reproduction.
+
 This ledger separates statements recoverable from the CVPR 2026 paper and supplement, behavior inherited from the
 official repository, explicit engineering assumptions in the opt-in implementation, and intentionally missing work.
 The legacy `reward_guidance=True` path remains separate.

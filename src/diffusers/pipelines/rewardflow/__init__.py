@@ -13,7 +13,7 @@ from ...utils import (
 _dummy_objects = {}
 _additional_imports = {}
 _import_structure = {
-    "pipeline_output": ["FluxRewardFlowPipelineOutput"],
+    "pipeline_output": ["FluxRewardFlowPipelineOutput", "StrengthTrajectoryPipelineOutput"],
     "semantic_parser": [
         "SEMANTIC_CACHE_SCHEMA_VERSION",
         "SEMANTIC_PARSER_VERSION",
@@ -47,6 +47,21 @@ else:
         "sample_langevin_noise",
     ]
     _import_structure["pipeline_rewardflow_flux"] = ["FluxRewardFlowPipeline"]
+    _import_structure["strength_trajectory"] = [
+        "StrengthRewardContext",
+        "StrengthRewardFn",
+        "StrengthRewardGuidance",
+        "StrengthTrajectoryConfig",
+        "expand_for_strengths",
+        "expand_shared_initial_latents",
+        "flatten_strength_branches",
+        "group_trajectory_images",
+        "make_flat_strength_tensor",
+        "max_shared_noise_difference",
+        "sample_shared_langevin_noise",
+        "unflatten_strength_branches",
+        "validate_trajectory_mode",
+    ]
     _import_structure["rewards"] = [
         "Qwen25VQAReward",
         "ResearchStaticRewardGuidance",
@@ -77,6 +92,21 @@ if TYPE_CHECKING or DIFFUSERS_SLOW_IMPORT:
             ResearchStaticRewardGuidance,
             StaticRewardGuidance,
             qwen_vqa_token_reward,
+        )
+        from .strength_trajectory import (
+            StrengthRewardContext,
+            StrengthRewardFn,
+            StrengthRewardGuidance,
+            StrengthTrajectoryConfig,
+            expand_for_strengths,
+            expand_shared_initial_latents,
+            flatten_strength_branches,
+            group_trajectory_images,
+            make_flat_strength_tensor,
+            max_shared_noise_difference,
+            sample_shared_langevin_noise,
+            unflatten_strength_branches,
+            validate_trajectory_mode,
         )
 
     from .semantic_parser import (

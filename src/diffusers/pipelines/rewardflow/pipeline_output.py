@@ -20,3 +20,21 @@ class FluxRewardFlowPipelineOutput(BaseOutput):
     """
 
     images: list[PIL.Image.Image, np.ndarray]
+
+
+@dataclass
+class StrengthTrajectoryPipelineOutput(BaseOutput):
+    """Flat B-major/K-minor images plus explicit trajectory metadata."""
+
+    images: list[PIL.Image.Image] | np.ndarray
+    strengths: tuple[float, ...]
+    base_batch_size: int
+    num_strengths: int
+
+    @property
+    def grouped_images(self) -> list[list[PIL.Image.Image | np.ndarray]]:
+        """Expose outputs as ``[base sample][strength]`` without copying them."""
+
+        from .strength_trajectory import group_trajectory_images
+
+        return group_trajectory_images(self.images, self.base_batch_size, self.num_strengths)
