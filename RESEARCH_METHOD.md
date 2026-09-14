@@ -1,8 +1,15 @@
-# Coupled Strength Trajectory Research Path
+# Coupled Strength Trajectory Research Paths
 
-This document describes our research infrastructure, not a RewardFlow paper component. Legacy RewardFlow
-(`reward_guidance=True`), the paper-faithful reproduction (`paper_config.enabled=True`), and this trajectory path
-(`trajectory_config.enabled=True`) are mutually exclusive.
+The repository now keeps three roles separate:
+
+1. `FluxRewardFlowPipeline` retains the RewardFlow reproduction (legacy and paper-faithful paths).
+2. Its older coupled trajectory path remains an infrastructure regression environment.
+3. `FluxKontextStrengthTrajectoryPipeline` is the backbone for subsequent continuous image-editing experiments.
+
+The third path directly subclasses the repository's official `FluxKontextPipeline`. With trajectory mode disabled it
+delegates to that official implementation. With trajectory mode enabled it preserves Kontext-native source-image
+conditioning, CLIP pooled embeddings, T5 token embeddings, true CFG, guidance embeddings, and IP-Adapter inputs.
+This is research infrastructure, not a RewardFlow paper component.
 
 ## Phase 1 definition
 
@@ -13,12 +20,17 @@ branches with logical shape `[B, K, tokens, channels]`, flattened for model exec
 sample0-strength0, sample0-strength1, ..., sample1-strength0, ...
 ```
 
-Every branch for one base sample has:
+Every branch for one base sample, including the Kontext implementation, has:
 
 - exactly the same initial latent, sampled once at shape `[B, ...]` and copied across K;
 - exactly the same source and text conditioning, prepared once at base batch size and copied across K;
 - exactly the same stochastic increment at every step, sampled once at shape `[B, ...]` and copied across K;
 - a possible branch-specific drift only through `StrengthRewardFn`.
+
+For Kontext, fixed source tokens are prepared once by the inherited VAE path and shared across strengths. Position
+IDs remain the official shared, non-batched tensors; only genuinely batch-first conditioning is expanded in
+B-major/K-minor order. The Transformer receives sampling tokens followed by fixed source tokens and only its sampling
+prefix is treated as velocity.
 
 Therefore, if strength reward drift is zero, every strength branch for one base sample must collapse to the same
 trajectory. Strength never scales velocity, noise, CFG, prompt text, or latent state directly.
@@ -55,7 +67,7 @@ every-step behavior. Other schedules are research controls and are not mathemati
 
 ## Exact-safe compute optimizations
 
-1. Before the first branch-specific reward, only B shared trajectories run. The current state and all conditioning
+1. Before the first branch-specific reward, only B shared trajectories run. The current state and all batch-first conditioning
    materialize to B*K exactly once immediately before that reward step. If reward never activates, expansion happens
    only for final output.
 2. A non-reward step uses no input autograd graph, clean prediction, VAE reward decode, reward forward, or backward.
@@ -71,9 +83,9 @@ start.
 
 ## Current boundary
 
-This phase intentionally does not implement a real strength reward, target endpoint generation, endpoint-relative
-progress, trajectory smoothness or monotonicity, Kontinuous Kontext LPIPS uniformity, VeloEdit, temporal/spatial
-gating, partially correlated noise, training, or model-weight changes.
+This phase intentionally does not implement a real strength reward, source/target endpoint generation,
+endpoint-relative progress, trajectory smoothness or monotonicity, Kontinuous Kontext LPIPS uniformity, VeloEdit,
+temporal/spatial gating, partially correlated noise, training, or model-weight changes.
 
 After divergence, K branches still require K Transformer evaluations. Chunking bounds peak batch memory but does not
 reduce total branch compute, and reward-active chunks still retain one denoiser/decoder graph per chunk.

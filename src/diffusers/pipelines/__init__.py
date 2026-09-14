@@ -130,7 +130,7 @@ else:
     _import_structure["bria"] = ["BriaPipeline"]
     _import_structure["bria_fibo"] = ["BriaFiboPipeline", "BriaFiboEditPipeline"]
     # _import_struc
-    _import_structure["rewardflow"] = ["FluxRewardFlowPipeline"]
+    _import_structure["rewardflow"] = ["FluxKontextStrengthTrajectoryPipeline", "FluxRewardFlowPipeline"]
     _import_structure["flux"] = [
         "FluxControlPipeline",
         "FluxControlInpaintPipeline",
@@ -666,7 +666,6 @@ if TYPE_CHECKING or DIFFUSERS_SLOW_IMPORT:
             FluxPriorReduxPipeline,
             ReduxImageEncoder,
         )
-        from .rewardflow import FluxRewardFlowPipeline
         from .glm_image import GlmImagePipeline
         from .hidream_image import HiDreamImagePipeline
         from .hunyuan_image import HunyuanImagePipeline, HunyuanImageRefinerPipeline
@@ -777,6 +776,7 @@ if TYPE_CHECKING or DIFFUSERS_SLOW_IMPORT:
             QwenImageLayeredPipeline,
             QwenImagePipeline,
         )
+        from .rewardflow import FluxKontextStrengthTrajectoryPipeline, FluxRewardFlowPipeline
         from .sana import (
             SanaControlNetPipeline,
             SanaPipeline,

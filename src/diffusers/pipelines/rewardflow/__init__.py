@@ -47,6 +47,7 @@ else:
         "sample_langevin_noise",
     ]
     _import_structure["pipeline_rewardflow_flux"] = ["FluxRewardFlowPipeline"]
+    _import_structure["pipeline_flux_kontext_strength_trajectory"] = ["FluxKontextStrengthTrajectoryPipeline"]
     _import_structure["strength_trajectory"] = [
         "StrengthBranchLayout",
         "StrengthRewardBatchContext",
@@ -94,6 +95,7 @@ if TYPE_CHECKING or DIFFUSERS_SLOW_IMPORT:
             reverse_flow_drift,
             sample_langevin_noise,
         )
+        from .pipeline_flux_kontext_strength_trajectory import FluxKontextStrengthTrajectoryPipeline
         from .pipeline_rewardflow_flux import FluxRewardFlowPipeline
         from .rewards import (
             Qwen25VQAReward,
