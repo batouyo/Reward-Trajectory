@@ -12,7 +12,16 @@ from ...utils import (
 
 _dummy_objects = {}
 _additional_imports = {}
-_import_structure = {"pipeline_output": ["FluxRewardFlowPipelineOutput"]}
+_import_structure = {
+    "pipeline_output": ["FluxRewardFlowPipelineOutput"],
+    "semantic_parser": [
+        "SemanticParseResult",
+        "build_semantic_parser_prompt",
+        "load_cached_parse",
+        "parse_semantic_parser_json",
+        "save_cached_parse",
+    ],
+}
 
 try:
     if not (is_transformers_available() and is_torch_available()):
@@ -22,7 +31,18 @@ except OptionalDependencyNotAvailable:
 
     _dummy_objects.update(get_objects_from_module(dummy_torch_and_transformers_objects))
 else:
+    _import_structure["paper_components"] = [
+        "PaperRewardFlowConfig",
+        "clean_latent_kl_energy",
+        "flow_step_size",
+        "paper_euler_update",
+        "paper_gamma_schedule",
+        "predict_clean_latent",
+        "reverse_flow_drift",
+        "sample_langevin_noise",
+    ]
     _import_structure["pipeline_rewardflow_flux"] = ["FluxRewardFlowPipeline"]
+    _import_structure["rewards"] = ["Qwen25VQAReward", "StaticRewardGuidance", "qwen_vqa_token_reward"]
 if TYPE_CHECKING or DIFFUSERS_SLOW_IMPORT:
     try:
         if not (is_transformers_available() and is_torch_available()):
@@ -30,7 +50,26 @@ if TYPE_CHECKING or DIFFUSERS_SLOW_IMPORT:
     except OptionalDependencyNotAvailable:
         from ...utils.dummy_torch_and_transformers_objects import *  # noqa F403
     else:
+        from .paper_components import (
+            PaperRewardFlowConfig,
+            clean_latent_kl_energy,
+            flow_step_size,
+            paper_euler_update,
+            paper_gamma_schedule,
+            predict_clean_latent,
+            reverse_flow_drift,
+            sample_langevin_noise,
+        )
         from .pipeline_rewardflow_flux import FluxRewardFlowPipeline
+        from .rewards import Qwen25VQAReward, StaticRewardGuidance, qwen_vqa_token_reward
+
+    from .semantic_parser import (
+        SemanticParseResult,
+        build_semantic_parser_prompt,
+        load_cached_parse,
+        parse_semantic_parser_json,
+        save_cached_parse,
+    )
 
 else:
     import sys

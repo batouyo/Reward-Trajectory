@@ -27,13 +27,21 @@ from ...utils import is_torch_xla_available, logging, replace_example_docstring
 from ...utils.torch_utils import randn_tensor
 from ..pipeline_utils import DiffusionPipeline
 from .image_processor import FluxRewardFlowImageProcessor
+from .paper_components import (
+    PaperRewardFlowConfig,
+    clean_latent_kl_energy,
+    flow_step_size,
+    paper_euler_update,
+    paper_gamma_schedule,
+    predict_clean_latent,
+    sample_langevin_noise,
+)
 from .pipeline_output import FluxRewardFlowPipelineOutput
 from .rewards import (
-    GroundingDINOReward,
-    Qwen25VLCaptionReward,
     RegionCLIPReward,
     RewardGuidance,
     SigLIPReward,
+    StaticRewardGuidance,
 )
 
 
@@ -210,9 +218,8 @@ class FluxRewardFlowPipeline(DiffusionPipeline, FluxRewardFlowLoraLoaderMixin):
         self.image_processor = FluxRewardFlowImageProcessor(vae_scale_factor=self.vae_scale_factor * 2)
         self.tokenizer_max_length = 512
         self.default_sample_size = 128
-        self._reward_fns = self._get_default_reward_fns(
-            device=self.text_encoder.device, dtype=self.text_encoder.dtype
-        )
+        self._reward_fns = self._get_default_reward_fns(device=self.text_encoder.device, dtype=self.text_encoder.dtype)
+        self.last_paper_trace = []
 
     @staticmethod
     def _get_qwen3_prompt_embeds(
@@ -330,8 +337,6 @@ class FluxRewardFlowPipeline(DiffusionPipeline, FluxRewardFlowLoraLoaderMixin):
         image_latents: list[torch.Tensor],  # [(1, C, H, W), (1, C, H, W), ...]
         scale: int = 10,
     ):
-
-
         if not isinstance(image_latents, list):
             raise ValueError(f"Expected `image_latents` to be a list, got {type(image_latents)}.")
 
@@ -423,6 +428,232 @@ class FluxRewardFlowPipeline(DiffusionPipeline, FluxRewardFlowLoraLoaderMixin):
         image = self.image_processor.postprocess(image, output_type="pt")
         return image
 
+    def _decode_clean_latent_for_reward(self, clean_latent: torch.Tensor, latent_ids: torch.Tensor) -> torch.Tensor:
+        """Decode a predicted clean latent without severing its autograd graph."""
+
+        return self._decode_latents_for_reward(clean_latent, latent_ids)
+
+    def _predict_velocity(
+        self,
+        latents: torch.Tensor,
+        timestep: torch.Tensor,
+        latent_ids: torch.Tensor,
+        prompt_embeds: torch.Tensor,
+        text_ids: torch.Tensor,
+        image_latents: torch.Tensor | None,
+        image_latent_ids: torch.Tensor | None,
+        negative_prompt_embeds: torch.Tensor | None,
+        negative_text_ids: torch.Tensor | None,
+        guidance_scale: float,
+    ) -> torch.Tensor:
+        """Run the shared conditional/CFG backbone forward.
+
+        The caller controls gradient recording. Legacy sampling invokes this
+        under ``@torch.no_grad``; paper sampling invokes it inside
+        ``torch.enable_grad`` so the denoiser Jacobian remains in the graph.
+        """
+
+        latent_model_input = latents.to(self.transformer.dtype)
+        latent_image_ids = latent_ids
+        if image_latents is not None:
+            latent_model_input = torch.cat([latents, image_latents], dim=1).to(self.transformer.dtype)
+            latent_image_ids = torch.cat([latent_ids, image_latent_ids], dim=1)
+
+        with self.transformer.cache_context("cond"):
+            velocity = self.transformer(
+                hidden_states=latent_model_input,
+                timestep=timestep / 1000,
+                guidance=None,
+                encoder_hidden_states=prompt_embeds,
+                txt_ids=text_ids,
+                img_ids=latent_image_ids,
+                joint_attention_kwargs=self.attention_kwargs,
+                return_dict=False,
+            )[0]
+        velocity = velocity[:, : latents.size(1) :]
+
+        if self.do_classifier_free_guidance:
+            with self.transformer.cache_context("uncond"):
+                negative_velocity = self.transformer(
+                    hidden_states=latent_model_input,
+                    timestep=timestep / 1000,
+                    guidance=None,
+                    encoder_hidden_states=negative_prompt_embeds,
+                    txt_ids=negative_text_ids,
+                    img_ids=latent_image_ids,
+                    joint_attention_kwargs=self.attention_kwargs,
+                    return_dict=False,
+                )[0]
+            negative_velocity = negative_velocity[:, : latents.size(1) :]
+            velocity = negative_velocity + guidance_scale * (velocity - negative_velocity)
+        return velocity
+
+    def _prepare_source_clean_latent(
+        self,
+        condition_images: list[torch.Tensor],
+        sampling_latents: torch.Tensor,
+        *,
+        source_image_index: int | None,
+        batch_size: int,
+        generator: torch.Generator | list[torch.Generator] | None,
+        device: torch.device,
+        dtype: torch.dtype,
+    ) -> torch.Tensor:
+        if len(condition_images) > 1 and source_image_index is None:
+            raise ValueError(
+                "Paper KL has multiple reference images but no unique source z0. "
+                "Set `paper_config.source_image_index` explicitly."
+            )
+        index = 0 if source_image_index is None else source_image_index
+        if index < 0 or index >= len(condition_images):
+            raise ValueError(f"`source_image_index={index}` is outside the {len(condition_images)} input images.")
+
+        source = condition_images[index].to(device=device, dtype=dtype)
+        source = self._encode_vae_image(image=source, generator=generator)
+        source = self._pack_latents(source).repeat(batch_size, 1, 1)
+        source = source.to(device=sampling_latents.device, dtype=sampling_latents.dtype)
+        if source.shape != sampling_latents.shape:
+            raise ValueError(
+                "Paper KL requires source and sampling clean latents to have identical shapes, "
+                f"got source {tuple(source.shape)} and sample {tuple(sampling_latents.shape)}. "
+                "Pass matching output dimensions or disable KL."
+            )
+        return source
+
+    def _legacy_scheduler_step(
+        self, model_output: torch.Tensor, timestep: torch.Tensor, sample: torch.Tensor
+    ) -> torch.Tensor:
+        """Keep the official RewardFlow scheduler path isolated from paper mode."""
+
+        return self.scheduler.step(model_output, timestep, sample, return_dict=False)[0]
+
+    def _paper_langevin_step(
+        self,
+        *,
+        latents: torch.Tensor,
+        step_index: int,
+        timestep: torch.Tensor,
+        latent_ids: torch.Tensor,
+        prompt_embeds: torch.Tensor,
+        text_ids: torch.Tensor,
+        image_latents: torch.Tensor | None,
+        image_latent_ids: torch.Tensor | None,
+        negative_prompt_embeds: torch.Tensor | None,
+        negative_text_ids: torch.Tensor | None,
+        guidance_scale: float,
+        source_clean_latent: torch.Tensor | None,
+        paper_config: PaperRewardFlowConfig,
+        generator: torch.Generator | list[torch.Generator] | None,
+    ) -> torch.Tensor:
+        if step_index + 1 >= len(self.scheduler.sigmas):
+            raise IndexError("Paper sampling requires both sigma[i] and sigma[i + 1].")
+
+        # Keep scheduler sigmas in their native precision. The clean predictor
+        # casts sigma to the latent dtype, while the explicit Euler update
+        # mirrors the scheduler's float32 accumulation for half-precision latents.
+        sigma = self.scheduler.sigmas[step_index].to(device=latents.device)
+        sigma_next = self.scheduler.sigmas[step_index + 1].to(device=latents.device)
+        eta = flow_step_size(sigma, sigma_next, latents.float())
+        latent_var = latents.detach().requires_grad_(True)
+
+        # Phase 2 integrates the denoiser/decoder/KL graph. Static rewards are
+        # attached in Phase 3 through ``paper_reward_guidance``.
+        paper_reward_guidance = getattr(self, "_paper_reward_guidance", None)
+        total_reward = None
+        reward_values = {}
+        reward_drift = torch.zeros_like(latents)
+        kl_drift = torch.zeros_like(latents)
+        kl_energy = None
+        reward_grad_norm = None
+        kl_grad_norm = None
+
+        with torch.enable_grad():
+            velocity = self._predict_velocity(
+                latent_var,
+                timestep,
+                latent_ids,
+                prompt_embeds,
+                text_ids,
+                image_latents,
+                image_latent_ids,
+                negative_prompt_embeds,
+                negative_text_ids,
+                guidance_scale,
+            )
+            clean_pred = predict_clean_latent(latent_var, velocity, sigma)
+
+            if paper_reward_guidance is not None:
+                clean_image = self._decode_clean_latent_for_reward(clean_pred, latent_ids)
+                total_reward, reward_values = paper_reward_guidance.compute(clean_image, self._paper_reward_prompt)
+                if not total_reward.requires_grad:
+                    raise RuntimeError("Paper reward is not differentiable with respect to the clean image.")
+                reward_grad = torch.autograd.grad(
+                    total_reward, latent_var, retain_graph=paper_config.use_kl, allow_unused=True
+                )[0]
+                if reward_grad is None:
+                    raise RuntimeError("Paper reward gradient did not reach the current latent through the denoiser.")
+                if not torch.isfinite(reward_grad).all():
+                    raise RuntimeError("Paper reward gradient contains non-finite values.")
+                reward_grad_norm = torch.linalg.vector_norm(reward_grad.detach().float())
+                reward_drift = paper_config.lambda_reward * reward_grad
+
+            if paper_config.use_kl:
+                if source_clean_latent is None:
+                    raise RuntimeError("Paper KL was enabled without a prepared source clean latent.")
+                kl_energy = clean_latent_kl_energy(clean_pred, source_clean_latent)
+                kl_grad = torch.autograd.grad(kl_energy, latent_var, allow_unused=True)[0]
+                if kl_grad is None:
+                    raise RuntimeError("Paper KL gradient did not reach the current latent through the denoiser.")
+                if not torch.isfinite(kl_grad).all():
+                    raise RuntimeError("Paper KL gradient contains non-finite values.")
+                kl_grad_norm = torch.linalg.vector_norm(kl_grad.detach().float())
+                kl_drift = -paper_config.lambda_kl * kl_grad
+
+        gamma = torch.zeros((), device=latents.device, dtype=latents.dtype)
+        langevin_noise = torch.zeros_like(latents)
+        if paper_config.use_sde_noise:
+            sigma_start = self.scheduler.sigmas[0].to(device=latents.device)
+            gamma = paper_gamma_schedule(
+                sigma,
+                sigma_start,
+                gamma_min=paper_config.gamma_min,
+                gamma_max=paper_config.gamma_max,
+                rho=paper_config.gamma_rho,
+            )
+            langevin_noise = sample_langevin_noise(latents, gamma, eta, generator=generator)
+
+        updated = paper_euler_update(
+            latent_var.detach(),
+            velocity.detach(),
+            sigma,
+            sigma_next,
+            reward_drift=reward_drift.detach(),
+            kl_drift=kl_drift.detach(),
+            langevin_noise=langevin_noise,
+        )
+
+        if paper_config.collect_trace:
+            self.last_paper_trace.append(
+                {
+                    "step": step_index,
+                    "timestep": float(timestep[0].detach().cpu()),
+                    "sigma": float(sigma.detach().cpu()),
+                    "sigma_next": float(sigma_next.detach().cpu()),
+                    "eta": float((sigma - sigma_next).detach().cpu()),
+                    "gamma": float(gamma.detach().cpu()),
+                    "total_reward": None if total_reward is None else float(total_reward.detach().cpu()),
+                    "each_reward_value": {name: float(value.detach().cpu()) for name, value in reward_values.items()},
+                    "reward_grad_norm": None if reward_grad_norm is None else float(reward_grad_norm.cpu()),
+                    "kl_energy": None if kl_energy is None else float(kl_energy.detach().cpu()),
+                    "kl_grad_norm": None if kl_grad_norm is None else float(kl_grad_norm.cpu()),
+                    "backbone_drift_norm": float(torch.linalg.vector_norm(velocity.detach().float()).cpu()),
+                    "langevin_noise_norm": float(torch.linalg.vector_norm(langevin_noise.float()).cpu()),
+                    "clean_pred_norm": float(torch.linalg.vector_norm(clean_pred.detach().float()).cpu()),
+                    "latent_norm": float(torch.linalg.vector_norm(updated.detach().float()).cpu()),
+                }
+            )
+        return updated
+
     def _apply_reward_guidance(
         self,
         latents: torch.Tensor,
@@ -439,10 +670,13 @@ class FluxRewardFlowPipeline(DiffusionPipeline, FluxRewardFlowLoraLoaderMixin):
         if reward_guidance_steps <= 0:
             return latents_guided, last_reward_values, last_reward_weights
         import time
+
         for _ in range(reward_guidance_steps):
             latents_guided = latents_guided.detach().requires_grad_(True)
             with torch.enable_grad():
-                time.sleep(3)  # to simulate the time taken by reward computation and make the effect of reward guidance more pronounced in testing 
+                time.sleep(
+                    3
+                )  # to simulate the time taken by reward computation and make the effect of reward guidance more pronounced in testing
                 image = self._decode_latents_for_reward(latents_guided, latent_ids)
                 total_reward, reward_values, reward_weights = reward_guidance.compute(image=image, prompt=prompt)
                 last_reward_values = reward_values
@@ -455,9 +689,7 @@ class FluxRewardFlowPipeline(DiffusionPipeline, FluxRewardFlowLoraLoaderMixin):
                     )
                     return latents_guided.detach(), last_reward_values, last_reward_weights
 
-                grad = torch.autograd.grad(
-                    total_reward, latents_guided, retain_graph=False, allow_unused=True
-                )[0]
+                grad = torch.autograd.grad(total_reward, latents_guided, retain_graph=False, allow_unused=True)[0]
 
             if grad is None:
                 logger.warning_once(
@@ -517,7 +749,7 @@ class FluxRewardFlowPipeline(DiffusionPipeline, FluxRewardFlowLoraLoaderMixin):
                     **_select_kwargs("siglip"),
                 )
             )
-        except Exception as exc:
+        except Exception:
             print("Skipping RegionCLIPReward: {exc}")
 
         try:
@@ -529,7 +761,7 @@ class FluxRewardFlowPipeline(DiffusionPipeline, FluxRewardFlowLoraLoaderMixin):
                     **_select_kwargs("region_clip"),
                 )
             )
-        except Exception as exc:
+        except Exception:
             print("Skipping RegionCLIPReward: {exc}")
         if not reward_fns:
             raise ValueError("No reward functions could be initialized.")
@@ -748,9 +980,10 @@ class FluxRewardFlowPipeline(DiffusionPipeline, FluxRewardFlowLoraLoaderMixin):
         reward_guidance_scale: float = 1.0,
         reward_guidance_steps: int = 2,
         reward_guidance_temperature: float = 1.0,
-        reward_fns: list[Callable] | None = None,
+        reward_fns: list[Callable] | dict[str, Callable] | None = None,
         reward_model_ids: dict[str, str] | None = None,
         reward_model_kwargs: dict[str, Any] | None = None,
+        paper_config: PaperRewardFlowConfig | dict[str, Any] | None = None,
     ):
         r"""
         Function invoked when calling the pipeline for generation.
@@ -835,6 +1068,9 @@ class FluxRewardFlowPipeline(DiffusionPipeline, FluxRewardFlowLoraLoaderMixin):
             reward_model_kwargs (`dict[str, Any]`, *optional*):
                 Extra kwargs forwarded to reward model `from_pretrained` calls (e.g. `cache_dir`, `local_files_only`,
                 `token`, `revision`). Can be a flat dict for all models or a dict with `default` and per-model keys.
+            paper_config (`PaperRewardFlowConfig` or `dict`, *optional*):
+                Opt-in configuration for the paper-faithful clean-prediction and Langevin path. When omitted or
+                disabled, the legacy RewardFlow behavior is unchanged.
 
         Examples:
 
@@ -852,11 +1088,23 @@ class FluxRewardFlowPipeline(DiffusionPipeline, FluxRewardFlowLoraLoaderMixin):
             guidance_scale=guidance_scale,
         )
 
-        
+        if paper_config is None:
+            paper_config = PaperRewardFlowConfig()
+        elif isinstance(paper_config, dict):
+            paper_config = PaperRewardFlowConfig(**paper_config)
+        elif not isinstance(paper_config, PaperRewardFlowConfig):
+            raise TypeError("`paper_config` must be a PaperRewardFlowConfig, dict, or None.")
+        if paper_config.enabled and reward_guidance:
+            raise ValueError(
+                "`paper_config.enabled=True` and legacy `reward_guidance=True` are mutually exclusive. "
+                "Pass rewards through the paper configuration path instead."
+            )
+
         self._attention_kwargs = attention_kwargs
         self._current_timestep = None
-        self._guidance_scale = guidance_scale if reward_guidance else 1.0
+        self._guidance_scale = guidance_scale if (reward_guidance or paper_config.enabled) else 1.0
         self._interrupt = False
+        self.last_paper_trace = []
 
         # 2. Define call parameters
         if prompt is not None and isinstance(prompt, str):
@@ -882,14 +1130,18 @@ class FluxRewardFlowPipeline(DiffusionPipeline, FluxRewardFlowLoraLoaderMixin):
                 )
             if reward_fns is None:
                 raise ValueError("`reward_guidance=True` requires `reward_fns` to be provided.")
+            if isinstance(reward_fns, dict):
+                raise TypeError("Legacy `reward_guidance` expects `reward_fns` as a list, not a dict.")
             reward_guidance_module = RewardGuidance(reward_fns, temperature=reward_guidance_temperature)
             for reward_fn in reward_fns:
                 prepare_fn = getattr(reward_fn, "prepare", None)
                 if callable(prepare_fn):
                     prepare_fn(prompt=reward_prompt, device=device)
 
-        if not reward_guidance and image != None:
-            raise ValueError("Passing `image` is not supported when `reward_guidance=False`. Please set `reward_guidance=True` to use image conditioning.")
+        if not reward_guidance and not paper_config.enabled and image is not None:
+            raise ValueError(
+                "Passing `image` is not supported when `reward_guidance=False`. Please set `reward_guidance=True` to use image conditioning."
+            )
         # 3. prepare text embeddings
         prompt_embeds, text_ids = self.encode_prompt(
             prompt=prompt,
@@ -963,6 +1215,54 @@ class FluxRewardFlowPipeline(DiffusionPipeline, FluxRewardFlowLoraLoaderMixin):
                 dtype=self.vae.dtype,
             )
 
+        paper_reward_guidance = None
+        if paper_config.enabled and paper_config.static_reward_weights:
+            if prompt is None:
+                raise ValueError("Paper reward guidance requires `prompt` to be provided.")
+            if reward_fns is None:
+                requested_names = set(paper_config.static_reward_weights)
+                if requested_names != {"siglip"}:
+                    raise ValueError(
+                        "The built-in paper reward set contains only `siglip`. Pass a named `reward_fns` dict "
+                        f"for requested rewards {sorted(requested_names)}."
+                    )
+                siglip = next((reward for reward in self._reward_fns if isinstance(reward, SigLIPReward)), None)
+                if siglip is None:
+                    raise RuntimeError("The official pipeline did not initialize its SigLIP reward model.")
+                paper_rewards = {"siglip": siglip}
+            elif isinstance(reward_fns, dict):
+                paper_rewards = reward_fns
+            else:
+                raise TypeError(
+                    "Paper reward guidance requires a named `reward_fns` dict; list order is not used to guess names."
+                )
+            paper_reward_guidance = StaticRewardGuidance(
+                rewards=paper_rewards,
+                weights=paper_config.static_reward_weights,
+            )
+            for reward_fn in paper_rewards.values():
+                prepare_fn = getattr(reward_fn, "prepare", None)
+                if callable(prepare_fn):
+                    prepare_fn(prompt=prompt, device=device)
+
+        paper_config.validate(
+            reward_enabled=paper_reward_guidance is not None,
+            has_source_image=condition_images is not None,
+        )
+        source_clean_latent = None
+        if paper_config.enabled and paper_config.use_kl:
+            source_clean_latent = self._prepare_source_clean_latent(
+                condition_images,
+                latents,
+                source_image_index=paper_config.source_image_index,
+                batch_size=batch_size * num_images_per_prompt,
+                generator=generator,
+                device=device,
+                dtype=self.vae.dtype,
+            )
+        self._paper_reward_guidance = paper_reward_guidance
+        self._paper_reward_prompt = prompt
+
         # 6. Prepare timesteps
         sigmas = np.linspace(1.0, 1 / num_inference_steps, num_inference_steps) if sigmas is None else sigmas
         if hasattr(self.scheduler.config, "use_flow_sigmas") and self.scheduler.config.use_flow_sigmas:
@@ -992,58 +1292,48 @@ class FluxRewardFlowPipeline(DiffusionPipeline, FluxRewardFlowLoraLoaderMixin):
                 # broadcast to batch dimension in a way that's compatible with ONNX/Core ML
                 timestep = t.expand(latents.shape[0]).to(latents.dtype)
 
-                
-
-                latent_model_input = latents.to(self.transformer.dtype)
-                latent_image_ids = latent_ids
-
-                if image_latents is not None:
-                    latent_model_input = torch.cat([latents, image_latents], dim=1).to(self.transformer.dtype)
-                    latent_image_ids = torch.cat([latent_ids, image_latent_ids], dim=1)
-
-                with self.transformer.cache_context("cond"):
-                    noise_pred = self.transformer(
-                        hidden_states=latent_model_input,  # (B, image_seq_len, C)
-                        timestep=timestep / 1000,
-                        guidance=None,
-                        encoder_hidden_states=prompt_embeds,
-                        txt_ids=text_ids,  # B, text_seq_len, 4
-                        img_ids=latent_image_ids,  # B, image_seq_len, 4
-                        joint_attention_kwargs=self.attention_kwargs,
-                        return_dict=False,
-                    )[0]
-
-                noise_pred = noise_pred[:, : latents.size(1) :]
-
-                if self.do_classifier_free_guidance:
-                    with self.transformer.cache_context("uncond"):
-                        neg_noise_pred = self.transformer(
-                            hidden_states=latent_model_input,
-                            timestep=timestep / 1000,
-                            guidance=None,
-                            encoder_hidden_states=negative_prompt_embeds,
-                            txt_ids=negative_text_ids,
-                            img_ids=latent_image_ids,
-                            joint_attention_kwargs=self._attention_kwargs,
-                            return_dict=False,
-                        )[0]
-                    neg_noise_pred = neg_noise_pred[:, : latents.size(1) :]
-                    noise_pred = neg_noise_pred + guidance_scale * (noise_pred - neg_noise_pred)
-                    
-                if reward_guidance and i >= start_reward:
-                    latents, _, _ = self._apply_reward_guidance(
-                        latents=latents,
-                        latent_ids=latent_ids,
-                        prompt=reward_prompt,
-                        reward_guidance=reward_guidance_module,
-                        reward_guidance_scale=reward_guidance_scale,
-                        reward_guidance_steps=reward_guidance_steps,
-                    )
-                    
-
-                
                 latents_dtype = latents.dtype
-                latents = self.scheduler.step(noise_pred, t, latents, return_dict=False)[0]
+                if paper_config.enabled:
+                    latents = self._paper_langevin_step(
+                        latents=latents,
+                        step_index=i,
+                        timestep=timestep,
+                        latent_ids=latent_ids,
+                        prompt_embeds=prompt_embeds,
+                        text_ids=text_ids,
+                        image_latents=image_latents,
+                        image_latent_ids=image_latent_ids,
+                        negative_prompt_embeds=negative_prompt_embeds if self.do_classifier_free_guidance else None,
+                        negative_text_ids=negative_text_ids if self.do_classifier_free_guidance else None,
+                        guidance_scale=guidance_scale,
+                        source_clean_latent=source_clean_latent,
+                        paper_config=paper_config,
+                        generator=generator,
+                    )
+                else:
+                    noise_pred = self._predict_velocity(
+                        latents,
+                        timestep,
+                        latent_ids,
+                        prompt_embeds,
+                        text_ids,
+                        image_latents,
+                        image_latent_ids,
+                        negative_prompt_embeds if self.do_classifier_free_guidance else None,
+                        negative_text_ids if self.do_classifier_free_guidance else None,
+                        guidance_scale,
+                    )
+
+                    if reward_guidance and i >= start_reward:
+                        latents, _, _ = self._apply_reward_guidance(
+                            latents=latents,
+                            latent_ids=latent_ids,
+                            prompt=reward_prompt,
+                            reward_guidance=reward_guidance_module,
+                            reward_guidance_scale=reward_guidance_scale,
+                            reward_guidance_steps=reward_guidance_steps,
+                        )
+                    latents = self._legacy_scheduler_step(noise_pred, t, latents)
 
                 if latents.dtype != latents_dtype:
                     if torch.backends.mps.is_available():
@@ -1083,6 +1373,8 @@ class FluxRewardFlowPipeline(DiffusionPipeline, FluxRewardFlowLoraLoaderMixin):
             image = self.image_processor.postprocess(image, output_type=output_type)
 
         # Offload all models
+        if paper_reward_guidance is not None:
+            paper_reward_guidance.maybe_offload()
         self.maybe_free_model_hooks()
 
         if not return_dict:

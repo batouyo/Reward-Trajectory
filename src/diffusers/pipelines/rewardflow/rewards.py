@@ -1,7 +1,8 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+import math
 import warnings
+from dataclasses import dataclass
 from typing import Protocol, Sequence
 
 import PIL
@@ -159,6 +160,55 @@ class RewardGuidance:
 
     def maybe_offload(self):
         for reward in self.rewards:
+            maybe_offload = getattr(reward, "maybe_offload", None)
+            if callable(maybe_offload):
+                maybe_offload()
+
+
+class StaticRewardGuidance:
+    """Transparent, differentiable reward fusion with caller-supplied weights.
+
+    ASSUMPTION: Static weights are an explicit engineering interface for this
+    phase, not a reconstruction of the paper's unspecified adaptive-policy
+    configuration.
+
+    Unlike the legacy ``RewardGuidance``, this class performs no running
+    normalization, softmax, scheduling, or value-dependent reweighting.
+    """
+
+    def __init__(self, rewards: dict[str, RewardFn], weights: dict[str, float]):
+        if not rewards:
+            raise ValueError("StaticRewardGuidance requires at least one named reward.")
+        if set(rewards) != set(weights):
+            missing = sorted(set(rewards) - set(weights))
+            extra = sorted(set(weights) - set(rewards))
+            raise ValueError(f"Reward and weight names must match exactly; missing={missing}, extra={extra}.")
+        if any(not math.isfinite(float(weight)) for weight in weights.values()):
+            raise ValueError("Static reward weights must be finite.")
+        self.rewards = dict(rewards)
+        self.weights = {name: float(weight) for name, weight in weights.items()}
+
+    def compute(self, image: torch.Tensor, prompt: str | list[str]) -> tuple[torch.Tensor, dict[str, torch.Tensor]]:
+        values = {}
+        total = None
+        for name, reward in self.rewards.items():
+            maybe_onload = getattr(reward, "maybe_onload", None)
+            if callable(maybe_onload):
+                maybe_onload()
+            value = reward(image=image, prompt=prompt)
+            if not torch.is_tensor(value):
+                raise TypeError(f"Reward `{name}` must return a torch.Tensor, got {type(value)}.")
+            if value.dim() > 0:
+                value = value.mean()
+            if value.device != image.device:
+                value = value.to(image.device)
+            values[name] = value
+            weighted = self.weights[name] * value
+            total = weighted if total is None else total + weighted
+        return total, values
+
+    def maybe_offload(self):
+        for reward in self.rewards.values():
             maybe_offload = getattr(reward, "maybe_offload", None)
             if callable(maybe_offload):
                 maybe_offload()
@@ -374,6 +424,271 @@ class LLMReward:
         return self.score_fn(image=image, prompt=prompt)
 
 
+def qwen_vqa_token_reward(
+    logits: torch.Tensor,
+    target_token_ids: torch.Tensor,
+    *,
+    margin: float,
+    lambda_margin: float,
+) -> torch.Tensor:
+    """Compute the teacher-forced VQA token reward from aligned next-token logits.
+
+    ASSUMPTION: Eq. 4 is typeset ambiguously. We implement the prose description
+    "negative cross-entropy plus margin objective" so larger reward means larger
+    target log-likelihood and a larger target-vs-best-other logit margin.
+    """
+
+    if logits.ndim != 2:
+        raise ValueError("`logits` must have shape [answer_tokens, vocabulary].")
+    if target_token_ids.ndim != 1 or target_token_ids.shape[0] != logits.shape[0]:
+        raise ValueError("`target_token_ids` must align one-to-one with `logits` rows.")
+    if margin < 0 or lambda_margin < 0:
+        raise ValueError("`margin` and `lambda_margin` must be non-negative.")
+
+    logits = logits.float()
+    target_token_ids = target_token_ids.to(device=logits.device, dtype=torch.long)
+    correct_logits = logits.gather(1, target_token_ids[:, None]).squeeze(1)
+    log_prob_correct = F.log_softmax(logits, dim=-1).gather(1, target_token_ids[:, None]).squeeze(1)
+
+    top_values, top_indices = logits.topk(k=2, dim=-1)
+    max_other = torch.where(top_indices[:, 0] == target_token_ids, top_values[:, 1], top_values[:, 0])
+    margin_penalty = F.relu(float(margin) - correct_logits + max_other)
+    return (log_prob_correct - float(lambda_margin) * margin_penalty).mean()
+
+
+class Qwen25VQAReward:
+    """Differentiable teacher-forced VQA reward using frozen Qwen2.5-VL 3B.
+
+    Images remain torch tensors throughout preprocessing. The current adapter
+    supports one image because RewardFlow's paper experiments use batch size one
+    for editing and the paper does not specify multi-image Q&A association.
+    """
+
+    def __init__(
+        self,
+        question: str,
+        answer: str,
+        model_id: str = "Qwen/Qwen2.5-VL-3B-Instruct",
+        *,
+        margin: float | None = None,
+        lambda_margin: float | None = None,
+        max_answer_tokens: int = 70,
+        device: torch.device | str | None = None,
+        dtype: torch.dtype | None = None,
+        cache_dir: str | None = None,
+        local_files_only: bool | None = None,
+        token: str | None = None,
+        revision: str | None = None,
+        trust_remote_code: bool = True,
+    ):
+        # ASSUMPTION: The paper does not disclose experimental values for the
+        # token margin or its coefficient, so both must be caller-supplied.
+        if not question.strip() or not answer.strip():
+            raise ValueError("Qwen25VQAReward requires non-empty `question` and `answer`.")
+        if margin is None or lambda_margin is None:
+            raise ValueError(
+                "Qwen25VQAReward requires explicit `margin` and `lambda_margin`; the paper values are unavailable."
+            )
+        if margin < 0 or lambda_margin < 0:
+            raise ValueError("`margin` and `lambda_margin` must be non-negative.")
+        if not 1 <= max_answer_tokens <= 70:
+            raise ValueError("`max_answer_tokens` must be between 1 and the paper's approximate cap of 70.")
+
+        try:
+            from transformers import AutoProcessor, Qwen2_5_VLForConditionalGeneration
+        except Exception as exc:  # pragma: no cover - optional dependency
+            raise ImportError("Qwen25VQAReward requires Qwen2.5-VL support in transformers.") from exc
+
+        hf_kwargs = _build_hf_kwargs(
+            cache_dir=cache_dir,
+            local_files_only=local_files_only,
+            token=token,
+            revision=revision,
+            trust_remote_code=trust_remote_code,
+        )
+        model_kwargs = dict(hf_kwargs)
+        if dtype is not None:
+            model_kwargs["torch_dtype"] = dtype
+        self.processor = AutoProcessor.from_pretrained(model_id, **hf_kwargs)
+        self.model = Qwen2_5_VLForConditionalGeneration.from_pretrained(model_id, **model_kwargs)
+        if device is not None:
+            self.model = self.model.to(device)
+        self.model.eval()
+        for parameter in self.model.parameters():
+            parameter.requires_grad_(False)
+
+        self.question = question.strip()
+        self.answer = answer.strip()
+        self.margin = float(margin)
+        self.lambda_margin = float(lambda_margin)
+        self.max_answer_tokens = int(max_answer_tokens)
+        self._validate_image_processor()
+
+    def _validate_image_processor(self) -> None:
+        required = (
+            "patch_size",
+            "temporal_patch_size",
+            "merge_size",
+            "min_pixels",
+            "max_pixels",
+            "image_mean",
+            "image_std",
+        )
+        missing = [name for name in required if not hasattr(self.processor.image_processor, name)]
+        if missing:
+            raise NotImplementedError(
+                "Cannot reproduce differentiable Qwen image preprocessing; processor is missing " + ", ".join(missing)
+            )
+
+    @staticmethod
+    def _smart_resize(height: int, width: int, factor: int, min_pixels: int, max_pixels: int) -> tuple[int, int]:
+        if max(height, width) / min(height, width) > 200:
+            raise ValueError("Qwen2.5-VL requires an absolute image aspect ratio below 200.")
+        resized_height = round(height / factor) * factor
+        resized_width = round(width / factor) * factor
+        if resized_height * resized_width > max_pixels:
+            beta = math.sqrt((height * width) / max_pixels)
+            resized_height = max(factor, math.floor(height / beta / factor) * factor)
+            resized_width = max(factor, math.floor(width / beta / factor) * factor)
+        elif resized_height * resized_width < min_pixels:
+            beta = math.sqrt(min_pixels / (height * width))
+            resized_height = math.ceil(height * beta / factor) * factor
+            resized_width = math.ceil(width * beta / factor) * factor
+        return resized_height, resized_width
+
+    def _differentiable_image_inputs(self, image: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
+        # ASSUMPTION: The paper reports batch-one editing and does not define
+        # how Q&A pairs map to batched or multi-image reward inputs.
+        if image.ndim == 3:
+            image = image.unsqueeze(0)
+        if image.ndim != 4 or image.shape[0] != 1 or image.shape[1] != 3:
+            raise NotImplementedError("Qwen25VQAReward currently supports exactly one RGB image tensor [1, 3, H, W].")
+        if not image.is_floating_point():
+            raise TypeError("Qwen25VQAReward expects a floating-point image tensor in [0, 1].")
+
+        processor = self.processor.image_processor
+        patch_size = int(processor.patch_size)
+        temporal_patch_size = int(processor.temporal_patch_size)
+        merge_size = int(processor.merge_size)
+        factor = patch_size * merge_size
+        height, width = image.shape[-2:]
+        resized_height, resized_width = self._smart_resize(
+            height,
+            width,
+            factor,
+            int(processor.min_pixels),
+            int(processor.max_pixels),
+        )
+        # ASSUMPTION: Hugging Face's reference processor uses PIL/NumPy bicubic
+        # resizing, which destroys gradients. Torch bicubic with antialiasing is
+        # the closest differentiable operation, but is not bit-identical to PIL.
+        image = F.interpolate(
+            image.clamp(0, 1),
+            size=(resized_height, resized_width),
+            mode="bicubic",
+            align_corners=False,
+            antialias=True,
+        )
+        mean = torch.tensor(processor.image_mean, device=image.device, dtype=image.dtype).view(1, 3, 1, 1)
+        std = torch.tensor(processor.image_std, device=image.device, dtype=image.dtype).view(1, 3, 1, 1)
+        image = (image - mean) / std
+
+        frames = image.repeat(temporal_patch_size, 1, 1, 1)
+        channel = frames.shape[1]
+        grid_t = frames.shape[0] // temporal_patch_size
+        grid_h = resized_height // patch_size
+        grid_w = resized_width // patch_size
+        patches = frames.reshape(
+            grid_t,
+            temporal_patch_size,
+            channel,
+            grid_h // merge_size,
+            merge_size,
+            patch_size,
+            grid_w // merge_size,
+            merge_size,
+            patch_size,
+        )
+        patches = patches.permute(0, 3, 6, 4, 7, 2, 1, 5, 8)
+        pixel_values = patches.reshape(
+            grid_t * grid_h * grid_w, channel * temporal_patch_size * patch_size * patch_size
+        )
+        image_grid_thw = torch.tensor([[grid_t, grid_h, grid_w]], device=image.device, dtype=torch.long)
+        return pixel_values, image_grid_thw
+
+    def _teacher_forced_inputs(self, image_grid_thw: torch.Tensor, device: torch.device):
+        # ASSUMPTION: The paper does not define the exact Qwen chat template or
+        # whether the assistant terminator belongs to a*. We use the checkpoint's
+        # official chat template as prefix and score answer tokens only.
+        messages = [
+            {
+                "role": "user",
+                "content": [
+                    {"type": "image"},
+                    {"type": "text", "text": self.question},
+                ],
+            }
+        ]
+        prompt_text = self.processor.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
+        image_token = self.processor.image_token
+        if prompt_text.count(image_token) != 1:
+            raise NotImplementedError("Expected exactly one Qwen image placeholder in the chat template.")
+        merge_length = int(self.processor.image_processor.merge_size) ** 2
+        image_token_count = int(image_grid_thw[0].prod().item() // merge_length)
+        prompt_text = prompt_text.replace(image_token, image_token * image_token_count, 1)
+
+        tokenizer = self.processor.tokenizer
+        prefix_ids = tokenizer(prompt_text, add_special_tokens=False, return_tensors="pt").input_ids[0]
+        answer_ids = tokenizer(self.answer, add_special_tokens=False, return_tensors="pt").input_ids[0]
+        answer_ids = answer_ids[: self.max_answer_tokens]
+        if answer_ids.numel() == 0:
+            raise ValueError("The target answer produced no tokens.")
+        input_ids = torch.cat([prefix_ids, answer_ids]).unsqueeze(0).to(device)
+        attention_mask = torch.ones_like(input_ids)
+        target_positions = torch.arange(
+            prefix_ids.numel() - 1,
+            prefix_ids.numel() + answer_ids.numel() - 1,
+            device=device,
+        )
+        return input_ids, attention_mask, answer_ids.to(device), target_positions
+
+    def prepare(self, prompt: str | list[str], device: torch.device | None = None):
+        return None
+
+    def __call__(self, image: torch.Tensor, prompt: str | list[str]) -> torch.Tensor:
+        pixel_values, image_grid_thw = self._differentiable_image_inputs(image)
+        try:
+            model_device = next(self.model.parameters()).device
+            visual = getattr(self.model, "visual", None)
+            if visual is None:
+                visual = self.model.model.visual
+            model_dtype = visual.dtype
+        except (StopIteration, AttributeError) as exc:
+            raise NotImplementedError(
+                "Cannot determine Qwen2.5-VL model device/dtype for differentiable input."
+            ) from exc
+        pixel_values = pixel_values.to(device=model_device, dtype=model_dtype)
+        image_grid_thw = image_grid_thw.to(model_device)
+        input_ids, attention_mask, answer_ids, target_positions = self._teacher_forced_inputs(
+            image_grid_thw, model_device
+        )
+        outputs = self.model(
+            input_ids=input_ids,
+            attention_mask=attention_mask,
+            pixel_values=pixel_values,
+            image_grid_thw=image_grid_thw,
+            use_cache=False,
+            return_dict=True,
+        )
+        aligned_logits = outputs.logits[0, target_positions]
+        return qwen_vqa_token_reward(
+            aligned_logits,
+            answer_ids,
+            margin=self.margin,
+            lambda_margin=self.lambda_margin,
+        ).to(image.device)
+
+
 # class Qwen3VLCaptionReward:
 #     """
 #     Qwen3-VL reward: generate a caption from the image, then compute the
@@ -534,8 +849,8 @@ class Qwen25VLCaptionReward:
         trust_remote_code: bool = True,
     ):
         try:
-            from transformers import Qwen2_5_VLForConditionalGeneration, AutoProcessor
             from qwen_vl_utils import process_vision_info
+            from transformers import AutoProcessor, Qwen2_5_VLForConditionalGeneration
         except Exception as exc:  # pragma: no cover - optional dependency
             raise ImportError("Qwen25VLCaptionReward requires Qwen2.5-VL + qwen_vl_utils.") from exc
 
@@ -633,7 +948,9 @@ class Qwen25VLCaptionReward:
 
     def _prepare_inputs(self, image: torch.Tensor, instruction: str, caption: str | None, add_generation_prompt: bool):
         messages = self._build_messages(instruction, caption=caption)
-        text = self.processor.apply_chat_template(messages, tokenize=False, add_generation_prompt=add_generation_prompt)
+        text = self.processor.apply_chat_template(
+            messages, tokenize=False, add_generation_prompt=add_generation_prompt
+        )
 
         # process_vision_info expects the image to be part of messages; it will pick it up.
         # We pass the image separately so it can be injected into messages.
@@ -883,9 +1200,7 @@ class FlorenceSAMReward:
             outputs.append((boxes, scores))
         return outputs
 
-    def _extract_boxes_and_scores(
-        self, parsed: dict, size: tuple[int, int]
-    ) -> tuple[list[list[float]], list[float]]:
+    def _extract_boxes_and_scores(self, parsed: dict, size: tuple[int, int]) -> tuple[list[list[float]], list[float]]:
         width, height = size
         boxes: list[list[float]] = []
         scores: list[float] = []
@@ -996,7 +1311,7 @@ class GroundingDINOReward:
         query_reduce: str = "max",
     ):
         try:
-            from transformers import AutoProcessor, AutoModelForZeroShotObjectDetection
+            from transformers import AutoModelForZeroShotObjectDetection, AutoProcessor
         except Exception as exc:  # pragma: no cover - optional dependency
             raise ImportError("GroundingDINOReward requires transformers.") from exc
 
@@ -1140,7 +1455,6 @@ class GroundingDINOReward:
 
 
 class HPSReward:
-
     def __init__(self, model_name: str = "v2.1", device: str | None = None):
         try:
             import hpsv2  # type: ignore
