@@ -48,18 +48,26 @@ else:
     ]
     _import_structure["pipeline_rewardflow_flux"] = ["FluxRewardFlowPipeline"]
     _import_structure["strength_trajectory"] = [
+        "StrengthBranchLayout",
+        "StrengthRewardBatchContext",
         "StrengthRewardContext",
         "StrengthRewardFn",
         "StrengthRewardGuidance",
         "StrengthTrajectoryConfig",
+        "align_strength_reward_context",
+        "assert_branch_local_reward",
         "expand_for_strengths",
         "expand_shared_initial_latents",
         "flatten_strength_branches",
         "group_trajectory_images",
+        "is_strength_reward_step",
         "make_flat_strength_tensor",
+        "make_strength_branch_layout",
         "max_shared_noise_difference",
+        "sample_base_langevin_noise",
         "sample_shared_langevin_noise",
         "unflatten_strength_branches",
+        "validate_strength_reward_context",
         "validate_trajectory_mode",
     ]
     _import_structure["rewards"] = [
@@ -94,18 +102,26 @@ if TYPE_CHECKING or DIFFUSERS_SLOW_IMPORT:
             qwen_vqa_token_reward,
         )
         from .strength_trajectory import (
+            StrengthBranchLayout,
+            StrengthRewardBatchContext,
             StrengthRewardContext,
             StrengthRewardFn,
             StrengthRewardGuidance,
             StrengthTrajectoryConfig,
+            align_strength_reward_context,
+            assert_branch_local_reward,
             expand_for_strengths,
             expand_shared_initial_latents,
             flatten_strength_branches,
             group_trajectory_images,
+            is_strength_reward_step,
             make_flat_strength_tensor,
+            make_strength_branch_layout,
             max_shared_noise_difference,
+            sample_base_langevin_noise,
             sample_shared_langevin_noise,
             unflatten_strength_branches,
+            validate_strength_reward_context,
             validate_trajectory_mode,
         )
 
