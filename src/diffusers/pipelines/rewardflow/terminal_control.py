@@ -28,17 +28,50 @@ class TerminalControlUnrollOutput:
     states: tuple[torch.Tensor, ...]
     # Detached snapshots are diagnostics only and never feed the loss.
     native_control_velocities: tuple[torch.Tensor, ...]
+    controlled_step_indices: tuple[int, ...]
 
 
 @dataclass
 class TerminalObjectiveOutput:
     """Scalar terminal objective and auditable endpoint scores."""
 
+    objective_name: str
     loss: torch.Tensor
+    objective_error: torch.Tensor
     source_score: torch.Tensor
     full_score: torch.Tensor
     target_score: torch.Tensor
     achieved_score: torch.Tensor
+
+
+@dataclass(frozen=True)
+class BestTerminalControlCheckpoint:
+    """Detached best-objective control snapshot that never mutates final controls."""
+
+    iteration: int
+    objective_error: float
+    controls: tuple[torch.Tensor, ...]
+
+
+def update_best_control_checkpoint(
+    current: BestTerminalControlCheckpoint | None,
+    *,
+    iteration: int,
+    objective_error: torch.Tensor,
+    controls: Sequence[torch.Tensor],
+) -> BestTerminalControlCheckpoint:
+    """Return an updated detached snapshot without restoring or changing controls."""
+
+    if objective_error.numel() != 1 or not torch.isfinite(objective_error):
+        raise ValueError("Best-checkpoint objective error must be one finite scalar.")
+    value = objective_error.detach().item()
+    if current is not None and value >= current.objective_error:
+        return current
+    return BestTerminalControlCheckpoint(
+        iteration=iteration,
+        objective_error=value,
+        controls=tuple(control.detach().clone() for control in controls),
+    )
 
 
 def initialize_velocity_controls(
@@ -155,6 +188,7 @@ def unroll_terminal_velocity_controls(
         final_latent=latent,
         states=tuple(states),
         native_control_velocities=tuple(native_control_velocities),
+        controlled_step_indices=tuple(range(len(controls))),
     )
 
 
@@ -204,16 +238,18 @@ class BlueEndpointTargetLoss:
         weight: torch.Tensor | None = None,
     ):
         _validate_endpoint_pair(source_image, full_image)
-        self.weight = None if weight is None else weight.detach()
-        self.source_score = blue_direction_score(source_image.detach(), self.weight).detach()
-        self.full_score = blue_direction_score(full_image.detach(), self.weight).detach()
+        self.weight = None if weight is None else weight.detach().clone()
+        self.source_score = blue_direction_score(source_image.detach(), self.weight).detach().clone()
+        self.full_score = blue_direction_score(full_image.detach(), self.weight).detach().clone()
 
     def __call__(self, image: torch.Tensor, strength: float) -> TerminalObjectiveOutput:
         strength = _validate_strength(strength)
         achieved = blue_direction_score(image, self.weight)
         target = (1 - strength) * self.source_score + strength * self.full_score
         return TerminalObjectiveOutput(
+            objective_name="blue",
             loss=(achieved - target).square().mean(),
+            objective_error=(achieved - target).abs().mean(),
             source_score=self.source_score,
             full_score=self.full_score,
             target_score=target,
@@ -232,11 +268,11 @@ class EndpointPixelTargetLoss:
         weight: torch.Tensor | None = None,
     ):
         _validate_endpoint_pair(source_image, full_image)
-        self.source_image = source_image.detach().float()
-        self.full_image = full_image.detach().float()
-        self.weight = None if weight is None else weight.detach().float()
-        self.source_score = blue_direction_score(self.source_image, self.weight).detach()
-        self.full_score = blue_direction_score(self.full_image, self.weight).detach()
+        self.source_image = source_image.detach().float().clone()
+        self.full_image = full_image.detach().float().clone()
+        self.weight = None if weight is None else weight.detach().float().clone()
+        self.source_score = blue_direction_score(self.source_image, self.weight).detach().clone()
+        self.full_score = blue_direction_score(self.full_image, self.weight).detach().clone()
 
     def __call__(self, image: torch.Tensor, strength: float) -> TerminalObjectiveOutput:
         strength = _validate_strength(strength)
@@ -246,7 +282,9 @@ class EndpointPixelTargetLoss:
             squared_error = squared_error * self.weight.to(squared_error.device)
         target_score = (1 - strength) * self.source_score + strength * self.full_score
         return TerminalObjectiveOutput(
+            objective_name="pixel",
             loss=squared_error.mean(),
+            objective_error=squared_error.mean(),
             source_score=self.source_score,
             full_score=self.full_score,
             target_score=target_score,

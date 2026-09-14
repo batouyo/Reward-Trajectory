@@ -82,6 +82,7 @@ else:
         "qwen_vqa_token_reward",
     ]
     _import_structure["terminal_control"] = [
+        "BestTerminalControlCheckpoint",
         "BlueEndpointTargetLoss",
         "EndpointPixelTargetLoss",
         "TerminalControlUnrollOutput",
@@ -92,6 +93,7 @@ else:
         "initialize_velocity_controls",
         "normalized_control_energy",
         "unroll_terminal_velocity_controls",
+        "update_best_control_checkpoint",
     ]
 if TYPE_CHECKING or DIFFUSERS_SLOW_IMPORT:
     try:
@@ -147,6 +149,7 @@ if TYPE_CHECKING or DIFFUSERS_SLOW_IMPORT:
             validate_trajectory_mode,
         )
         from .terminal_control import (
+            BestTerminalControlCheckpoint,
             BlueEndpointTargetLoss,
             EndpointPixelTargetLoss,
             TerminalControlUnrollOutput,
@@ -157,6 +160,7 @@ if TYPE_CHECKING or DIFFUSERS_SLOW_IMPORT:
             initialize_velocity_controls,
             normalized_control_energy,
             unroll_terminal_velocity_controls,
+            update_best_control_checkpoint,
         )
 
     from .semantic_parser import (

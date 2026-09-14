@@ -6,10 +6,12 @@ import torch
 from diffusers.pipelines.rewardflow.paper_components import paper_euler_update
 from diffusers.pipelines.rewardflow.terminal_control import (
     BlueEndpointTargetLoss,
+    EndpointPixelTargetLoss,
     freeze_terminal_control_modules,
     initialize_velocity_controls,
     normalized_control_energy,
     unroll_terminal_velocity_controls,
+    update_best_control_checkpoint,
 )
 
 
@@ -32,6 +34,20 @@ def test_zero_controls_reproduce_deterministic_euler_trajectory_exactly():
     actual = unroll_terminal_velocity_controls(initial, timesteps, sigmas, velocity_fn, controls).final_latent
 
     torch.testing.assert_close(actual, expected, rtol=0, atol=0)
+
+
+def test_control_steps_two_explicitly_controls_steps_zero_and_one():
+    initial = torch.zeros(1, 2, 3)
+    controls = initialize_velocity_controls(initial, control_steps=2)
+    result = unroll_terminal_velocity_controls(
+        initial,
+        [torch.tensor(2.0), torch.tensor(1.0)],
+        torch.tensor([1.0, 0.5, 0.0]),
+        _linear_velocity(0.1),
+        controls,
+    )
+
+    assert result.controlled_step_indices == (0, 1)
 
 
 @pytest.mark.parametrize("use_checkpointing", [False, True])
@@ -74,6 +90,7 @@ def test_step_zero_control_reaches_later_states_only_through_native_dynamics():
 
     torch.testing.assert_close(result.states[1], expected_step_1, rtol=0, atol=0)
     torch.testing.assert_close(result.final_latent, expected_final, rtol=0, atol=0)
+    assert result.controlled_step_indices == (0,)
 
 
 def test_model_parameters_are_frozen_and_receive_no_gradient():
@@ -139,3 +156,46 @@ def test_blue_endpoint_target_uses_endpoint_interpolation():
     torch.testing.assert_close(output.full_score, torch.tensor([1.0]))
     torch.testing.assert_close(output.target_score, torch.tensor([0.25]))
     torch.testing.assert_close(output.loss, torch.tensor(0.0))
+    torch.testing.assert_close(output.objective_error, torch.tensor(0.0))
+
+
+def test_pixel_objective_error_is_pixel_mse_not_blue_score_error():
+    source = torch.zeros(1, 3, 2, 2)
+    full = torch.ones_like(source)
+    generated = torch.zeros_like(source)
+    generated[:, 0] = 0.5
+    objective = EndpointPixelTargetLoss(source, full)
+    output = objective(generated, strength=0.5)
+    expected_mse = (generated - 0.5).square().mean()
+    blue_error = (output.achieved_score - output.target_score).abs().mean()
+
+    assert output.objective_name == "pixel"
+    torch.testing.assert_close(output.objective_error, expected_mse)
+    torch.testing.assert_close(output.loss, expected_mse)
+    assert not torch.isclose(output.objective_error, blue_error)
+
+
+def test_masked_pixel_objective_uses_a_fixed_detached_mask():
+    source = torch.zeros(1, 3, 2, 2)
+    full = torch.ones_like(source)
+    generated = torch.zeros_like(source)
+    mask = torch.tensor([[[[4.0, 0.0], [0.0, 0.0]]]], requires_grad=True)
+    objective = EndpointPixelTargetLoss(source, full, weight=mask)
+    mask.data.fill_(0.0)
+    output = objective(generated, strength=0.5)
+    expected = (torch.tensor([[[[4.0, 0.0], [0.0, 0.0]]]]) * (generated - 0.5).square()).mean()
+
+    assert objective.weight.requires_grad is False
+    torch.testing.assert_close(output.objective_error, expected)
+
+
+def test_best_checkpoint_tracking_does_not_change_final_controls():
+    controls = [torch.nn.Parameter(torch.tensor([1.0]))]
+    best = update_best_control_checkpoint(None, iteration=0, objective_error=torch.tensor(0.5), controls=controls)
+    controls[0].data.fill_(2.0)
+    best = update_best_control_checkpoint(best, iteration=1, objective_error=torch.tensor(0.6), controls=controls)
+
+    assert best.iteration == 0
+    assert best.objective_error == 0.5
+    torch.testing.assert_close(best.controls[0], torch.tensor([1.0]))
+    torch.testing.assert_close(controls[0], torch.tensor([2.0]))

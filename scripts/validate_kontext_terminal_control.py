@@ -1,7 +1,7 @@
 """Validate long-horizon early velocity control on a real FLUX.1-Kontext model.
 
-This is an opt-in mechanism experiment. Its endpoint blue/pixel objectives are
-diagnostic controllability probes, not semantic edit-strength rewards.
+Endpoint blue and pixel objectives are diagnostic controllability probes, not
+semantic edit-strength rewards. Every strength reuses one fixed native setup.
 """
 
 from __future__ import annotations
@@ -26,10 +26,10 @@ from diffusers.pipelines.rewardflow.pipeline_flux_kontext_terminal_control impor
 from diffusers.pipelines.rewardflow.terminal_control import (
     BlueEndpointTargetLoss,
     EndpointPixelTargetLoss,
-    blue_direction_score,
     endpoint_soft_mask,
     initialize_velocity_controls,
     normalized_control_energy,
+    update_best_control_checkpoint,
 )
 
 
@@ -51,17 +51,13 @@ def _parse_args():
     parser.add_argument("--device", default="cuda:0")
     parser.add_argument("--strengths", type=float, nargs="+", default=(0.2, 0.5, 0.8))
     parser.add_argument("--control-steps", type=int, default=2)
-    parser.add_argument("--outer-iters", type=int, default=6)
+    parser.add_argument("--outer-iters", type=int, default=20)
     parser.add_argument("--control-lr", type=float, default=0.1)
     parser.add_argument("--lambda-control", type=float, default=1e-4)
     parser.add_argument("--grad-clip", type=float, default=None)
     parser.add_argument("--terminal-objective", choices=("blue", "pixel"), default="blue")
     parser.add_argument("--endpoint-soft-mask", action="store_true")
-    parser.add_argument(
-        "--use-checkpointing",
-        action=argparse.BooleanOptionalAction,
-        default=True,
-    )
+    parser.add_argument("--use-checkpointing", action=argparse.BooleanOptionalAction, default=True)
     args = parser.parse_args()
     if not args.model:
         parser.error("Set FLUX_KONTEXT_MODEL_PATH or pass --model.")
@@ -114,30 +110,27 @@ def _model_has_gradient(pipe) -> bool:
     )
 
 
-def _control_diagnostics(controls, native_velocities) -> dict[str, list[float | None]]:
-    control_norms = []
-    native_norms = []
-    ratios = []
-    cosines = []
-    for control, native in zip(controls, native_velocities):
+def _control_step_diagnostics(controls, native_velocities) -> list[dict[str, float | int | None]]:
+    diagnostics = []
+    for step_index, (control, native) in enumerate(zip(controls, native_velocities)):
         control_flat = control.detach().float().flatten()
         native_flat = native.detach().float().flatten()
         control_norm = torch.linalg.vector_norm(control_flat).item()
         native_norm = torch.linalg.vector_norm(native_flat).item()
-        control_norms.append(control_norm)
-        native_norms.append(native_norm)
-        ratios.append(control_norm / native_norm if native_norm > 0 else None)
-        cosines.append(
-            F.cosine_similarity(control_flat[None], native_flat[None]).item()
-            if control_norm > 0 and native_norm > 0
-            else None
+        diagnostics.append(
+            {
+                "step_index": step_index,
+                "control_norm": control_norm,
+                "native_velocity_norm": native_norm,
+                "control_native_ratio": control_norm / native_norm if native_norm > 0 else None,
+                "control_native_cosine": (
+                    F.cosine_similarity(control_flat[None], native_flat[None]).item()
+                    if control_norm > 0 and native_norm > 0
+                    else None
+                ),
+            }
         )
-    return {
-        "control_norms": control_norms,
-        "native_velocity_norms": native_norms,
-        "control_native_ratios": ratios,
-        "control_native_cosines": cosines,
-    }
+    return diagnostics
 
 
 def _make_objective(name, source_image, full_image, weight):
@@ -146,17 +139,95 @@ def _make_objective(name, source_image, full_image, weight):
     return EndpointPixelTargetLoss(source_image, full_image, weight=weight)
 
 
-def _optimize_strength(pipe, inputs, objective, args, strength: float):
+def _pixel_target(source_image: torch.Tensor, full_image: torch.Tensor, strength: float) -> torch.Tensor:
+    return (1 - strength) * source_image + strength * full_image
+
+
+def _weighted_mean(value: torch.Tensor, weight: torch.Tensor) -> torch.Tensor:
+    expanded = weight.to(device=value.device, dtype=value.dtype).expand_as(value)
+    return (value * expanded).sum() / expanded.sum().clamp_min(torch.finfo(value.dtype).eps)
+
+
+def _endpoint_distance_metrics(image, source, full, target, weight) -> dict[str, float | None]:
+    differences = {
+        "source": image.float() - source.float(),
+        "full": image.float() - full.float(),
+        "pixel_target": image.float() - target.float(),
+    }
+    metrics = {}
+    for name, difference in differences.items():
+        metrics[f"mse_to_{name}"] = difference.square().mean().item()
+        metrics[f"mad_to_{name}"] = difference.abs().mean().item()
+    metrics.update(
+        {
+            "masked_mse_to_source": None,
+            "masked_mse_to_full": None,
+            "masked_mse_to_target": None,
+            "background_mse_to_source": None,
+            "background_mse_to_full": None,
+        }
+    )
+    if weight is not None:
+        metrics["masked_mse_to_source"] = (weight * differences["source"].square()).mean().item()
+        metrics["masked_mse_to_full"] = (weight * differences["full"].square()).mean().item()
+        metrics["masked_mse_to_target"] = (weight * differences["pixel_target"].square()).mean().item()
+        unit_mask = (weight / weight.amax(dim=(2, 3), keepdim=True).clamp_min(1e-8)).clamp(0, 1)
+        background = 1 - unit_mask
+        metrics["background_mse_to_source"] = _weighted_mean(differences["source"].square(), background).item()
+        metrics["background_mse_to_full"] = _weighted_mean(differences["full"].square(), background).item()
+    return metrics
+
+
+def _trajectory_distances(unroll, native_states) -> list[dict[str, float | int]]:
+    if len(unroll.states) != len(native_states):
+        raise RuntimeError("Controlled and native trajectories have different state counts.")
+    rows = []
+    for state_index, (controlled, native) in enumerate(zip(unroll.states, native_states)):
+        difference = controlled.detach().float() - native.detach().float()
+        rows.append(
+            {
+                "state_index": state_index,
+                "after_step_index": state_index - 1,
+                "latent_mad_from_native": difference.abs().mean().item(),
+                "latent_l2_from_native": torch.linalg.vector_norm(difference).item(),
+            }
+        )
+    return rows
+
+
+def _evaluate_controls(pipe, inputs, controls, objective, strength, native_states, source, full, target, weight):
+    with torch.no_grad():
+        unroll = pipe.unroll_terminal_controls(inputs, controls, use_checkpointing=False)
+        image = pipe.decode_terminal_latent(unroll.final_latent, inputs).detach()
+        objective_output = objective(image, strength)
+    return {
+        "image": image.cpu(),
+        "objective_error": objective_output.objective_error.item(),
+        "terminal_objective_loss": objective_output.loss.item(),
+        "source_blue_score": objective_output.source_score.mean().item(),
+        "full_blue_score": objective_output.full_score.mean().item(),
+        "target_blue_score": objective_output.target_score.mean().item(),
+        "achieved_blue_score": objective_output.achieved_score.mean().item(),
+        "final_latent_norm": torch.linalg.vector_norm(unroll.final_latent.float()).item(),
+        "controlled_steps": _control_step_diagnostics(controls, unroll.native_control_velocities),
+        "trajectory_distances": _trajectory_distances(unroll, native_states),
+        "endpoint_distances": _endpoint_distance_metrics(image, source, full, target, weight),
+    }
+
+
+def _optimize_strength(pipe, inputs, objective, args, strength, native_states, source, full, target, weight):
     controls = initialize_velocity_controls(inputs.initial_latent, args.control_steps)
     optimizer = torch.optim.Adam(controls, lr=args.control_lr)
     trace = []
-    initial_image = None
-
-    with torch.no_grad():
-        initial_unroll = pipe.unroll_terminal_controls(inputs, controls, use_checkpointing=False)
-        initial_image = pipe.decode_terminal_latent(initial_unroll.final_latent, inputs).detach()
-        initial_objective = objective(initial_image, strength)
-        initial_target_error = (initial_objective.achieved_score - initial_objective.target_score).abs().mean().item()
+    initial = _evaluate_controls(
+        pipe, inputs, controls, objective, strength, native_states, source, full, target, weight
+    )
+    best = update_best_control_checkpoint(
+        None,
+        iteration=-1,
+        objective_error=torch.tensor(initial["objective_error"], device=inputs.initial_latent.device),
+        controls=controls,
+    )
 
     for outer_iter in range(args.outer_iters):
         optimizer.zero_grad(set_to_none=True)
@@ -164,14 +235,15 @@ def _optimize_strength(pipe, inputs, objective, args, strength: float):
         torch.cuda.reset_peak_memory_stats(args.device)
         torch.cuda.synchronize(args.device)
         started = time.perf_counter()
-
-        unroll = pipe.unroll_terminal_controls(
-            inputs,
-            controls,
-            use_checkpointing=args.use_checkpointing,
-        )
+        unroll = pipe.unroll_terminal_controls(inputs, controls, use_checkpointing=args.use_checkpointing)
         final_image = pipe.decode_terminal_latent(unroll.final_latent, inputs)
         objective_output = objective(final_image, strength)
+        best = update_best_control_checkpoint(
+            best,
+            iteration=outer_iter,
+            objective_error=objective_output.objective_error,
+            controls=controls,
+        )
         control_regularization = normalized_control_energy(controls)
         total_loss = objective_output.loss + args.lambda_control * control_regularization
         total_loss.backward()
@@ -187,57 +259,58 @@ def _optimize_strength(pipe, inputs, objective, args, strength: float):
             raise RuntimeError("Frozen Kontext/VAE/text parameters unexpectedly received gradients.")
 
         grad_norms = [torch.linalg.vector_norm(gradient.detach().float()).item() for gradient in gradients]
-        diagnostics = _control_diagnostics(controls, unroll.native_control_velocities)
+        controlled_steps = _control_step_diagnostics(controls, unroll.native_control_velocities)
+        for diagnostic, grad_norm in zip(controlled_steps, grad_norms):
+            diagnostic["control_gradient_norm"] = grad_norm
         if args.grad_clip is not None:
             torch.nn.utils.clip_grad_norm_(controls, args.grad_clip)
         optimizer.step()
         torch.cuda.synchronize(args.device)
-        elapsed = time.perf_counter() - started
-
-        achieved = objective_output.achieved_score.detach().mean().item()
-        target = objective_output.target_score.detach().mean().item()
         trace.append(
             {
                 "strength": strength,
                 "outer_iter": outer_iter,
-                "terminal_loss": total_loss.detach().item(),
-                "terminal_strength_loss": objective_output.loss.detach().item(),
+                "objective_name": objective_output.objective_name,
+                "objective_error": objective_output.objective_error.detach().item(),
+                "terminal_objective_loss": objective_output.loss.detach().item(),
+                "total_loss": total_loss.detach().item(),
                 "control_regularization": control_regularization.detach().item(),
                 "weighted_control_regularization": (args.lambda_control * control_regularization).detach().item(),
-                "source_score": objective_output.source_score.detach().mean().item(),
-                "full_score": objective_output.full_score.detach().mean().item(),
-                "target_score": target,
-                "achieved_score": achieved,
-                "absolute_target_error": abs(achieved - target),
-                "control_gradient_norms": grad_norms,
-                **diagnostics,
+                "source_blue_score": objective_output.source_score.detach().mean().item(),
+                "full_blue_score": objective_output.full_score.detach().mean().item(),
+                "target_blue_score": objective_output.target_score.detach().mean().item(),
+                "achieved_blue_score": objective_output.achieved_score.detach().mean().item(),
+                "controlled_step_indices": list(unroll.controlled_step_indices),
+                "controlled_steps": controlled_steps,
                 "final_latent_norm": torch.linalg.vector_norm(unroll.final_latent.detach().float()).item(),
-                "elapsed_seconds": elapsed,
+                "elapsed_seconds": time.perf_counter() - started,
                 "peak_cuda_allocated_mb": torch.cuda.max_memory_allocated(args.device) / 2**20,
                 "peak_cuda_reserved_mb": torch.cuda.max_memory_reserved(args.device) / 2**20,
             }
         )
         del final_image, total_loss, objective_output, unroll
 
-    with torch.no_grad():
-        final_unroll = pipe.unroll_terminal_controls(inputs, controls, use_checkpointing=False)
-        final_image = pipe.decode_terminal_latent(final_unroll.final_latent, inputs).detach()
-        final_objective = objective(final_image, strength)
-        final_target_error = (final_objective.achieved_score - final_objective.target_score).abs().mean().item()
-        final_diagnostics = _control_diagnostics(controls, final_unroll.native_control_velocities)
-
+    final = _evaluate_controls(
+        pipe, inputs, controls, objective, strength, native_states, source, full, target, weight
+    )
+    best = update_best_control_checkpoint(
+        best,
+        iteration=args.outer_iters,
+        objective_error=torch.tensor(final["objective_error"], device=inputs.initial_latent.device),
+        controls=controls,
+    )
+    best_result = _evaluate_controls(
+        pipe, inputs, best.controls, objective, strength, native_states, source, full, target, weight
+    )
     return {
-        "initial_image": initial_image.cpu(),
-        "final_image": final_image.cpu(),
-        "initial_target_error": initial_target_error,
-        "final_target_error": final_target_error,
-        "final_strength_loss": final_objective.loss.item(),
-        "source_score": final_objective.source_score.mean().item(),
-        "full_score": final_objective.full_score.mean().item(),
-        "target_score": final_objective.target_score.mean().item(),
-        "achieved_score": final_objective.achieved_score.mean().item(),
-        "final_latent_norm": torch.linalg.vector_norm(final_unroll.final_latent.float()).item(),
-        "final_diagnostics": final_diagnostics,
+        "objective_name": objective.__class__.__name__,
+        "controlled_step_indices": list(range(args.control_steps)),
+        "initial": initial,
+        "final": final,
+        "best": best_result,
+        "best_iter": best.iteration,
+        "best_objective_error": best.objective_error,
+        "final_objective_error": final["objective_error"],
         "trace": trace,
     }
 
@@ -248,16 +321,21 @@ def _write_trace_csv(path: Path, rows: list[dict]) -> None:
         return
     normalized = []
     for row in rows:
-        normalized.append({key: json.dumps(value) if isinstance(value, list) else value for key, value in row.items()})
+        normalized.append(
+            {key: json.dumps(value) if isinstance(value, (list, dict)) else value for key, value in row.items()}
+        )
     with path.open("w", newline="", encoding="utf-8") as handle:
         writer = csv.DictWriter(handle, fieldnames=list(normalized[0]))
         writer.writeheader()
         writer.writerows(normalized)
 
 
-def _make_grid(source: Image.Image, native: Image.Image, results: dict[float, dict]) -> Image.Image:
-    images = [source, native, *[_tensor_to_pil(result["final_image"][0]) for result in results.values()]]
-    labels = ["Source", "Native Full", *(f"s={strength:g}" for strength in results)]
+def _make_comparison_grid(source, native, targets, results, result_name):
+    images = [source, native]
+    labels = ["Source", "Native Full"]
+    for strength, target in targets.items():
+        images.extend([_tensor_to_pil(target[0]), _tensor_to_pil(results[strength][result_name]["image"][0])])
+        labels.extend([f"Target {strength:g}", f"{result_name.title()} {strength:g}"])
     width, height = source.size
     header = 30
     grid = Image.new("RGB", (width * len(images), height + header), "white")
@@ -269,28 +347,40 @@ def _make_grid(source: Image.Image, native: Image.Image, results: dict[float, di
     return grid
 
 
+def _serializable_result(result):
+    serialized = {}
+    for key, value in result.items():
+        if key == "trace":
+            continue
+        if key in {"initial", "final", "best"}:
+            serialized[key] = {
+                nested_key: nested_value for nested_key, nested_value in value.items() if nested_key != "image"
+            }
+        else:
+            serialized[key] = value
+    return serialized
+
+
 def main():
     args = _parse_args()
     if not torch.cuda.is_available():
         raise RuntimeError("Real Kontext terminal-control validation requires CUDA.")
     output_dir = Path(args.output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
-    source = Image.open(args.source).convert("RGB").resize((args.width, args.height), Image.Resampling.LANCZOS)
-    source.save(output_dir / "source.png")
+    source_pil = Image.open(args.source).convert("RGB").resize((args.width, args.height), Image.Resampling.LANCZOS)
+    source_pil.save(output_dir / "source.png")
 
     device = torch.device(args.device)
     dtype = torch.bfloat16 if args.dtype == "bfloat16" else torch.float16
     torch.cuda.set_device(device)
     print(f"Loading {args.model} on {device} as {dtype}", flush=True)
-    pipe = FluxKontextTerminalControlPipeline.from_pretrained(
-        args.model,
-        torch_dtype=dtype,
-        local_files_only=True,
-    ).to(device)
+    pipe = FluxKontextTerminalControlPipeline.from_pretrained(args.model, torch_dtype=dtype, local_files_only=True).to(
+        device
+    )
     pipe.set_progress_bar_config(disable=True)
 
     common = {
-        "image": source,
+        "image": source_pil,
         "prompt": args.prompt,
         "height": args.height,
         "width": args.width,
@@ -301,7 +391,7 @@ def main():
         "output_type": "latent",
     }
     inputs = pipe.prepare_terminal_control_inputs(
-        image=source,
+        image=source_pil,
         prompt=args.prompt,
         height=args.height,
         width=args.width,
@@ -309,13 +399,8 @@ def main():
         guidance_scale=args.guidance_scale,
         generator=torch.Generator(device=device).manual_seed(args.seed),
     )
-
-    # Hard parity gate: official scheduler, captured K=1 native path, and the
-    # independent zero-control unroll all start from the same seeded latent.
     official = FluxKontextPipeline.__call__(
-        pipe,
-        **common,
-        generator=torch.Generator(device=device).manual_seed(args.seed),
+        pipe, **common, generator=torch.Generator(device=device).manual_seed(args.seed)
     ).images
     zero_controls = initialize_velocity_controls(inputs.initial_latent, args.control_steps)
     with torch.no_grad():
@@ -332,9 +417,15 @@ def main():
         native_full_image = pipe.decode_terminal_latent(inputs.native_final_latent, inputs).detach()
     native_full_pil = _tensor_to_pil(native_full_image[0])
     native_full_pil.save(output_dir / "native_full.png")
-    source_tensor = _pil_to_tensor(source, device)
-    weight = endpoint_soft_mask(source_tensor, native_full_image) if args.endpoint_soft_mask else None
-    objective = _make_objective(args.terminal_objective, source_tensor, native_full_image, weight)
+    source_image = _pil_to_tensor(source_pil, device)
+    weight = endpoint_soft_mask(source_image, native_full_image) if args.endpoint_soft_mask else None
+    objective = _make_objective(args.terminal_objective, source_image, native_full_image, weight)
+    targets = {
+        float(strength): _pixel_target(source_image, native_full_image, float(strength)).detach().cpu()
+        for strength in args.strengths
+    }
+    for strength, target in targets.items():
+        _tensor_to_pil(target[0]).save(output_dir / f"target_s{_float_tag(strength)}.png")
 
     torch.save(
         {
@@ -348,35 +439,41 @@ def main():
 
     results = {}
     trace_rows = []
+    native_states = zero_unroll.states
     for strength in args.strengths:
+        strength = float(strength)
         print(f"Optimizing terminal controls for strength={strength:g}", flush=True)
-        result = _optimize_strength(pipe, inputs, objective, args, float(strength))
-        results[float(strength)] = result
+        target = targets[strength].to(device)
+        result = _optimize_strength(
+            pipe,
+            inputs,
+            objective,
+            args,
+            strength,
+            native_states,
+            source_image,
+            native_full_image,
+            target,
+            weight,
+        )
+        results[strength] = result
         trace_rows.extend(result["trace"])
         tag = _float_tag(strength)
-        _tensor_to_pil(result["initial_image"][0]).save(output_dir / f"strength_{tag}_iter_initial.png")
-        _tensor_to_pil(result["final_image"][0]).save(output_dir / f"strength_{tag}_final.png")
-        print(
-            json.dumps(
-                {
-                    "strength": strength,
-                    **{k: v for k, v in result.items() if k not in {"trace", "initial_image", "final_image"}},
-                },
-                indent=2,
-            ),
-            flush=True,
-        )
+        _tensor_to_pil(result["initial"]["image"][0]).save(output_dir / f"strength_{tag}_iter_initial.png")
+        _tensor_to_pil(result["best"]["image"][0]).save(output_dir / f"strength_{tag}_best.png")
+        _tensor_to_pil(result["final"]["image"][0]).save(output_dir / f"strength_{tag}_final.png")
+        print(json.dumps({"strength": strength, **_serializable_result(result)}, indent=2), flush=True)
 
-    _make_grid(source, native_full_pil, results).save(output_dir / "terminal_control_grid.png")
+    _make_comparison_grid(source_pil, native_full_pil, targets, results, "best").save(
+        output_dir / "terminal_control_grid_best.png"
+    )
+    _make_comparison_grid(source_pil, native_full_pil, targets, results, "final").save(
+        output_dir / "terminal_control_grid_final.png"
+    )
     _write_trace_csv(output_dir / "terminal_control_trace.csv", trace_rows)
     with (output_dir / "terminal_control_trace.json").open("w", encoding="utf-8") as handle:
         json.dump(trace_rows, handle, indent=2)
 
-    source_score = blue_direction_score(source_tensor, weight).item()
-    full_score = blue_direction_score(native_full_image, weight).item()
-    achieved = [results[float(strength)]["achieved_score"] for strength in args.strengths]
-    direction = 1 if full_score >= source_score else -1
-    ordered = all(direction * left < direction * right for left, right in zip(achieved, achieved[1:]))
     report = {
         "scope": "terminal early-velocity control with diagnostic endpoint targets",
         "model_path": os.path.realpath(args.model),
@@ -389,25 +486,17 @@ def main():
         "seed": args.seed,
         "guidance_scale": args.guidance_scale,
         "control_steps": args.control_steps,
+        "controlled_step_indices": list(range(args.control_steps)),
         "outer_iters": args.outer_iters,
         "control_lr": args.control_lr,
         "lambda_control": args.lambda_control,
         "use_checkpointing": args.use_checkpointing,
-        "terminal_objective": args.terminal_objective,
+        "objective_name": args.terminal_objective,
         "endpoint_soft_mask": args.endpoint_soft_mask,
         "official_vs_native_parity": official_vs_native,
         "zero_control_vs_native_parity": zero_vs_native,
         "model_parameters_have_gradient": _model_has_gradient(pipe),
-        "source_score": source_score,
-        "full_score": full_score,
-        "achieved_scores_in_strength_order": achieved,
-        "endpoint_direction_ordered": ordered,
-        "results": {
-            str(strength): {
-                key: value for key, value in result.items() if key not in {"trace", "initial_image", "final_image"}
-            }
-            for strength, result in results.items()
-        },
+        "results": {str(strength): _serializable_result(result) for strength, result in results.items()},
     }
     with (output_dir / "terminal_control_report.json").open("w", encoding="utf-8") as handle:
         json.dump(report, handle, indent=2)
