@@ -1,0 +1,1226 @@
+{
+  "scope": "Feature reward terminal controller v5; frozen reward definition and frozen shared controller",
+  "config": {
+    "model": "/data15/hyp/weight/FLUX.1-Kontext-dev",
+    "qwen_model": "/data15/hyp/weight/reward_models/Qwen2.5-VL-3B-Instruct",
+    "source": "/data15/hyp/dataset/kontinuous_kontext/raw/source_images/source_000000.png",
+    "relative_spec": "examples/rewardflow/relative_endpoint_ball_spec.json",
+    "prompt": "Make the weighted training ball blue while preserving its shape, texture, lighting, and background.",
+    "output_dir": "experiments/feature_reward_controller_v5",
+    "device": "cuda:0",
+    "steps": 12,
+    "seed": 20260914,
+    "height": 256,
+    "width": 256,
+    "guidance_scale": 2.5,
+    "control_steps": 4,
+    "topk_fraction": 0.25,
+    "outer_iters": 20,
+    "control_lr": 0.1,
+    "lambda_control": 0.0001,
+    "use_checkpointing": true
+  },
+  "provenance": {
+    "source": "SOURCE INPUT",
+    "native_full": "MODEL-GENERATED NATIVE FULL FLUX-KONTEXT OUTPUT",
+    "controlled_outputs": "MODEL-GENERATED FLUX-KONTEXT FEATURE-CONTROL OUTPUT",
+    "old_oracle_outputs_read": false,
+    "pixel_blends_used": false
+  },
+  "feature_definition": {
+    "qwen_dtype": "float32",
+    "prompt": "unchanged v4 focus-conditioned prompt",
+    "layer": "last",
+    "token": "final prompt token",
+    "normalization": "L2",
+    "primary_coordinate": "cosine distance ratio",
+    "loss": "squared coordinate residual"
+  },
+  "controller_definition": {
+    "shared_direction": true,
+    "effective_control": "(1-strength) * velocity_topk_mask * shared_direction",
+    "control_steps": 4,
+    "topk_fraction": 0.25,
+    "checkpoint_selection": "mean feature-coordinate absolute error only"
+  },
+  "initial_mean_error": 0.5000054836273193,
+  "best_mean_error": 0.45280150572458905,
+  "final_mean_error": 0.45342085758845013,
+  "best_error_improvement_fraction": 0.09440692042072467,
+  "best_iteration": 17,
+  "best_mean_effective_control_energy": 0.02836695872247219,
+  "training": {
+    "initial": {
+      "0.2": {
+        "feature_coordinate": 1.0000054836273193,
+        "target": 0.2,
+        "absolute_coordinate_error": 0.8000054955482483,
+        "semantic_loss": 0.640008807182312,
+        "control_energy": 0.0,
+        "mse_to_source": 0.018910249695181847,
+        "mse_to_native_full": 0.0,
+        "cosine_distance_source": 0.020136117935180664,
+        "cosine_distance_full": -1.1920928955078125e-07,
+        "euclidean_distance_ratio": 0.9999999403953552,
+        "axis_projection": 0.9999999403953552,
+        "latent_max_abs_vs_native": 0.0
+      },
+      "0.5": {
+        "feature_coordinate": 1.0000054836273193,
+        "target": 0.5,
+        "absolute_coordinate_error": 0.5000054836273193,
+        "semantic_loss": 0.25000548362731934,
+        "control_energy": 0.0,
+        "mse_to_source": 0.018910249695181847,
+        "mse_to_native_full": 0.0,
+        "cosine_distance_source": 0.020136117935180664,
+        "cosine_distance_full": -1.1920928955078125e-07,
+        "euclidean_distance_ratio": 0.9999999403953552,
+        "axis_projection": 0.9999999403953552,
+        "latent_max_abs_vs_native": 0.0
+      },
+      "0.8": {
+        "feature_coordinate": 1.0000054836273193,
+        "target": 0.8,
+        "absolute_coordinate_error": 0.20000547170639038,
+        "semantic_loss": 0.040002189576625824,
+        "control_energy": 0.0,
+        "mse_to_source": 0.018910249695181847,
+        "mse_to_native_full": 0.0,
+        "cosine_distance_source": 0.020136117935180664,
+        "cosine_distance_full": -1.1920928955078125e-07,
+        "euclidean_distance_ratio": 0.9999999403953552,
+        "axis_projection": 0.9999999403953552,
+        "latent_max_abs_vs_native": 0.0
+      }
+    },
+    "best": {
+      "0.2": {
+        "feature_coordinate": 0.9427729249000549,
+        "target": 0.2,
+        "absolute_coordinate_error": 0.7427729368209839,
+        "semantic_loss": 0.5517116189002991,
+        "control_energy": 0.058564044535160065,
+        "mse_to_source": 0.018822427839040756,
+        "mse_to_native_full": 5.537993274629116e-05,
+        "cosine_distance_source": 0.023644328117370605,
+        "cosine_distance_full": 0.0014352202415466309,
+        "euclidean_distance_ratio": 0.8023233413696289,
+        "axis_projection": 1.0514715909957886,
+        "latent_max_abs_vs_native": 0.66796875
+      },
+      "0.5": {
+        "feature_coordinate": 0.9546518921852112,
+        "target": 0.5,
+        "absolute_coordinate_error": 0.4546518921852112,
+        "semantic_loss": 0.20670834183692932,
+        "control_energy": 0.02287657931447029,
+        "mse_to_source": 0.018720336258411407,
+        "mse_to_native_full": 3.168957118759863e-05,
+        "cosine_distance_source": 0.023084282875061035,
+        "cosine_distance_full": 0.0010965466499328613,
+        "euclidean_distance_ratio": 0.8210513591766357,
+        "axis_projection": 1.0459742546081543,
+        "latent_max_abs_vs_native": 0.671875
+      },
+      "0.8": {
+        "feature_coordinate": 0.960979700088501,
+        "target": 0.8,
+        "absolute_coordinate_error": 0.16097968816757202,
+        "semantic_loss": 0.02591446042060852,
+        "control_energy": 0.003660252783447504,
+        "mse_to_source": 0.018466029316186905,
+        "mse_to_native_full": 2.326857065781951e-05,
+        "cosine_distance_source": 0.023127377033233643,
+        "cosine_distance_full": 0.0009390711784362793,
+        "euclidean_distance_ratio": 0.8322863578796387,
+        "axis_projection": 1.0509556531906128,
+        "latent_max_abs_vs_native": 0.61328125
+      }
+    },
+    "final": {
+      "0.2": {
+        "feature_coordinate": 0.939841091632843,
+        "target": 0.2,
+        "absolute_coordinate_error": 0.739841103553772,
+        "semantic_loss": 0.5473648309707642,
+        "control_energy": 0.07032191008329391,
+        "mse_to_source": 0.018915468826889992,
+        "mse_to_native_full": 4.4699023419525474e-05,
+        "cosine_distance_source": 0.023654043674468994,
+        "cosine_distance_full": 0.0015140771865844727,
+        "euclidean_distance_ratio": 0.7980796694755554,
+        "axis_projection": 1.0497550964355469,
+        "latent_max_abs_vs_native": 0.66015625
+      },
+      "0.5": {
+        "feature_coordinate": 0.9507246613502502,
+        "target": 0.5,
+        "absolute_coordinate_error": 0.45072466135025024,
+        "semantic_loss": 0.20315271615982056,
+        "control_energy": 0.027469493448734283,
+        "mse_to_source": 0.01881365105509758,
+        "mse_to_native_full": 2.0330422557890415e-05,
+        "cosine_distance_source": 0.02327197790145874,
+        "cosine_distance_full": 0.0012061595916748047,
+        "euclidean_distance_ratio": 0.8145543336868286,
+        "axis_projection": 1.0479103326797485,
+        "latent_max_abs_vs_native": 0.62890625
+      },
+      "0.8": {
+        "feature_coordinate": 0.9696968197822571,
+        "target": 0.8,
+        "absolute_coordinate_error": 0.16969680786132812,
+        "semantic_loss": 0.028797006234526634,
+        "control_energy": 0.00439511938020587,
+        "mse_to_source": 0.018701858818531036,
+        "mse_to_native_full": 2.7249665436102077e-05,
+        "cosine_distance_source": 0.022354304790496826,
+        "cosine_distance_full": 0.0006985664367675781,
+        "euclidean_distance_ratio": 0.8497765064239502,
+        "axis_projection": 1.037732481956482,
+        "latent_max_abs_vs_native": 0.65625
+      }
+    }
+  },
+  "controller_drive_gates": {
+    "all_shared_direction_gradients_finite": true,
+    "qwen_parameters_frozen": true,
+    "flux_transformer_parameters_frozen": true,
+    "vae_parameters_frozen": true,
+    "best_mean_error_reduced_at_least_50_percent": false,
+    "every_best_training_error_at_most_0p10": false,
+    "best_training_coordinates_strictly_increasing": true,
+    "all_values_finite": true
+  },
+  "controller_feature_drive": "FAIL",
+  "zero_control_native_parity_exact": true,
+  "strength_one_control_exactly_zero": true,
+  "strength_one_native_latent_max_abs_error": 0.0,
+  "dense_curve": {
+    "strict_order_pass": false,
+    "adjacent_gaps": [
+      0.011989116668701172,
+      -0.007031738758087158,
+      0.01465749740600586,
+      -0.020381152629852295,
+      0.017602622509002686,
+      -0.0032799243927001953,
+      0.003082573413848877,
+      0.006525158882141113,
+      0.010489225387573242,
+      0.028536558151245117
+    ],
+    "descending_inversions": [
+      [
+        0,
+        4
+      ],
+      [
+        1,
+        2
+      ],
+      [
+        1,
+        4
+      ],
+      [
+        2,
+        4
+      ],
+      [
+        3,
+        4
+      ],
+      [
+        3,
+        5
+      ],
+      [
+        3,
+        6
+      ],
+      [
+        3,
+        7
+      ],
+      [
+        5,
+        6
+      ],
+      [
+        5,
+        7
+      ]
+    ],
+    "descending_inversion_count": 10,
+    "ties": [],
+    "tie_count": 0,
+    "non_strict_violations": [
+      [
+        0,
+        4
+      ],
+      [
+        1,
+        2
+      ],
+      [
+        1,
+        4
+      ],
+      [
+        2,
+        4
+      ],
+      [
+        3,
+        4
+      ],
+      [
+        3,
+        5
+      ],
+      [
+        3,
+        6
+      ],
+      [
+        3,
+        7
+      ],
+      [
+        5,
+        6
+      ],
+      [
+        5,
+        7
+      ]
+    ],
+    "non_strict_violation_count": 10,
+    "maximum_coordinate_deviation": 0.9378155469894409,
+    "mean_coordinate_deviation": 0.4561641216278076,
+    "adjacent_coordinate_changes": [
+      0.011989116668701172,
+      -0.007031738758087158,
+      0.01465749740600586,
+      -0.020381152629852295,
+      0.017602622509002686,
+      -0.0032799243927001953,
+      0.003082573413848877,
+      0.006525158882141113,
+      0.010489225387573242,
+      0.028536558151245117
+    ],
+    "sudden_jump_threshold": 0.2,
+    "sudden_jump_indices": []
+  },
+  "visual_weak_mid_strong": "FAIL",
+  "perceptual_percentage_calibration": "NOT_ESTABLISHED",
+  "runtime_seconds": 430.473656500224,
+  "peak_allocated_gib": 49.37068223953247,
+  "peak_reserved_gib": 50.046875,
+  "low_level_endpoint_evaluation": {
+    "provenance": "EVALUATION ONLY; NOT USED BY REWARD OR CONTROLLER",
+    "mask_top_fraction": 0.25,
+    "mask_active_fraction": 0.25,
+    "candidate_dependent": false,
+    "used_by_reward_or_controller": false,
+    "rows_file": "low_level_endpoint_diagnostics.csv"
+  },
+  "independent_visual_judge": {
+    "provenance": {
+      "provider": "tianyuai",
+      "base_url": "https://tianyuai.lol/v1",
+      "model": "gpt-5.6-luna",
+      "prompt_version": "feature-controller-v5-blind-judge-v1",
+      "permutation_seed": 20260916,
+      "created_at": "2026-09-15T18:01:48.474716+00:00",
+      "credential_saved": false,
+      "used_for_reward_optimization_or_checkpoint_selection": false
+    },
+    "prompt": "Given the editing instruction and the five labeled images, consider ONLY the requested semantic change.\n\nEditing instruction:\nMake the weighted training ball blue while preserving its shape, texture, lighting, and background.\n\nRequested semantic change:\nthe visible surface color of the foreground weighted training ball\n\nRank Image A through Image E from the least amount of the requested semantic edit to the most amount of the requested semantic edit. Use only visible evidence. Do not estimate percentages.\n\nFor each image, report whether it is closer to the source endpoint, intermediate, or closer to the full-edit endpoint. Separately report obvious preservation violations using only these categories: shape, texture, lighting, background, noise_or_artifacts, global_color_drift. Use an empty list when none are obvious. Also list genuinely indistinguishable image pairs. Do not infer edit amounts from image position or labels.",
+    "trials": [
+      {
+        "trial": 0,
+        "blind_mapping": {
+          "A": "best_0.2",
+          "B": "best_0.5",
+          "C": "native_full",
+          "D": "best_0.8",
+          "E": "source"
+        },
+        "parsed_judgment": {
+          "indistinguishable_pairs": [
+            [
+              "A",
+              "B"
+            ],
+            [
+              "A",
+              "C"
+            ],
+            [
+              "A",
+              "D"
+            ],
+            [
+              "B",
+              "C"
+            ],
+            [
+              "B",
+              "D"
+            ],
+            [
+              "C",
+              "D"
+            ]
+          ],
+          "ordered_labels": [
+            "E",
+            "A",
+            "B",
+            "C",
+            "D"
+          ],
+          "per_image": {
+            "A": {
+              "endpoint_relation": "closer_to_full",
+              "preservation_violations": [],
+              "semantic_description": "Foreground weighted training ball is visibly bright blue."
+            },
+            "B": {
+              "endpoint_relation": "closer_to_full",
+              "preservation_violations": [],
+              "semantic_description": "Foreground weighted training ball is visibly bright blue."
+            },
+            "C": {
+              "endpoint_relation": "closer_to_full",
+              "preservation_violations": [],
+              "semantic_description": "Foreground weighted training ball is visibly bright blue."
+            },
+            "D": {
+              "endpoint_relation": "closer_to_full",
+              "preservation_violations": [],
+              "semantic_description": "Foreground weighted training ball is visibly bright blue."
+            },
+            "E": {
+              "endpoint_relation": "closer_to_source",
+              "preservation_violations": [],
+              "semantic_description": "Foreground weighted training ball is dark black/gray rather than blue."
+            }
+          }
+        },
+        "ordered_identities": [
+          "source",
+          "best_0.2",
+          "best_0.5",
+          "native_full",
+          "best_0.8"
+        ],
+        "per_identity": {
+          "best_0.2": {
+            "endpoint_relation": "closer_to_full",
+            "preservation_violations": [],
+            "semantic_description": "Foreground weighted training ball is visibly bright blue."
+          },
+          "best_0.5": {
+            "endpoint_relation": "closer_to_full",
+            "preservation_violations": [],
+            "semantic_description": "Foreground weighted training ball is visibly bright blue."
+          },
+          "native_full": {
+            "endpoint_relation": "closer_to_full",
+            "preservation_violations": [],
+            "semantic_description": "Foreground weighted training ball is visibly bright blue."
+          },
+          "best_0.8": {
+            "endpoint_relation": "closer_to_full",
+            "preservation_violations": [],
+            "semantic_description": "Foreground weighted training ball is visibly bright blue."
+          },
+          "source": {
+            "endpoint_relation": "closer_to_source",
+            "preservation_violations": [],
+            "semantic_description": "Foreground weighted training ball is dark black/gray rather than blue."
+          }
+        },
+        "indistinguishable_identity_pairs": [
+          [
+            "best_0.2",
+            "best_0.5"
+          ],
+          [
+            "best_0.2",
+            "native_full"
+          ],
+          [
+            "best_0.2",
+            "best_0.8"
+          ],
+          [
+            "best_0.5",
+            "native_full"
+          ],
+          [
+            "best_0.5",
+            "best_0.8"
+          ],
+          [
+            "best_0.8",
+            "native_full"
+          ]
+        ]
+      },
+      {
+        "trial": 1,
+        "blind_mapping": {
+          "A": "source",
+          "B": "best_0.8",
+          "C": "native_full",
+          "D": "best_0.2",
+          "E": "best_0.5"
+        },
+        "parsed_judgment": {
+          "indistinguishable_pairs": [
+            [
+              "B",
+              "C"
+            ],
+            [
+              "B",
+              "D"
+            ],
+            [
+              "B",
+              "E"
+            ],
+            [
+              "C",
+              "D"
+            ],
+            [
+              "C",
+              "E"
+            ],
+            [
+              "D",
+              "E"
+            ]
+          ],
+          "ordered_labels": [
+            "A",
+            "B",
+            "C",
+            "D",
+            "E"
+          ],
+          "per_image": {
+            "A": {
+              "endpoint_relation": "closer_to_source",
+              "preservation_violations": [],
+              "semantic_description": "The foreground weighted training ball remains dark/black rather than blue."
+            },
+            "B": {
+              "endpoint_relation": "closer_to_full",
+              "preservation_violations": [],
+              "semantic_description": "The foreground weighted training ball has a vivid blue visible surface."
+            },
+            "C": {
+              "endpoint_relation": "closer_to_full",
+              "preservation_violations": [],
+              "semantic_description": "The foreground weighted training ball has a vivid blue visible surface."
+            },
+            "D": {
+              "endpoint_relation": "closer_to_full",
+              "preservation_violations": [],
+              "semantic_description": "The foreground weighted training ball has a vivid blue visible surface."
+            },
+            "E": {
+              "endpoint_relation": "closer_to_full",
+              "preservation_violations": [],
+              "semantic_description": "The foreground weighted training ball has a vivid blue visible surface."
+            }
+          }
+        },
+        "ordered_identities": [
+          "source",
+          "best_0.8",
+          "native_full",
+          "best_0.2",
+          "best_0.5"
+        ],
+        "per_identity": {
+          "source": {
+            "endpoint_relation": "closer_to_source",
+            "preservation_violations": [],
+            "semantic_description": "The foreground weighted training ball remains dark/black rather than blue."
+          },
+          "best_0.8": {
+            "endpoint_relation": "closer_to_full",
+            "preservation_violations": [],
+            "semantic_description": "The foreground weighted training ball has a vivid blue visible surface."
+          },
+          "native_full": {
+            "endpoint_relation": "closer_to_full",
+            "preservation_violations": [],
+            "semantic_description": "The foreground weighted training ball has a vivid blue visible surface."
+          },
+          "best_0.2": {
+            "endpoint_relation": "closer_to_full",
+            "preservation_violations": [],
+            "semantic_description": "The foreground weighted training ball has a vivid blue visible surface."
+          },
+          "best_0.5": {
+            "endpoint_relation": "closer_to_full",
+            "preservation_violations": [],
+            "semantic_description": "The foreground weighted training ball has a vivid blue visible surface."
+          }
+        },
+        "indistinguishable_identity_pairs": [
+          [
+            "best_0.8",
+            "native_full"
+          ],
+          [
+            "best_0.2",
+            "best_0.8"
+          ],
+          [
+            "best_0.5",
+            "best_0.8"
+          ],
+          [
+            "best_0.2",
+            "native_full"
+          ],
+          [
+            "best_0.5",
+            "native_full"
+          ],
+          [
+            "best_0.2",
+            "best_0.5"
+          ]
+        ]
+      },
+      {
+        "trial": 2,
+        "blind_mapping": {
+          "A": "best_0.8",
+          "B": "best_0.5",
+          "C": "source",
+          "D": "best_0.2",
+          "E": "native_full"
+        },
+        "parsed_judgment": {
+          "indistinguishable_pairs": [
+            [
+              "A",
+              "B"
+            ],
+            [
+              "A",
+              "D"
+            ],
+            [
+              "A",
+              "E"
+            ],
+            [
+              "B",
+              "D"
+            ],
+            [
+              "B",
+              "E"
+            ],
+            [
+              "D",
+              "E"
+            ]
+          ],
+          "ordered_labels": [
+            "C",
+            "A",
+            "B",
+            "D",
+            "E"
+          ],
+          "per_image": {
+            "A": {
+              "endpoint_relation": "closer_to_full",
+              "preservation_violations": [],
+              "semantic_description": "The foreground weighted training ball is visibly bright blue."
+            },
+            "B": {
+              "endpoint_relation": "closer_to_full",
+              "preservation_violations": [],
+              "semantic_description": "The foreground weighted training ball is visibly bright blue."
+            },
+            "C": {
+              "endpoint_relation": "closer_to_source",
+              "preservation_violations": [],
+              "semantic_description": "The foreground weighted training ball remains dark black/charcoal rather than blue."
+            },
+            "D": {
+              "endpoint_relation": "closer_to_full",
+              "preservation_violations": [],
+              "semantic_description": "The foreground weighted training ball is visibly bright blue."
+            },
+            "E": {
+              "endpoint_relation": "closer_to_full",
+              "preservation_violations": [],
+              "semantic_description": "The foreground weighted training ball is visibly bright blue."
+            }
+          }
+        },
+        "ordered_identities": [
+          "source",
+          "best_0.8",
+          "best_0.5",
+          "best_0.2",
+          "native_full"
+        ],
+        "per_identity": {
+          "best_0.8": {
+            "endpoint_relation": "closer_to_full",
+            "preservation_violations": [],
+            "semantic_description": "The foreground weighted training ball is visibly bright blue."
+          },
+          "best_0.5": {
+            "endpoint_relation": "closer_to_full",
+            "preservation_violations": [],
+            "semantic_description": "The foreground weighted training ball is visibly bright blue."
+          },
+          "source": {
+            "endpoint_relation": "closer_to_source",
+            "preservation_violations": [],
+            "semantic_description": "The foreground weighted training ball remains dark black/charcoal rather than blue."
+          },
+          "best_0.2": {
+            "endpoint_relation": "closer_to_full",
+            "preservation_violations": [],
+            "semantic_description": "The foreground weighted training ball is visibly bright blue."
+          },
+          "native_full": {
+            "endpoint_relation": "closer_to_full",
+            "preservation_violations": [],
+            "semantic_description": "The foreground weighted training ball is visibly bright blue."
+          }
+        },
+        "indistinguishable_identity_pairs": [
+          [
+            "best_0.5",
+            "best_0.8"
+          ],
+          [
+            "best_0.2",
+            "best_0.8"
+          ],
+          [
+            "best_0.8",
+            "native_full"
+          ],
+          [
+            "best_0.2",
+            "best_0.5"
+          ],
+          [
+            "best_0.5",
+            "native_full"
+          ],
+          [
+            "best_0.2",
+            "native_full"
+          ]
+        ]
+      },
+      {
+        "trial": 3,
+        "blind_mapping": {
+          "A": "source",
+          "B": "best_0.2",
+          "C": "native_full",
+          "D": "best_0.5",
+          "E": "best_0.8"
+        },
+        "parsed_judgment": {
+          "indistinguishable_pairs": [
+            [
+              "B",
+              "C"
+            ],
+            [
+              "B",
+              "D"
+            ],
+            [
+              "B",
+              "E"
+            ],
+            [
+              "C",
+              "D"
+            ],
+            [
+              "C",
+              "E"
+            ],
+            [
+              "D",
+              "E"
+            ]
+          ],
+          "ordered_labels": [
+            "A",
+            "B",
+            "C",
+            "D",
+            "E"
+          ],
+          "per_image": {
+            "A": {
+              "endpoint_relation": "closer_to_source",
+              "preservation_violations": [],
+              "semantic_description": "Foreground weighted training ball has a dark black surface, with little to no requested blue-color edit visible."
+            },
+            "B": {
+              "endpoint_relation": "closer_to_full",
+              "preservation_violations": [],
+              "semantic_description": "Foreground weighted training ball surface is visibly blue while its apparent form and scene are preserved."
+            },
+            "C": {
+              "endpoint_relation": "closer_to_full",
+              "preservation_violations": [],
+              "semantic_description": "Foreground weighted training ball surface is visibly blue while its apparent form and scene are preserved."
+            },
+            "D": {
+              "endpoint_relation": "closer_to_full",
+              "preservation_violations": [],
+              "semantic_description": "Foreground weighted training ball surface is visibly blue while its apparent form and scene are preserved."
+            },
+            "E": {
+              "endpoint_relation": "closer_to_full",
+              "preservation_violations": [],
+              "semantic_description": "Foreground weighted training ball surface is visibly blue while its apparent form and scene are preserved."
+            }
+          }
+        },
+        "ordered_identities": [
+          "source",
+          "best_0.2",
+          "native_full",
+          "best_0.5",
+          "best_0.8"
+        ],
+        "per_identity": {
+          "source": {
+            "endpoint_relation": "closer_to_source",
+            "preservation_violations": [],
+            "semantic_description": "Foreground weighted training ball has a dark black surface, with little to no requested blue-color edit visible."
+          },
+          "best_0.2": {
+            "endpoint_relation": "closer_to_full",
+            "preservation_violations": [],
+            "semantic_description": "Foreground weighted training ball surface is visibly blue while its apparent form and scene are preserved."
+          },
+          "native_full": {
+            "endpoint_relation": "closer_to_full",
+            "preservation_violations": [],
+            "semantic_description": "Foreground weighted training ball surface is visibly blue while its apparent form and scene are preserved."
+          },
+          "best_0.5": {
+            "endpoint_relation": "closer_to_full",
+            "preservation_violations": [],
+            "semantic_description": "Foreground weighted training ball surface is visibly blue while its apparent form and scene are preserved."
+          },
+          "best_0.8": {
+            "endpoint_relation": "closer_to_full",
+            "preservation_violations": [],
+            "semantic_description": "Foreground weighted training ball surface is visibly blue while its apparent form and scene are preserved."
+          }
+        },
+        "indistinguishable_identity_pairs": [
+          [
+            "best_0.2",
+            "native_full"
+          ],
+          [
+            "best_0.2",
+            "best_0.5"
+          ],
+          [
+            "best_0.2",
+            "best_0.8"
+          ],
+          [
+            "best_0.5",
+            "native_full"
+          ],
+          [
+            "best_0.8",
+            "native_full"
+          ],
+          [
+            "best_0.5",
+            "best_0.8"
+          ]
+        ]
+      },
+      {
+        "trial": 4,
+        "blind_mapping": {
+          "A": "source",
+          "B": "best_0.2",
+          "C": "best_0.5",
+          "D": "native_full",
+          "E": "best_0.8"
+        },
+        "parsed_judgment": {
+          "indistinguishable_pairs": [
+            [
+              "B",
+              "C"
+            ],
+            [
+              "B",
+              "D"
+            ],
+            [
+              "B",
+              "E"
+            ],
+            [
+              "C",
+              "D"
+            ],
+            [
+              "C",
+              "E"
+            ],
+            [
+              "D",
+              "E"
+            ]
+          ],
+          "ordered_labels": [
+            "A",
+            "B",
+            "C",
+            "D",
+            "E"
+          ],
+          "per_image": {
+            "A": {
+              "endpoint_relation": "closer_to_source",
+              "preservation_violations": [],
+              "semantic_description": "The foreground weighted training ball remains black/dark, with essentially none of the requested blue surface-color change visible."
+            },
+            "B": {
+              "endpoint_relation": "closer_to_full",
+              "preservation_violations": [],
+              "semantic_description": "The foreground weighted training ball is visibly blue while its form, surface detail, scene lighting, and background appear preserved."
+            },
+            "C": {
+              "endpoint_relation": "closer_to_full",
+              "preservation_violations": [],
+              "semantic_description": "The foreground weighted training ball is visibly blue while its form, surface detail, scene lighting, and background appear preserved."
+            },
+            "D": {
+              "endpoint_relation": "closer_to_full",
+              "preservation_violations": [],
+              "semantic_description": "The foreground weighted training ball is visibly blue while its form, surface detail, scene lighting, and background appear preserved."
+            },
+            "E": {
+              "endpoint_relation": "closer_to_full",
+              "preservation_violations": [],
+              "semantic_description": "The foreground weighted training ball is visibly blue while its form, surface detail, scene lighting, and background appear preserved."
+            }
+          }
+        },
+        "ordered_identities": [
+          "source",
+          "best_0.2",
+          "best_0.5",
+          "native_full",
+          "best_0.8"
+        ],
+        "per_identity": {
+          "source": {
+            "endpoint_relation": "closer_to_source",
+            "preservation_violations": [],
+            "semantic_description": "The foreground weighted training ball remains black/dark, with essentially none of the requested blue surface-color change visible."
+          },
+          "best_0.2": {
+            "endpoint_relation": "closer_to_full",
+            "preservation_violations": [],
+            "semantic_description": "The foreground weighted training ball is visibly blue while its form, surface detail, scene lighting, and background appear preserved."
+          },
+          "best_0.5": {
+            "endpoint_relation": "closer_to_full",
+            "preservation_violations": [],
+            "semantic_description": "The foreground weighted training ball is visibly blue while its form, surface detail, scene lighting, and background appear preserved."
+          },
+          "native_full": {
+            "endpoint_relation": "closer_to_full",
+            "preservation_violations": [],
+            "semantic_description": "The foreground weighted training ball is visibly blue while its form, surface detail, scene lighting, and background appear preserved."
+          },
+          "best_0.8": {
+            "endpoint_relation": "closer_to_full",
+            "preservation_violations": [],
+            "semantic_description": "The foreground weighted training ball is visibly blue while its form, surface detail, scene lighting, and background appear preserved."
+          }
+        },
+        "indistinguishable_identity_pairs": [
+          [
+            "best_0.2",
+            "best_0.5"
+          ],
+          [
+            "best_0.2",
+            "native_full"
+          ],
+          [
+            "best_0.2",
+            "best_0.8"
+          ],
+          [
+            "best_0.5",
+            "native_full"
+          ],
+          [
+            "best_0.5",
+            "best_0.8"
+          ],
+          [
+            "best_0.8",
+            "native_full"
+          ]
+        ]
+      },
+      {
+        "trial": 5,
+        "blind_mapping": {
+          "A": "native_full",
+          "B": "best_0.5",
+          "C": "source",
+          "D": "best_0.8",
+          "E": "best_0.2"
+        },
+        "parsed_judgment": {
+          "indistinguishable_pairs": [
+            [
+              "A",
+              "B"
+            ],
+            [
+              "A",
+              "D"
+            ],
+            [
+              "A",
+              "E"
+            ],
+            [
+              "B",
+              "D"
+            ],
+            [
+              "B",
+              "E"
+            ],
+            [
+              "D",
+              "E"
+            ]
+          ],
+          "ordered_labels": [
+            "C",
+            "A",
+            "B",
+            "D",
+            "E"
+          ],
+          "per_image": {
+            "A": {
+              "endpoint_relation": "closer_to_full",
+              "preservation_violations": [],
+              "semantic_description": "The foreground weighted training ball has a vivid blue visible surface."
+            },
+            "B": {
+              "endpoint_relation": "closer_to_full",
+              "preservation_violations": [],
+              "semantic_description": "The foreground weighted training ball has a vivid blue visible surface."
+            },
+            "C": {
+              "endpoint_relation": "closer_to_source",
+              "preservation_violations": [],
+              "semantic_description": "The foreground weighted training ball has a dark black/charcoal visible surface."
+            },
+            "D": {
+              "endpoint_relation": "closer_to_full",
+              "preservation_violations": [],
+              "semantic_description": "The foreground weighted training ball has a vivid blue visible surface."
+            },
+            "E": {
+              "endpoint_relation": "closer_to_full",
+              "preservation_violations": [],
+              "semantic_description": "The foreground weighted training ball has a vivid blue visible surface."
+            }
+          }
+        },
+        "ordered_identities": [
+          "source",
+          "native_full",
+          "best_0.5",
+          "best_0.8",
+          "best_0.2"
+        ],
+        "per_identity": {
+          "native_full": {
+            "endpoint_relation": "closer_to_full",
+            "preservation_violations": [],
+            "semantic_description": "The foreground weighted training ball has a vivid blue visible surface."
+          },
+          "best_0.5": {
+            "endpoint_relation": "closer_to_full",
+            "preservation_violations": [],
+            "semantic_description": "The foreground weighted training ball has a vivid blue visible surface."
+          },
+          "source": {
+            "endpoint_relation": "closer_to_source",
+            "preservation_violations": [],
+            "semantic_description": "The foreground weighted training ball has a dark black/charcoal visible surface."
+          },
+          "best_0.8": {
+            "endpoint_relation": "closer_to_full",
+            "preservation_violations": [],
+            "semantic_description": "The foreground weighted training ball has a vivid blue visible surface."
+          },
+          "best_0.2": {
+            "endpoint_relation": "closer_to_full",
+            "preservation_violations": [],
+            "semantic_description": "The foreground weighted training ball has a vivid blue visible surface."
+          }
+        },
+        "indistinguishable_identity_pairs": [
+          [
+            "best_0.5",
+            "native_full"
+          ],
+          [
+            "best_0.8",
+            "native_full"
+          ],
+          [
+            "best_0.2",
+            "native_full"
+          ],
+          [
+            "best_0.5",
+            "best_0.8"
+          ],
+          [
+            "best_0.2",
+            "best_0.5"
+          ],
+          [
+            "best_0.2",
+            "best_0.8"
+          ]
+        ]
+      }
+    ],
+    "summary": {
+      "expected_order": [
+        "source",
+        "best_0.2",
+        "best_0.5",
+        "best_0.8",
+        "native_full"
+      ],
+      "exact_order_count": 0,
+      "required_exact_order_count": 5,
+      "ordering_gate": false,
+      "relation_counts": {
+        "source": {
+          "closer_to_source": 6
+        },
+        "best_0.2": {
+          "closer_to_full": 6
+        },
+        "best_0.5": {
+          "closer_to_full": 6
+        },
+        "best_0.8": {
+          "closer_to_full": 6
+        },
+        "native_full": {
+          "closer_to_full": 6
+        }
+      },
+      "relation_gate": {
+        "best_0.2_closer_to_source_majority": false,
+        "best_0.5_intermediate_majority": false,
+        "best_0.8_closer_to_full_majority": true
+      },
+      "adjacent_indistinguishable_counts": {
+        "best_0.2_vs_best_0.5": 6,
+        "best_0.5_vs_best_0.8": 6
+      },
+      "indistinguishable_gate": false,
+      "mean_rank_position_zero_based": {
+        "source": 0.0,
+        "best_0.2": 2.1666666666666665,
+        "best_0.5": 2.5,
+        "best_0.8": 2.8333333333333335,
+        "native_full": 2.5
+      },
+      "preservation_violation_counts": {
+        "source": {},
+        "best_0.2": {},
+        "best_0.5": {},
+        "best_0.8": {},
+        "native_full": {}
+      },
+      "majority_preservation_violations": {
+        "source": [],
+        "best_0.2": [],
+        "best_0.5": [],
+        "best_0.8": [],
+        "native_full": []
+      },
+      "reward_hacking": false,
+      "primary_visual_ordering_gate": false,
+      "visual_weak_mid_strong": "FAIL"
+    }
+  },
+  "reward_hacking": false,
+  "primary_training_visual_table": {
+    "0.2": {
+      "feature_coordinate": 0.9427729249000549,
+      "gpt_mean_rank_zero_based": 2.1666666666666665,
+      "gpt_endpoint_relation_consensus": "closer_to_full",
+      "pixel_projection": 0.9962003231048584,
+      "preserve_error_to_source": 0.0006787303136661649
+    },
+    "0.5": {
+      "feature_coordinate": 0.9546518921852112,
+      "gpt_mean_rank_zero_based": 2.5,
+      "gpt_endpoint_relation_consensus": "closer_to_full",
+      "pixel_projection": 0.9939015507698059,
+      "preserve_error_to_source": 0.0006786154117435217
+    },
+    "0.8": {
+      "feature_coordinate": 0.960979700088501,
+      "gpt_mean_rank_zero_based": 2.8333333333333335,
+      "gpt_endpoint_relation_consensus": "closer_to_full",
+      "pixel_projection": 0.9869559407234192,
+      "preserve_error_to_source": 0.0006898396532051265
+    }
+  }
+}

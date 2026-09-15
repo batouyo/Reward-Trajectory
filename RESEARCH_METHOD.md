@@ -276,3 +276,32 @@ with no ties, and all three small steps improved in both gradient directions. Th
 usable continuous endpoint structure internally while the tested language likelihood heads do not read it out
 reliably. It is still a single-edit diagnostic, not a general strength metric. The controller remains frozen and was
 not run; v4 provides no evidence that controller changes are needed.
+
+## Frozen feature-reward controller evaluation v5
+
+V5 freezes both sides of the coupling test. The reward remains the v4 FP32 Qwen final-layer, final-prompt-token,
+L2-normalized focus representation with cosine endpoint-distance ratio. The controller remains the existing four-step
+shared direction with `(1-s) * velocity_topk_25% * D_t`, 20 Adam iterations at learning rate `0.1`, checkpointing, and
+`1e-4` effective-control regularization. Only targets `.2/.5/.8` enter optimization; the eleven-node dense slider is
+held out. Best checkpoint selection uses mean absolute feature-coordinate error only.
+
+Controller drive is an engineering gate: all backbone/control gradients must be valid, best mean error must improve
+by at least 50%, every training-node error must be at most `.10`, and best coordinates must be strictly ordered. This
+tests controllability in the frozen feature coordinate, not human perceptual calibration. A fixed Source/NativeFull
+top-25% RGB-difference mask supplies evaluation-only pixel diagnostics and never enters reward or checkpoint choice.
+
+After Best is fixed, an independent TianyuAI `gpt-5.6-luna` judge receives six seed-`20260916` blind permutations of
+Source, Best `.2/.5/.8`, and NativeFull. It sees only labels A-E, ranks visible edit amount without percentages, reports
+endpoint relation and preservation violations, and cannot affect optimization. Visual ordering requires at least five
+of six exact orders, majority weak/intermediate/strong endpoint relations, distinguishable adjacent outputs, and no
+majority preservation violation. Even if it passes, the strongest conclusion is weak-to-medium-to-strong ordering on
+this case; exact perceptual percentage calibration remains unestablished.
+
+The formal Part-A run failed the controller-drive gate. All gradients were finite, FLUX/VAE/Qwen parameters stayed
+frozen, and Best coordinates were strictly ordered, but mean error improved only from `0.50001` to `0.45280` (9.44%)
+rather than the required 50%. Best `.2/.5/.8` coordinates were `0.94277`, `0.95465`, and `0.96098`; no node reached
+the `.10` error requirement. The held-out dense curve had ten descending pairs, while `s=1` retained exact zero-control
+and native-latent parity. Low-level edit-region projections for Best `.2/.5/.8` were `0.99620`, `0.99390`, and
+`0.98696`, so all three outputs remained close to NativeFull rather than spanning the endpoint interval. This is a
+controller/reward-coupling or shared-parameterization failure under the frozen configuration, not evidence for or
+against perceptual percentage calibration.

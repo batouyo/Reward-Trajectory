@@ -1,0 +1,49 @@
+{
+  "seed": 20260916,
+  "prompt_version": "feature-controller-v5-blind-judge-v1",
+  "permutations": [
+    {
+      "A": "best_0.2",
+      "B": "best_0.5",
+      "C": "native_full",
+      "D": "best_0.8",
+      "E": "source"
+    },
+    {
+      "A": "source",
+      "B": "best_0.8",
+      "C": "native_full",
+      "D": "best_0.2",
+      "E": "best_0.5"
+    },
+    {
+      "A": "best_0.8",
+      "B": "best_0.5",
+      "C": "source",
+      "D": "best_0.2",
+      "E": "native_full"
+    },
+    {
+      "A": "source",
+      "B": "best_0.2",
+      "C": "native_full",
+      "D": "best_0.5",
+      "E": "best_0.8"
+    },
+    {
+      "A": "source",
+      "B": "best_0.2",
+      "C": "best_0.5",
+      "D": "native_full",
+      "E": "best_0.8"
+    },
+    {
+      "A": "native_full",
+      "B": "best_0.5",
+      "C": "source",
+      "D": "best_0.8",
+      "E": "best_0.2"
+    }
+  ],
+  "not_sent_to_judge": "true identities and filenames"
+}

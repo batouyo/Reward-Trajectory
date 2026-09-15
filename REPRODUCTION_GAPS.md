@@ -137,3 +137,14 @@ The legacy `reward_guidance=True` path remains separate.
   oracle ordering and both small-step gradient gates. Generalization across objects, attributes, prompts, seeds, and
   endpoint pairs is not established. Connecting it to the frozen terminal controller is intentionally deferred to a
   separately versioned experiment.
+- Feature-controller v5 freezes the v4 reward and existing shared terminal controller. Its 50% improvement, `.10`
+  per-node error, 5/6 blind-order agreement, majority relation/violation rules, six fixed permutations, and top-25%
+  endpoint-difference mask are explicit engineering evaluation choices, not paper thresholds.
+- The brief does not numerically define a dense-curve "sudden jump". V5 reports an adjacent feature-coordinate change
+  above `.2` between requested `.1` nodes as a diagnostic jump. It is not a hard controller-drive or visual gate.
+- TianyuAI `gpt-5.6-luna` is an independent offline VLM judge, not human perceptual ground truth. Even unanimous blind
+  ordering cannot establish exact perceived 20/50/80 calibration or cross-edit generalization.
+- In formal v5 Part A, the frozen shared controller failed to reach the feature targets: Best `.2/.5/.8` coordinates
+  remained `0.94277/0.95465/0.96098`, mean error improved by only 9.44%, and the dense curve contained ten descending
+  pairs. This does not identify whether the limiting factor is long-horizon optimization, reward geometry off the
+  native manifold, or the shared `(1-s)D` parameterization; v5 deliberately does not change any of them.

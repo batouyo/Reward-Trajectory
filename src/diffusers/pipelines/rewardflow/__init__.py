@@ -66,6 +66,28 @@ else:
         "FeatureEndpointDistanceReward",
         "build_focus_conditioned_feature_prompt",
     ]
+    _import_structure["feature_controller_evaluation"] = [
+        "BLIND_IDENTITIES",
+        "BLIND_LABELS",
+        "DENSE_STRENGTHS",
+        "EVALUATION_MASK_PROVENANCE",
+        "FEATURE_CONTROL_PROVENANCE",
+        "NATIVE_FULL_PROVENANCE",
+        "PRESERVATION_CATEGORIES",
+        "SOURCE_INPUT_PROVENANCE",
+        "TRAINING_STRENGTHS",
+        "VISUAL_JUDGE_PERMUTATION_SEED",
+        "VISUAL_JUDGE_PROMPT_VERSION",
+        "build_blind_permutations",
+        "dense_feature_curve_diagnostics",
+        "endpoint_difference_evaluation_mask",
+        "endpoint_pixel_diagnostics",
+        "format_strength_tag",
+        "parse_visual_judge_json",
+        "remap_visual_judgment",
+        "summarize_visual_judgments",
+        "visual_judge_json_schema",
+    ]
     _import_structure["paper_components"] = [
         "PaperRewardFlowConfig",
         "clean_latent_kl_energy",
@@ -194,6 +216,28 @@ if TYPE_CHECKING or DIFFUSERS_SLOW_IMPORT:
         from .endpoint_feature_distance import (
             FeatureEndpointDistanceReward,
             build_focus_conditioned_feature_prompt,
+        )
+        from .feature_controller_evaluation import (
+            BLIND_IDENTITIES,
+            BLIND_LABELS,
+            DENSE_STRENGTHS,
+            EVALUATION_MASK_PROVENANCE,
+            FEATURE_CONTROL_PROVENANCE,
+            NATIVE_FULL_PROVENANCE,
+            PRESERVATION_CATEGORIES,
+            SOURCE_INPUT_PROVENANCE,
+            TRAINING_STRENGTHS,
+            VISUAL_JUDGE_PERMUTATION_SEED,
+            VISUAL_JUDGE_PROMPT_VERSION,
+            build_blind_permutations,
+            dense_feature_curve_diagnostics,
+            endpoint_difference_evaluation_mask,
+            endpoint_pixel_diagnostics,
+            format_strength_tag,
+            parse_visual_judge_json,
+            remap_visual_judgment,
+            summarize_visual_judgments,
+            visual_judge_json_schema,
         )
         from .ordinal_semantic_progress import (
             ORDINAL_CHOICE_LABELS,
