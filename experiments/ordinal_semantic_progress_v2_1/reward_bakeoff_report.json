@@ -1,0 +1,760 @@
+{
+  "scope": "binary-v1 versus ordinal-v2 reward bake-off",
+  "existing_fact": "binary source-target contrast passed endpoints but failed continuous interior ordering",
+  "method_hypothesis": "multiple-choice ordinal stage probabilities may define a more reliable semantic coordinate",
+  "ordinal_stage_ground_truth_images_used": false,
+  "pixel_blends_used_for_optimization": false,
+  "temperature": 1.0,
+  "config": {
+    "model": "/data15/hyp/weight/FLUX.1-Kontext-dev",
+    "qwen_model": "/data15/hyp/weight/reward_models/Qwen2.5-VL-3B-Instruct",
+    "source": "/data15/hyp/dataset/kontinuous_kontext/raw/source_images/source_000000.png",
+    "prompt": "Make the weighted training ball blue while preserving its shape, texture, lighting, and background.",
+    "binary_spec": "examples/rewardflow/semantic_progress_ball_spec.json",
+    "ordinal_single_spec": "examples/rewardflow/ordinal_semantic_progress_ball_single_v2_1.json",
+    "ordinal_ensemble_spec": "examples/rewardflow/ordinal_semantic_progress_ball_ensemble_v2_1.json",
+    "oracle_output_dir": "/tmp/st_formal_shared_t4_mask",
+    "output_dir": "experiments/ordinal_semantic_progress_v2_1",
+    "audit_only": true,
+    "device": "cuda:0",
+    "reward_device": "cuda:0",
+    "dtype": "bfloat16",
+    "steps": 12,
+    "seed": 20260914,
+    "height": 256,
+    "width": 256,
+    "guidance_scale": 2.5,
+    "strengths": [
+      0.2,
+      0.5,
+      0.8
+    ],
+    "control_steps": 4,
+    "control_lr": 0.1,
+    "outer_iters": 20,
+    "lambda_control": 0.0001,
+    "use_checkpointing": true
+  },
+  "native_clamp_audit": {
+    "fraction_below_zero_before_clamp": 0.0320536307990551,
+    "fraction_above_one_before_clamp": 0.00347900390625,
+    "fraction_exactly_zero_entering_qwen": 0.0357666015625,
+    "fraction_exactly_one_entering_qwen": 0.01167806051671505
+  },
+  "zero_control_parity_exact": true,
+  "binary-v1": {
+    "endpoint": {
+      "ball_color": {
+        "source_answer_score_source": -12.128782272338867,
+        "target_answer_score_source": -12.503782272338867,
+        "source_answer_score_full": -13.880953788757324,
+        "target_answer_score_full": -9.630953788757324,
+        "source_contrast": -0.375,
+        "full_contrast": 4.25,
+        "contrast_dynamic_range": 4.625,
+        "source_preference_valid": true,
+        "full_preference_valid": true,
+        "contrast_order_valid": true,
+        "valid": true
+      }
+    },
+    "probe_rows": [
+      {
+        "alpha": 0.0,
+        "source_answer_score": -12.128782272338867,
+        "target_answer_score": -12.503782272338867,
+        "semantic_contrast": -0.375,
+        "overall_progress_raw": 0.0,
+        "overall_progress_clamped": 0.0
+      },
+      {
+        "alpha": 0.2,
+        "source_answer_score": -13.130651473999023,
+        "target_answer_score": -10.130651473999023,
+        "semantic_contrast": 3.0,
+        "overall_progress_raw": 0.7297297120094299,
+        "overall_progress_clamped": 0.7297297120094299
+      },
+      {
+        "alpha": 0.4,
+        "source_answer_score": -13.630940437316895,
+        "target_answer_score": -9.755940437316895,
+        "semantic_contrast": 3.875,
+        "overall_progress_raw": 0.9189189076423645,
+        "overall_progress_clamped": 0.9189189076423645
+      },
+      {
+        "alpha": 0.5,
+        "source_answer_score": -14.130403518676758,
+        "target_answer_score": -9.630403518676758,
+        "semantic_contrast": 4.5,
+        "overall_progress_raw": 1.0540540218353271,
+        "overall_progress_clamped": 1.0
+      },
+      {
+        "alpha": 0.6,
+        "source_answer_score": -14.37961196899414,
+        "target_answer_score": -10.00461196899414,
+        "semantic_contrast": 4.375,
+        "overall_progress_raw": 1.0270270109176636,
+        "overall_progress_clamped": 1.0
+      },
+      {
+        "alpha": 0.8,
+        "source_answer_score": -14.005681037902832,
+        "target_answer_score": -9.755681037902832,
+        "semantic_contrast": 4.25,
+        "overall_progress_raw": 1.0,
+        "overall_progress_clamped": 1.0
+      },
+      {
+        "alpha": 1.0,
+        "source_answer_score": -14.254434585571289,
+        "target_answer_score": -10.004434585571289,
+        "semantic_contrast": 4.25,
+        "overall_progress_raw": 1.0,
+        "overall_progress_clamped": 1.0
+      }
+    ],
+    "probe_summary": {
+      "spearman_correlation": 0.6785714285714285,
+      "pairwise_inversion_count": 5,
+      "mae_to_alpha_diagnostic_only": 0.3185328074863979
+    },
+    "oracle_rows": [
+      {
+        "strength": 0.2,
+        "progress_raw": 0.9459459185600281,
+        "target_error": 0.745945930480957
+      },
+      {
+        "strength": 0.5,
+        "progress_raw": 1.1081081628799438,
+        "target_error": 0.6081081628799438
+      },
+      {
+        "strength": 0.8,
+        "progress_raw": 1.0540540218353271,
+        "target_error": 0.2540540099143982
+      }
+    ],
+    "oracle_summary": {
+      "strictly_increasing": false,
+      "spearman_correlation": 0.5,
+      "adjacent_progress_gaps": [
+        0.16216224431991577,
+        -0.0540541410446167
+      ],
+      "minimum_adjacent_progress_gap": -0.0540541410446167
+    },
+    "gradient": {
+      "qwen_parameters_require_grad": false,
+      "targets": {
+        "0.2": {
+          "initial_progress": 1.0540540218353271,
+          "initial_loss": 0.7294082641601562,
+          "gradient_finite": true,
+          "gradient_nonzero": true,
+          "gradient_l2_norm": 34.813716888427734,
+          "gradient_rms": 0.07851449400186539,
+          "gradient_max_abs": 5.865860462188721,
+          "small_step_trials": [
+            {
+              "perturbation_rms": 1e-05,
+              "progress": 0.9729729890823364,
+              "loss": 0.5974872708320618,
+              "loss_decreased": true,
+              "progress_direction_correct": true
+            },
+            {
+              "perturbation_rms": 3e-05,
+              "progress": 0.9459459185600281,
+              "loss": 0.5564353466033936,
+              "loss_decreased": true,
+              "progress_direction_correct": true
+            },
+            {
+              "perturbation_rms": 0.0001,
+              "progress": 0.9189189076423645,
+              "loss": 0.5168443918228149,
+              "loss_decreased": true,
+              "progress_direction_correct": true
+            },
+            {
+              "perturbation_rms": 0.0003,
+              "progress": 0.8648648858070374,
+              "loss": 0.44204533100128174,
+              "loss_decreased": true,
+              "progress_direction_correct": true
+            }
+          ],
+          "passed": true
+        },
+        "0.8": {
+          "initial_progress": 1.0540540218353271,
+          "initial_loss": 0.06454344093799591,
+          "gradient_finite": true,
+          "gradient_nonzero": true,
+          "gradient_l2_norm": 9.836404800415039,
+          "gradient_rms": 0.022183792665600777,
+          "gradient_max_abs": 1.6207727193832397,
+          "small_step_trials": [
+            {
+              "perturbation_rms": 1e-05,
+              "progress": 1.0,
+              "loss": 0.03999999538064003,
+              "loss_decreased": true,
+              "progress_direction_correct": false
+            },
+            {
+              "perturbation_rms": 3e-05,
+              "progress": 0.9459459185600281,
+              "loss": 0.02130020782351494,
+              "loss_decreased": true,
+              "progress_direction_correct": false
+            },
+            {
+              "perturbation_rms": 0.0001,
+              "progress": 0.9189189076423645,
+              "loss": 0.014141703955829144,
+              "loss_decreased": true,
+              "progress_direction_correct": false
+            },
+            {
+              "perturbation_rms": 0.0003,
+              "progress": 0.8648648858070374,
+              "loss": 0.004207451827824116,
+              "loss_decreased": true,
+              "progress_direction_correct": false
+            }
+          ],
+          "passed": false
+        }
+      },
+      "qwen_parameters_have_gradient": false
+    }
+  },
+  "ordinal-single": {
+    "name": "ordinal-single",
+    "endpoint": {
+      "ball_color": {
+        "dominant_color_state": {
+          "source_choice_probs": [
+            0.38735729455947876,
+            0.38735729455947876,
+            0.052423108369112015,
+            0.0864311009645462,
+            0.0864311009645462
+          ],
+          "full_choice_probs": [
+            0.029539676383137703,
+            0.08029715716838837,
+            0.02030230313539505,
+            0.4620782732963562,
+            0.407782644033432
+          ],
+          "source_top_stage": 0,
+          "full_top_stage": 3,
+          "source_normalized_entropy": 0.8155313730239868,
+          "full_normalized_entropy": 0.68855881690979,
+          "raw_source": 0.2743053138256073,
+          "raw_full": 0.7845667600631714,
+          "dynamic_range": 0.5102614164352417,
+          "source_top_stage_valid": true,
+          "full_top_stage_valid": false,
+          "dynamic_range_valid": true,
+          "valid": false
+        }
+      }
+    },
+    "probe_rows": [
+      {
+        "alpha": 0.0,
+        "overall_progress_raw": 0.0,
+        "overall_progress_clamped": 0.0,
+        "objective_error": 0.0
+      },
+      {
+        "alpha": 0.2,
+        "overall_progress_raw": 0.7773045897483826,
+        "overall_progress_clamped": 0.7773045897483826,
+        "objective_error": 0.5773046016693115
+      },
+      {
+        "alpha": 0.4,
+        "overall_progress_raw": 0.9594973921775818,
+        "overall_progress_clamped": 0.9594973921775818,
+        "objective_error": 0.5594973564147949
+      },
+      {
+        "alpha": 0.5,
+        "overall_progress_raw": 1.0168089866638184,
+        "overall_progress_clamped": 1.0,
+        "objective_error": 0.5168089866638184
+      },
+      {
+        "alpha": 0.6,
+        "overall_progress_raw": 1.0258864164352417,
+        "overall_progress_clamped": 1.0,
+        "objective_error": 0.4258863925933838
+      },
+      {
+        "alpha": 0.8,
+        "overall_progress_raw": 0.9738397598266602,
+        "overall_progress_clamped": 0.9738397598266602,
+        "objective_error": 0.1738397479057312
+      },
+      {
+        "alpha": 1.0,
+        "overall_progress_raw": 0.9830003380775452,
+        "overall_progress_clamped": 0.9830003380775452,
+        "objective_error": 0.016999661922454834
+      }
+    ],
+    "probe_summary": {
+      "spearman_correlation": 0.7142857142857142,
+      "pairwise_inversion_count": 4,
+      "mae_to_alpha_diagnostic_only": 0.3243338295391628,
+      "progress_dynamic_range": 1.0258864164352417
+    },
+    "oracle_rows": [
+      {
+        "strength": 0.2,
+        "progress_raw": 0.9715226888656616,
+        "target_error": 0.7715227007865906
+      },
+      {
+        "strength": 0.5,
+        "progress_raw": 1.0467640161514282,
+        "target_error": 0.5467640161514282
+      },
+      {
+        "strength": 0.8,
+        "progress_raw": 1.0053555965423584,
+        "target_error": 0.20535558462142944
+      }
+    ],
+    "oracle_summary": {
+      "strictly_increasing": false,
+      "spearman_correlation": 0.5,
+      "adjacent_progress_gaps": [
+        0.0752413272857666,
+        -0.041408419609069824
+      ],
+      "minimum_adjacent_progress_gap": -0.041408419609069824
+    },
+    "gradient": {
+      "qwen_parameters_require_grad": false,
+      "targets": {
+        "0.2": {
+          "initial_progress": 1.0168089866638184,
+          "initial_loss": 0.6671769618988037,
+          "gradient_finite": true,
+          "gradient_nonzero": true,
+          "gradient_l2_norm": 7.6032819747924805,
+          "gradient_rms": 0.0171474888920784,
+          "gradient_max_abs": 0.8048481941223145,
+          "small_step_trials": [
+            {
+              "perturbation_rms": 1e-05,
+              "progress": 0.9960737228393555,
+              "loss": 0.6337333917617798,
+              "loss_decreased": true,
+              "progress_direction_correct": true
+            },
+            {
+              "perturbation_rms": 3e-05,
+              "progress": 0.9673541188240051,
+              "loss": 0.5888323783874512,
+              "loss_decreased": true,
+              "progress_direction_correct": true
+            },
+            {
+              "perturbation_rms": 0.0001,
+              "progress": 0.9800994396209717,
+              "loss": 0.6085551381111145,
+              "loss_decreased": true,
+              "progress_direction_correct": true
+            },
+            {
+              "perturbation_rms": 0.0003,
+              "progress": 0.9273673295974731,
+              "loss": 0.5290632247924805,
+              "loss_decreased": true,
+              "progress_direction_correct": true
+            }
+          ],
+          "passed": true
+        },
+        "0.8": {
+          "initial_progress": 1.0168089866638184,
+          "initial_loss": 0.04700613021850586,
+          "gradient_finite": true,
+          "gradient_nonzero": true,
+          "gradient_l2_norm": 2.031560182571411,
+          "gradient_rms": 0.004581725690513849,
+          "gradient_max_abs": 0.2156546413898468,
+          "small_step_trials": [
+            {
+              "perturbation_rms": 1e-05,
+              "progress": 0.9759296774864197,
+              "loss": 0.03095124661922455,
+              "loss_decreased": true,
+              "progress_direction_correct": false
+            },
+            {
+              "perturbation_rms": 3e-05,
+              "progress": 0.9800994396209717,
+              "loss": 0.03243580460548401,
+              "loss_decreased": true,
+              "progress_direction_correct": false
+            },
+            {
+              "perturbation_rms": 0.0001,
+              "progress": 0.9830003380775452,
+              "loss": 0.03348911926150322,
+              "loss_decreased": true,
+              "progress_direction_correct": false
+            },
+            {
+              "perturbation_rms": 0.0003,
+              "progress": 0.92838054895401,
+              "loss": 0.016481561586260796,
+              "loss_decreased": true,
+              "progress_direction_correct": false
+            }
+          ],
+          "passed": false
+        }
+      },
+      "qwen_parameters_have_gradient": false
+    },
+    "label_bias": {
+      "fixed_stage_to_label_permutation": [
+        "C",
+        "E",
+        "A",
+        "D",
+        "B"
+      ],
+      "locations": {
+        "source": {
+          "normal_progress": 0.0,
+          "permuted_progress": 0.0,
+          "absolute_change": 0.0
+        },
+        "middle": {
+          "normal_progress": 1.0168089866638184,
+          "permuted_progress": 1.0681453943252563,
+          "absolute_change": 0.05133640766143799
+        },
+        "full": {
+          "normal_progress": 1.0,
+          "permuted_progress": 1.0,
+          "absolute_change": 0.0
+        }
+      },
+      "max_progress_change_under_permutation": 0.05133640766143799,
+      "diagnostic_only": true
+    },
+    "gates": {
+      "endpoint_pass": false,
+      "probe_spearman_at_least_0_9": false,
+      "probe_inversions_at_most_1": false,
+      "oracle_outputs_strictly_increasing": false,
+      "gradient_target_0p2_pass": true,
+      "gradient_target_0p8_pass": false,
+      "all_passed": false
+    }
+  },
+  "ordinal-ensemble": {
+    "name": "ordinal-ensemble",
+    "endpoint": {
+      "ball_color": {
+        "dominant_color_state": {
+          "source_choice_probs": [
+            0.38735729455947876,
+            0.38735729455947876,
+            0.052423108369112015,
+            0.0864311009645462,
+            0.0864311009645462
+          ],
+          "full_choice_probs": [
+            0.029539676383137703,
+            0.08029715716838837,
+            0.02030230313539505,
+            0.4620782732963562,
+            0.407782644033432
+          ],
+          "source_top_stage": 0,
+          "full_top_stage": 3,
+          "source_normalized_entropy": 0.8155313730239868,
+          "full_normalized_entropy": 0.68855881690979,
+          "raw_source": 0.2743053138256073,
+          "raw_full": 0.7845667600631714,
+          "dynamic_range": 0.5102614164352417,
+          "source_top_stage_valid": true,
+          "full_top_stage_valid": false,
+          "dynamic_range_valid": true,
+          "valid": false
+        },
+        "remaining_original_dark_evidence": {
+          "source_choice_probs": [
+            0.13206683099269867,
+            0.1165485680103302,
+            0.010840708389878273,
+            0.27958545088768005,
+            0.4609585106372833
+          ],
+          "full_choice_probs": [
+            0.02014998532831669,
+            0.029318055137991905,
+            0.00449606915935874,
+            0.5888688564300537,
+            0.35716700553894043
+          ],
+          "source_top_stage": 4,
+          "full_top_stage": 3,
+          "source_normalized_entropy": 0.7954519391059875,
+          "full_normalized_entropy": 0.5505114197731018,
+          "raw_source": 0.7052050828933716,
+          "raw_full": 0.8083962202072144,
+          "dynamic_range": 0.10319113731384277,
+          "source_top_stage_valid": false,
+          "full_top_stage_valid": false,
+          "dynamic_range_valid": true,
+          "valid": false
+        },
+        "established_target_blue_evidence": {
+          "source_choice_probs": [
+            0.3467070758342743,
+            0.14452899992465973,
+            0.05316925793886185,
+            0.27001574635505676,
+            0.18557892739772797
+          ],
+          "full_choice_probs": [
+            0.023736508563160896,
+            0.026896988973021507,
+            0.030478281900286674,
+            0.22520573437213898,
+            0.6936824917793274
+          ],
+          "source_top_stage": 0,
+          "full_top_stage": 4,
+          "source_normalized_entropy": 0.9126919507980347,
+          "full_normalized_entropy": 0.5479353666305542,
+          "raw_source": 0.4508076310157776,
+          "raw_full": 0.884550154209137,
+          "dynamic_range": 0.4337425231933594,
+          "source_top_stage_valid": true,
+          "full_top_stage_valid": true,
+          "dynamic_range_valid": true,
+          "valid": true
+        }
+      }
+    },
+    "probe_rows": [
+      {
+        "alpha": 0.0,
+        "overall_progress_raw": 0.0,
+        "overall_progress_clamped": 0.0,
+        "objective_error": 0.0
+      },
+      {
+        "alpha": 0.2,
+        "overall_progress_raw": 0.8193964958190918,
+        "overall_progress_clamped": 0.8193964958190918,
+        "objective_error": 0.6193965077400208
+      },
+      {
+        "alpha": 0.4,
+        "overall_progress_raw": 0.9304325580596924,
+        "overall_progress_clamped": 0.9304325580596924,
+        "objective_error": 0.5304325819015503
+      },
+      {
+        "alpha": 0.5,
+        "overall_progress_raw": 1.009855031967163,
+        "overall_progress_clamped": 1.0,
+        "objective_error": 0.5098550319671631
+      },
+      {
+        "alpha": 0.6,
+        "overall_progress_raw": 1.0041658878326416,
+        "overall_progress_clamped": 1.0,
+        "objective_error": 0.4041658639907837
+      },
+      {
+        "alpha": 0.8,
+        "overall_progress_raw": 0.9740883111953735,
+        "overall_progress_clamped": 0.9740883111953735,
+        "objective_error": 0.17408829927444458
+      },
+      {
+        "alpha": 1.0,
+        "overall_progress_raw": 0.9662888050079346,
+        "overall_progress_clamped": 0.9662888050079346,
+        "objective_error": 0.03371119499206543
+      }
+    ],
+    "probe_summary": {
+      "spearman_correlation": 0.6428571428571428,
+      "pairwise_inversion_count": 6,
+      "mae_to_alpha_diagnostic_only": 0.3245213542665754,
+      "progress_dynamic_range": 1.009855031967163
+    },
+    "oracle_rows": [
+      {
+        "strength": 0.2,
+        "progress_raw": 0.9517863988876343,
+        "target_error": 0.7517864108085632
+      },
+      {
+        "strength": 0.5,
+        "progress_raw": 1.023862600326538,
+        "target_error": 0.5238626003265381
+      },
+      {
+        "strength": 0.8,
+        "progress_raw": 0.9737405776977539,
+        "target_error": 0.17374056577682495
+      }
+    ],
+    "oracle_summary": {
+      "strictly_increasing": false,
+      "spearman_correlation": 0.5,
+      "adjacent_progress_gaps": [
+        0.07207620143890381,
+        -0.05012202262878418
+      ],
+      "minimum_adjacent_progress_gap": -0.05012202262878418
+    },
+    "gradient": {
+      "qwen_parameters_require_grad": false,
+      "targets": {
+        "0.2": {
+          "initial_progress": 1.009855031967163,
+          "initial_loss": 0.6558651924133301,
+          "gradient_finite": true,
+          "gradient_nonzero": true,
+          "gradient_l2_norm": 10.196681022644043,
+          "gradient_rms": 0.022996315732598305,
+          "gradient_max_abs": 1.5968663692474365,
+          "small_step_trials": [
+            {
+              "perturbation_rms": 1e-05,
+              "progress": 0.999687671661377,
+              "loss": 0.6395003795623779,
+              "loss_decreased": true,
+              "progress_direction_correct": true
+            },
+            {
+              "perturbation_rms": 3e-05,
+              "progress": 0.9415009617805481,
+              "loss": 0.5498237013816833,
+              "loss_decreased": true,
+              "progress_direction_correct": true
+            },
+            {
+              "perturbation_rms": 0.0001,
+              "progress": 0.9720380306243896,
+              "loss": 0.5960427522659302,
+              "loss_decreased": true,
+              "progress_direction_correct": true
+            },
+            {
+              "perturbation_rms": 0.0003,
+              "progress": 0.9428768157958984,
+              "loss": 0.5518659949302673,
+              "loss_decreased": true,
+              "progress_direction_correct": true
+            }
+          ],
+          "passed": true
+        },
+        "0.8": {
+          "initial_progress": 1.009855031967163,
+          "initial_loss": 0.044039130210876465,
+          "gradient_finite": true,
+          "gradient_nonzero": true,
+          "gradient_l2_norm": 2.641477108001709,
+          "gradient_rms": 0.005957256071269512,
+          "gradient_max_abs": 0.41663461923599243,
+          "small_step_trials": [
+            {
+              "perturbation_rms": 1e-05,
+              "progress": 0.964142918586731,
+              "loss": 0.026942893862724304,
+              "loss_decreased": true,
+              "progress_direction_correct": false
+            },
+            {
+              "perturbation_rms": 3e-05,
+              "progress": 0.9346336722373962,
+              "loss": 0.018126223236322403,
+              "loss_decreased": true,
+              "progress_direction_correct": false
+            },
+            {
+              "perturbation_rms": 0.0001,
+              "progress": 0.9534555673599243,
+              "loss": 0.023548606783151627,
+              "loss_decreased": true,
+              "progress_direction_correct": false
+            },
+            {
+              "perturbation_rms": 0.0003,
+              "progress": 0.9514501690864563,
+              "loss": 0.022937150672078133,
+              "loss_decreased": true,
+              "progress_direction_correct": false
+            }
+          ],
+          "passed": false
+        }
+      },
+      "qwen_parameters_have_gradient": false
+    },
+    "label_bias": {
+      "fixed_stage_to_label_permutation": [
+        "C",
+        "E",
+        "A",
+        "D",
+        "B"
+      ],
+      "locations": {
+        "source": {
+          "normal_progress": 0.0,
+          "permuted_progress": 0.0,
+          "absolute_change": 0.0
+        },
+        "middle": {
+          "normal_progress": 1.009855031967163,
+          "permuted_progress": 0.9761568307876587,
+          "absolute_change": 0.033698201179504395
+        },
+        "full": {
+          "normal_progress": 1.0,
+          "permuted_progress": 1.0,
+          "absolute_change": 0.0
+        }
+      },
+      "max_progress_change_under_permutation": 0.033698201179504395,
+      "diagnostic_only": true
+    },
+    "gates": {
+      "endpoint_pass": false,
+      "probe_spearman_at_least_0_9": false,
+      "probe_inversions_at_most_1": false,
+      "oracle_outputs_strictly_increasing": false,
+      "gradient_target_0p2_pass": true,
+      "gradient_target_0p8_pass": false,
+      "all_passed": false
+    }
+  },
+  "selected_by_preregistered_rule": null,
+  "controller_run": false,
+  "controller_result": null
+}

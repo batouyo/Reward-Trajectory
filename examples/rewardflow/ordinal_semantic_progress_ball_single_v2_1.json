@@ -1,0 +1,30 @@
+{
+  "edit_instruction": "Make the weighted training ball blue while preserving its shape, texture, lighting, and background.",
+  "primitives": [
+    {
+      "id": "ball_color",
+      "edit_description": "change the weighted training ball from black to vivid blue",
+      "weight": 1.0,
+      "questions": [
+        {
+          "id": "dominant_color_state",
+          "question": "Considering only the requested color change, which description best matches the weighted training ball's current visible color?",
+          "weight": 1.0,
+          "stages": [
+            "the ball retains its original black appearance",
+            "the ball remains mostly black with an emerging blue tint",
+            "the ball shows a clearly mixed black and blue appearance",
+            "the ball appears predominantly blue with residual dark areas",
+            "the ball shows the full vivid blue appearance of the target"
+          ]
+        }
+      ]
+    }
+  ],
+  "preserve_constraints": [
+    "ball shape",
+    "ball surface texture and embossed lettering",
+    "warm backlighting",
+    "wooden bench and park background"
+  ]
+}

@@ -627,12 +627,11 @@ class Qwen25VQATeacherForcedScorer:
         image_grid_thw = torch.tensor([[grid_t, grid_h, grid_w]], device=image.device, dtype=torch.long)
         return pixel_values, image_grid_thw
 
-    def _teacher_forced_inputs(
+    def _build_prompt_prefix_inputs(
         self,
         image_grid_thw: torch.Tensor,
         device: torch.device,
         question: str,
-        answer: str,
     ):
         # ASSUMPTION: The paper does not define the exact Qwen chat template or
         # whether the assistant terminator belongs to a*. We use the checkpoint's
@@ -656,18 +655,48 @@ class Qwen25VQATeacherForcedScorer:
 
         tokenizer = self.processor.tokenizer
         prefix_ids = tokenizer(prompt_text, add_special_tokens=False, return_tensors="pt").input_ids[0]
+        prefix_ids = prefix_ids.unsqueeze(0).to(device)
+        return prefix_ids, torch.ones_like(prefix_ids)
+
+    def _teacher_forced_inputs(
+        self,
+        image_grid_thw: torch.Tensor,
+        device: torch.device,
+        question: str,
+        answer: str,
+    ):
+        input_ids, _ = self._build_prompt_prefix_inputs(image_grid_thw, device, question)
+        prefix_ids = input_ids[0]
+        tokenizer = self.processor.tokenizer
         answer_ids = tokenizer(answer, add_special_tokens=False, return_tensors="pt").input_ids[0]
         answer_ids = answer_ids[: self.max_answer_tokens]
         if answer_ids.numel() == 0:
             raise ValueError("The target answer produced no tokens.")
-        input_ids = torch.cat([prefix_ids, answer_ids]).unsqueeze(0).to(device)
+        answer_ids = answer_ids.to(device)
+        input_ids = torch.cat([prefix_ids, answer_ids]).unsqueeze(0)
         attention_mask = torch.ones_like(input_ids)
         target_positions = torch.arange(
             prefix_ids.numel() - 1,
             prefix_ids.numel() + answer_ids.numel() - 1,
             device=device,
         )
-        return input_ids, attention_mask, answer_ids.to(device), target_positions
+        return input_ids, attention_mask, answer_ids, target_positions
+
+    def _choice_token_ids(self, choices: tuple[str, ...], device: torch.device) -> torch.Tensor:
+        if not choices:
+            raise ValueError("At least one single-token choice is required.")
+        tokenizer = self.processor.tokenizer
+        token_ids = []
+        for index, choice in enumerate(choices):
+            if not isinstance(choice, str) or not choice:
+                raise ValueError(f"`choices[{index}]` must be a non-empty string.")
+            encoded = tokenizer(choice, add_special_tokens=False, return_tensors="pt").input_ids[0]
+            if encoded.numel() != 1:
+                raise ValueError(f"Choice `{choice}` must tokenize to exactly one token, got {encoded.numel()}.")
+            token_ids.append(int(encoded.item()))
+        if len(set(token_ids)) != len(token_ids):
+            raise ValueError("Choice labels must map to distinct token IDs.")
+        return torch.tensor(token_ids, device=device, dtype=torch.long)
 
     def _model_device_and_dtype(self) -> tuple[torch.device, torch.dtype]:
         try:
@@ -831,6 +860,35 @@ class Qwen25VQATeacherForcedScorer:
             margin=margin,
             lambda_margin=lambda_margin,
         ).to(image.device)
+
+    def score_single_token_choices(
+        self,
+        image: torch.Tensor,
+        question: str,
+        choices: tuple[str, ...] = ("A", "B", "C", "D", "E"),
+    ) -> torch.Tensor:
+        """Return differentiable next-token log probabilities from one Qwen forward."""
+
+        if not isinstance(question, str) or not question.strip():
+            raise ValueError("Single-token choice scoring requires a non-empty question.")
+        if not isinstance(choices, tuple):
+            choices = tuple(choices)
+        pixel_values, image_grid_thw = self._differentiable_image_inputs(image)
+        model_device, model_dtype = self._model_device_and_dtype()
+        pixel_values = pixel_values.to(device=model_device, dtype=model_dtype)
+        image_grid_thw = image_grid_thw.to(model_device)
+        input_ids, attention_mask = self._build_prompt_prefix_inputs(image_grid_thw, model_device, question.strip())
+        choice_token_ids = self._choice_token_ids(choices, model_device)
+        outputs = self.model(
+            input_ids=input_ids,
+            attention_mask=attention_mask,
+            pixel_values=pixel_values,
+            image_grid_thw=image_grid_thw,
+            use_cache=False,
+            return_dict=True,
+        )
+        next_token_logprobs = F.log_softmax(outputs.logits[0, -1].float(), dim=-1)
+        return next_token_logprobs.gather(0, choice_token_ids).to(image.device)
 
 
 class Qwen25VQAReward:

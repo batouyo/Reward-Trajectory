@@ -46,6 +46,24 @@ else:
         "reverse_flow_drift",
         "sample_langevin_noise",
     ]
+    _import_structure["ordinal_semantic_progress"] = [
+        "ORDINAL_CHOICE_LABELS",
+        "ORDINAL_SEMANTIC_PROGRESS_CACHE_SCHEMA_VERSION",
+        "ORDINAL_SEMANTIC_PROGRESS_PARSER_VERSION",
+        "ORDINAL_STAGE_NODES",
+        "EndpointOrdinalValidationError",
+        "EndpointRelativeOrdinalSemanticProgressReward",
+        "OrdinalQuestionSpec",
+        "OrdinalSemanticPrimitiveSpec",
+        "OrdinalSemanticProgressSpec",
+        "build_ordinal_choice_prompt",
+        "build_ordinal_semantic_progress_parser_prompt",
+        "load_cached_ordinal_semantic_progress_spec",
+        "make_ordinal_semantic_progress_cache_key",
+        "ordinal_choice_distribution",
+        "parse_ordinal_semantic_progress_json",
+        "save_cached_ordinal_semantic_progress_spec",
+    ]
     _import_structure["pipeline_rewardflow_flux"] = ["FluxRewardFlowPipeline"]
     _import_structure["pipeline_flux_kontext_strength_trajectory"] = ["FluxKontextStrengthTrajectoryPipeline"]
     _import_structure["pipeline_flux_kontext_terminal_control"] = [
@@ -123,6 +141,24 @@ if TYPE_CHECKING or DIFFUSERS_SLOW_IMPORT:
     except OptionalDependencyNotAvailable:
         from ...utils.dummy_torch_and_transformers_objects import *  # noqa F403
     else:
+        from .ordinal_semantic_progress import (
+            ORDINAL_CHOICE_LABELS,
+            ORDINAL_SEMANTIC_PROGRESS_CACHE_SCHEMA_VERSION,
+            ORDINAL_SEMANTIC_PROGRESS_PARSER_VERSION,
+            ORDINAL_STAGE_NODES,
+            EndpointOrdinalValidationError,
+            EndpointRelativeOrdinalSemanticProgressReward,
+            OrdinalQuestionSpec,
+            OrdinalSemanticPrimitiveSpec,
+            OrdinalSemanticProgressSpec,
+            build_ordinal_choice_prompt,
+            build_ordinal_semantic_progress_parser_prompt,
+            load_cached_ordinal_semantic_progress_spec,
+            make_ordinal_semantic_progress_cache_key,
+            ordinal_choice_distribution,
+            parse_ordinal_semantic_progress_json,
+            save_cached_ordinal_semantic_progress_spec,
+        )
         from .paper_components import (
             PaperRewardFlowConfig,
             clean_latent_kl_energy,

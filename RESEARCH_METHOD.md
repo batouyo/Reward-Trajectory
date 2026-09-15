@@ -181,3 +181,28 @@ restricted to one primitive and one shared direction family.
 a RewardFlow paper statement. Endpoint preference, ordered pixel probes, gradient directionality, and existing
 on-manifold controller outputs are separate fail-fast gates before any end-to-end optimization. Pixel oracle and
 blue-direction scores remain evaluation-only and never participate in semantic backward.
+
+The recorded `binary-contrast-v1` experiment passed Source/NativeFull discrimination but did not define a continuous
+coordinate: its seven pixel-blend probes had Spearman `0.6786` with five inversions, and its existing real-controller
+outputs were not strictly ordered. Endpoint discrimination is therefore not evidence of continuous progress.
+
+## Ordinal semantic progress v2 experiment
+
+Ordinal v2 keeps binary v1 unchanged and asks one five-way multiple-choice question per visual view. The five audited
+stage descriptions correspond internally to nodes `[0, 0.25, 0.5, 0.75, 1]`; these numbers are never shown to Qwen.
+One frozen Qwen forward returns next-token log probabilities for the single-token labels A-E. A softmax restricted to
+those labels produces a distribution, and its expectation over the five nodes is calibrated between separately cached
+Source and NativeFull expectations. Candidate expectations and calibrated progress remain differentiable and
+unclamped in the loss. Fixed endpoint preparation is under `torch.no_grad()`.
+
+**Research hypothesis:** probabilities over visually grounded ordinal descriptions may supply a continuous semantic
+coordinate. The stages are text descriptions, not intermediate ground-truth images; pixel interpolation is used only
+as a probe and never as training or optimization supervision. A single-question form and a preregistered equal-weight
+three-question ensemble are compared without deleting failed questions or tuning temperature (`1.0`).
+
+The v2.1 ball-color bake-off rejected both variants before controller optimization. Single-question/ensemble pixel
+probe Spearman values were `0.7143`/`0.6429`, with four/six inversions. Both scored the existing `.2/.5/.8` Kontext
+outputs as increasing and then decreasing. The single question chose stage D rather than E at NativeFull; only one of
+the ensemble's three questions passed both endpoint top-stage checks. Both retained finite nonzero image gradients,
+but the preregistered target-`.8` direction check failed because the middle probe was already scored above the target.
+Consequently ordinal v2.1 did not solve binary saturation and the controller was not run.

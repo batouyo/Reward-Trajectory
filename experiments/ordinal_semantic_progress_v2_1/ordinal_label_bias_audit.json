@@ -1,0 +1,58 @@
+{
+  "ordinal-single": {
+    "fixed_stage_to_label_permutation": [
+      "C",
+      "E",
+      "A",
+      "D",
+      "B"
+    ],
+    "locations": {
+      "source": {
+        "normal_progress": 0.0,
+        "permuted_progress": 0.0,
+        "absolute_change": 0.0
+      },
+      "middle": {
+        "normal_progress": 1.0168089866638184,
+        "permuted_progress": 1.0681453943252563,
+        "absolute_change": 0.05133640766143799
+      },
+      "full": {
+        "normal_progress": 1.0,
+        "permuted_progress": 1.0,
+        "absolute_change": 0.0
+      }
+    },
+    "max_progress_change_under_permutation": 0.05133640766143799,
+    "diagnostic_only": true
+  },
+  "ordinal-ensemble": {
+    "fixed_stage_to_label_permutation": [
+      "C",
+      "E",
+      "A",
+      "D",
+      "B"
+    ],
+    "locations": {
+      "source": {
+        "normal_progress": 0.0,
+        "permuted_progress": 0.0,
+        "absolute_change": 0.0
+      },
+      "middle": {
+        "normal_progress": 1.009855031967163,
+        "permuted_progress": 0.9761568307876587,
+        "absolute_change": 0.033698201179504395
+      },
+      "full": {
+        "normal_progress": 1.0,
+        "permuted_progress": 1.0,
+        "absolute_change": 0.0
+      }
+    },
+    "max_progress_change_under_permutation": 0.033698201179504395,
+    "diagnostic_only": true
+  }
+}

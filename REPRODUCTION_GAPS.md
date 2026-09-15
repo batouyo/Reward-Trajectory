@@ -73,6 +73,14 @@ The legacy `reward_guidance=True` path remains separate.
   assumed to provide a continuous coordinate between Source and NativeFull. It is not part of RewardFlow.
 - Its independent cache binds both endpoint fingerprints, the instruction, and a parser version. The paper Figure-10
   cache is intentionally unchanged and incompatible with this new schema.
+- Ordinal semantic progress v2 is another independent research hypothesis, not a RewardFlow component. It maps a
+  Qwen A-E next-token distribution over five visually described stages to fixed nodes and then calibrates the raw
+  expectation by Source/NativeFull anchors. The five nodes, multiple-choice wording, temperature `1.0`, endpoint
+  validation, equal question weights, and fixed label permutation audit are preregistered engineering choices.
+- Ordinal v2 uses a separate schema/cache version bound to Source fingerprint, NativeFull fingerprint, instruction,
+  and parser version. Its stages are textual descriptions, not intermediate ground-truth images. Multi-question and
+  multi-primitive weighted aggregation are implemented as research interfaces, while the formal ball experiment uses
+  one primitive.
 
 ## NOT-YET-IMPLEMENTED
 
@@ -86,7 +94,7 @@ The legacy `reward_guidance=True` path remains separate.
 - The configured third-party provider exposed no model named `gpt-5` during the recorded experiment. The committed
   ball-color spec was therefore produced by direct visual inspection of Source/NativeFull and is labeled as such;
   no provider credential is stored in the repository.
-- Multi-Q&A aggregation and batched/multi-image Qwen VQA.
+- Batched/multi-image Qwen VQA.
 - The paper's source-latent noising initialization `z^(0) = alpha_tbar * z0 + sigma_tbar * noise`; the official
   pipeline instead samples target latents and supplies source latents as concatenated conditioning tokens.
 - Pure utility implementations of the unconfigured adaptive-policy formulas; formulas are documented, but author
@@ -94,3 +102,7 @@ The legacy `reward_guidance=True` path remains separate.
 - VeloEdit, FLUX-Kontext, continuous editing, training, and model-weight changes are intentionally out of scope.
 - A real end-to-end RewardFlow-model smoke test on the current H20 host is blocked because no official RewardFlow
   model directory is installed there. Component tests and real SigLIP/Qwen gradient smoke tests are available.
+- The formal ordinal-v2.1 ball-color reward failed before controller optimization: two configurations failed endpoint,
+  pixel-probe monotonicity, existing Kontext-output ordering, and the preregistered target-`.8` direction gate. Thus
+  discrete ordinal choices are not yet a reliable continuous coordinate for this edit, and reward-controller coupling
+  remains untested in this round.
