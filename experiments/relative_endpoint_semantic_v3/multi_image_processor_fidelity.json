@@ -1,0 +1,62 @@
+{
+  "image_count": 3,
+  "official_image_grid_thw": [
+    [
+      1,
+      18,
+      18
+    ],
+    [
+      1,
+      18,
+      18
+    ],
+    [
+      1,
+      18,
+      18
+    ]
+  ],
+  "differentiable_image_grid_thw": [
+    [
+      1,
+      18,
+      18
+    ],
+    [
+      1,
+      18,
+      18
+    ],
+    [
+      1,
+      18,
+      18
+    ]
+  ],
+  "grid_equal": true,
+  "official_pixel_values_shape": [
+    972,
+    1176
+  ],
+  "differentiable_pixel_values_shape": [
+    972,
+    1176
+  ],
+  "pixel_mse": 2.8486125302151777e-05,
+  "pixel_mae": 0.004230530466884375,
+  "pixel_cosine": 0.9999822378158569,
+  "pixel_max_abs_difference": 0.12012434005737305,
+  "official_choice_logprobs": [
+    -0.6939606666564941,
+    -0.6939606666564941
+  ],
+  "differentiable_choice_logprobs": [
+    -0.6939473748207092,
+    -0.6939473748207092
+  ],
+  "choice_logprob_max_abs_difference": 1.329183578491211e-05,
+  "official_second_vs_first_logodds_margin": 0.0,
+  "differentiable_second_vs_first_logodds_margin": 0.0,
+  "logodds_margin_abs_difference": 0.0
+}

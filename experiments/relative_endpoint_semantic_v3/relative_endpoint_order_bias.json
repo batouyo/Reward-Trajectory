@@ -1,0 +1,24 @@
+{
+  "diagnostic_only": true,
+  "rows": [
+    {
+      "strength": 0.2,
+      "production_margin": 0.0,
+      "swapped_remapped_margin": -0.125,
+      "change": -0.125
+    },
+    {
+      "strength": 0.5,
+      "production_margin": 0.0625,
+      "swapped_remapped_margin": 0.0,
+      "change": -0.0625
+    },
+    {
+      "strength": 0.8,
+      "production_margin": 0.0625,
+      "swapped_remapped_margin": 0.125,
+      "change": 0.0625
+    }
+  ],
+  "swapped_ordering_strict": true
+}

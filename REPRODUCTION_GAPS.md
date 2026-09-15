@@ -81,6 +81,16 @@ The legacy `reward_guidance=True` path remains separate.
   and parser version. Its stages are textual descriptions, not intermediate ground-truth images. Multi-question and
   multi-primitive weighted aggregation are implemented as research interfaces, while the formal ball experiment uses
   one primitive.
+- Relative Endpoint Semantic Reward v3 is independent research code. It symmetrizes two three-image Qwen comparison
+  forwards and calibrates the resulting Full-vs-Source preference margin using only Source and NativeFull anchors.
+  Treating that calibrated margin interval as a controllable interior coordinate is an explicitly gated hypothesis,
+  not a RewardFlow paper claim and not human semantic ground truth.
+- V3 multi-image preprocessing concatenates the existing per-image torch-native patches in image-placeholder order.
+  The official processor comparison and its `pixel_cosine >= 0.999` engineering gate are diagnostics, not paper
+  thresholds.
+- The V3 parser uses its own strict schema/cache and optional official OpenAI Responses API structured output. Its
+  prompt, schema, default `gpt-5.6-luna` snapshot, and human-audit fallback are research choices. It is never substituted
+  for the paper Figure-10 parser.
 
 ## NOT-YET-IMPLEMENTED
 
@@ -90,11 +100,13 @@ The legacy `reward_guidance=True` path remains separate.
 - Exact RegionCLIP region proposals, pooling, and reward implementation; the repository class remains a placeholder.
 - Exact text-guided SAM2 object reward, mask-confidence mixture, leakage penalty, and add/remove direction.
 - Perception Encoder reward and a differentiable HPSv2 integration.
-- Provider/API integration for semantic parsing; this phase supplies only prompt, schema validation, and cache.
+- Live official OpenAI parser validation remains environment-gated by an explicit slow-test flag and
+  `OPENAI_API_KEY`; no official key was available on the H20 host in this run.
 - The configured third-party provider exposed no model named `gpt-5` during the recorded experiment. The committed
   ball-color spec was therefore produced by direct visual inspection of Source/NativeFull and is labeled as such;
   no provider credential is stored in the repository.
-- Batched/multi-image Qwen VQA.
+- Batched Qwen VQA association remains undefined. V3 supports an ordered list of batch-one images for one comparison;
+  it does not claim general multi-image/multi-sample Q&A semantics.
 - The paper's source-latent noising initialization `z^(0) = alpha_tbar * z0 + sigma_tbar * noise`; the official
   pipeline instead samples target latents and supplies source latents as concatenated conditioning tokens.
 - Pure utility implementations of the unconfigured adaptive-policy formulas; formulas are documented, but author
@@ -106,3 +118,8 @@ The legacy `reward_guidance=True` path remains separate.
   pixel-probe monotonicity, existing Kontext-output ordering, and the preregistered target-`.8` direction gate. Thus
   discrete ordinal choices are not yet a reliable continuous coordinate for this edit, and reward-controller coupling
   remains untested in this round.
+- The formal relative-endpoint-v3 ball audit also failed before controller optimization. Symmetrized Source and
+  NativeFull margins both collapsed to zero because the two image orders disagreed or tied. Held-out model-generated
+  `.2/.5/.8` margins were `0`, `0.0625`, `0.0625`, so strict ordering failed. Processor fidelity and both image-gradient
+  directions passed, demonstrating that differentiability alone does not make the VLM preference a reliable
+  continuous coordinate.

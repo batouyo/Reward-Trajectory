@@ -1,0 +1,69 @@
+{
+  "candidate_provenance": "held_out_model_generated_oracle_0p5",
+  "directions": {
+    "toward_full": {
+      "loss_definition": "-raw_margin",
+      "initial_margin": 0.0625,
+      "gradient_finite": true,
+      "gradient_nonzero": true,
+      "gradient_l2_norm": 6.917818546295166,
+      "trials": [
+        {
+          "step_rms": 1e-05,
+          "new_margin": 0.0625,
+          "direction_correct": false
+        },
+        {
+          "step_rms": 3e-05,
+          "new_margin": 0.0,
+          "direction_correct": false
+        },
+        {
+          "step_rms": 0.0001,
+          "new_margin": 0.0,
+          "direction_correct": false
+        },
+        {
+          "step_rms": 0.0003,
+          "new_margin": 0.125,
+          "direction_correct": true
+        }
+      ],
+      "passed": true
+    },
+    "toward_source": {
+      "loss_definition": "+raw_margin",
+      "initial_margin": 0.0625,
+      "gradient_finite": true,
+      "gradient_nonzero": true,
+      "gradient_l2_norm": 6.941277503967285,
+      "trials": [
+        {
+          "step_rms": 1e-05,
+          "new_margin": -0.0625,
+          "direction_correct": true
+        },
+        {
+          "step_rms": 3e-05,
+          "new_margin": 0.0,
+          "direction_correct": true
+        },
+        {
+          "step_rms": 0.0001,
+          "new_margin": 0.0,
+          "direction_correct": true
+        },
+        {
+          "step_rms": 0.0003,
+          "new_margin": -0.125,
+          "direction_correct": true
+        }
+      ],
+      "passed": true
+    }
+  },
+  "qwen_parameters_require_grad": false,
+  "qwen_parameters_have_grad": false,
+  "source_requires_grad": false,
+  "full_requires_grad": false
+}

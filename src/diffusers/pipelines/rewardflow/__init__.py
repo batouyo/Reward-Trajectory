@@ -25,6 +25,23 @@ _import_structure = {
         "parse_semantic_parser_json",
         "save_cached_parse",
     ],
+    "relative_endpoint_parser": [
+        "DEFAULT_RELATIVE_ENDPOINT_PARSER_MODEL",
+        "RELATIVE_ENDPOINT_CACHE_SCHEMA_VERSION",
+        "RELATIVE_ENDPOINT_PARSER_VERSION",
+        "OpenAIRelativeEndpointParser",
+        "RelativeEndpointParseRecord",
+        "RelativeEndpointPrimitiveSpec",
+        "RelativeEndpointSemanticSpec",
+        "build_relative_endpoint_semantic_parser_prompt",
+        "fingerprint_endpoint_image",
+        "load_cached_relative_endpoint_parse",
+        "make_human_relative_endpoint_parse_record",
+        "make_relative_endpoint_cache_key",
+        "parse_relative_endpoint_semantic_json",
+        "relative_endpoint_json_schema",
+        "save_cached_relative_endpoint_parse",
+    ],
 }
 
 try:
@@ -99,6 +116,13 @@ else:
         "ResearchStaticRewardGuidance",
         "StaticRewardGuidance",
         "qwen_vqa_token_reward",
+    ]
+    _import_structure["relative_endpoint_semantic"] = [
+        "RELATIVE_ENDPOINT_CHOICES",
+        "RelativeEndpointSemanticReward",
+        "RelativeEndpointValidationError",
+        "audit_endpoint_answers",
+        "build_relative_endpoint_comparison_prompt",
     ]
     _import_structure["semantic_progress"] = [
         "SEMANTIC_PROGRESS_CACHE_SCHEMA_VERSION",
@@ -176,6 +200,13 @@ if TYPE_CHECKING or DIFFUSERS_SLOW_IMPORT:
             KontextTerminalControlInputs,
         )
         from .pipeline_rewardflow_flux import FluxRewardFlowPipeline
+        from .relative_endpoint_semantic import (
+            RELATIVE_ENDPOINT_CHOICES,
+            RelativeEndpointSemanticReward,
+            RelativeEndpointValidationError,
+            audit_endpoint_answers,
+            build_relative_endpoint_comparison_prompt,
+        )
         from .rewards import (
             Qwen25VQAReward,
             Qwen25VQATeacherForcedScorer,
@@ -241,6 +272,23 @@ if TYPE_CHECKING or DIFFUSERS_SLOW_IMPORT:
             update_best_control_checkpoint,
         )
 
+    from .relative_endpoint_parser import (
+        DEFAULT_RELATIVE_ENDPOINT_PARSER_MODEL,
+        RELATIVE_ENDPOINT_CACHE_SCHEMA_VERSION,
+        RELATIVE_ENDPOINT_PARSER_VERSION,
+        OpenAIRelativeEndpointParser,
+        RelativeEndpointParseRecord,
+        RelativeEndpointPrimitiveSpec,
+        RelativeEndpointSemanticSpec,
+        build_relative_endpoint_semantic_parser_prompt,
+        fingerprint_endpoint_image,
+        load_cached_relative_endpoint_parse,
+        make_human_relative_endpoint_parse_record,
+        make_relative_endpoint_cache_key,
+        parse_relative_endpoint_semantic_json,
+        relative_endpoint_json_schema,
+        save_cached_relative_endpoint_parse,
+    )
     from .semantic_parser import (
         SEMANTIC_CACHE_SCHEMA_VERSION,
         SEMANTIC_PARSER_VERSION,

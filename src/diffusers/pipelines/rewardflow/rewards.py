@@ -488,9 +488,9 @@ def qwen_vqa_token_reward(
 class Qwen25VQATeacherForcedScorer:
     """Reusable differentiable answer scorer backed by one frozen Qwen2.5-VL model.
 
-    Images remain torch tensors throughout preprocessing. The current adapter
-    supports one image because RewardFlow's paper experiments use batch size one
-    for editing and the paper does not specify multi-image Q&A association.
+    Images remain torch tensors throughout preprocessing. Single-image methods
+    retain their original API while relative-endpoint research can score an
+    ordered list of images in one multimodal forward.
     """
 
     def __init__(
@@ -627,6 +627,21 @@ class Qwen25VQATeacherForcedScorer:
         image_grid_thw = torch.tensor([[grid_t, grid_h, grid_w]], device=image.device, dtype=torch.long)
         return pixel_values, image_grid_thw
 
+    def _differentiable_multi_image_inputs(self, images: Sequence[torch.Tensor]) -> tuple[torch.Tensor, torch.Tensor]:
+        """Preprocess ordered images without breaking candidate-image gradients."""
+
+        if not isinstance(images, Sequence) or isinstance(images, (str, bytes)) or not images:
+            raise ValueError("`images` must be a non-empty ordered sequence of tensors.")
+        pixel_values = []
+        image_grids = []
+        for index, image in enumerate(images):
+            if not torch.is_tensor(image):
+                raise TypeError(f"`images[{index}]` must be a torch tensor.")
+            pixels, grid = self._differentiable_image_inputs(image)
+            pixel_values.append(pixels)
+            image_grids.append(grid)
+        return torch.cat(pixel_values, dim=0), torch.cat(image_grids, dim=0)
+
     def _build_prompt_prefix_inputs(
         self,
         image_grid_thw: torch.Tensor,
@@ -636,22 +651,23 @@ class Qwen25VQATeacherForcedScorer:
         # ASSUMPTION: The paper does not define the exact Qwen chat template or
         # whether the assistant terminator belongs to a*. We use the checkpoint's
         # official chat template as prefix and score answer tokens only.
+        image_count = int(image_grid_thw.shape[0])
+        if image_grid_thw.ndim != 2 or image_grid_thw.shape[1] != 3 or image_count < 1:
+            raise ValueError("`image_grid_thw` must have shape [number_of_images, 3].")
         messages = [
             {
                 "role": "user",
-                "content": [
-                    {"type": "image"},
-                    {"type": "text", "text": question},
-                ],
+                "content": ([{"type": "image"} for _ in range(image_count)] + [{"type": "text", "text": question}]),
             }
         ]
         prompt_text = self.processor.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
         image_token = self.processor.image_token
-        if prompt_text.count(image_token) != 1:
-            raise NotImplementedError("Expected exactly one Qwen image placeholder in the chat template.")
+        if prompt_text.count(image_token) != image_count:
+            raise NotImplementedError(f"Expected exactly {image_count} Qwen image placeholders in the chat template.")
         merge_length = int(self.processor.image_processor.merge_size) ** 2
-        image_token_count = int(image_grid_thw[0].prod().item() // merge_length)
-        prompt_text = prompt_text.replace(image_token, image_token * image_token_count, 1)
+        for grid in image_grid_thw:
+            image_token_count = int(grid.prod().item() // merge_length)
+            prompt_text = prompt_text.replace(image_token, image_token * image_token_count, 1)
 
         tokenizer = self.processor.tokenizer
         prefix_ids = tokenizer(prompt_text, add_special_tokens=False, return_tensors="pt").input_ids[0]
@@ -837,6 +853,61 @@ class Qwen25VQATeacherForcedScorer:
             "reward_abs_difference": float(reward_difference.abs()),
         }
 
+    def compare_multi_image_with_official_processor(
+        self,
+        images: Sequence[PIL.Image.Image | torch.Tensor],
+        question: str,
+        choices: tuple[str, ...] = ("A", "B"),
+    ) -> dict[str, object]:
+        """Audit multi-image pixels, grids, and choice scores against the official processor."""
+
+        if not images:
+            raise ValueError("Multi-image fidelity diagnostics require at least one image.")
+        pairs = [self._fidelity_image_pair(image) for image in images]
+        pil_images = [pair[0] for pair in pairs]
+        tensor_images = [pair[1] for pair in pairs]
+        official = self.processor.image_processor(images=pil_images, return_tensors="pt")
+        official_pixels = official["pixel_values"].float()
+        official_grid = official["image_grid_thw"].to(torch.long)
+        differentiable_pixels, differentiable_grid = self._differentiable_multi_image_inputs(tensor_images)
+        differentiable_pixels = differentiable_pixels.float()
+        if official_pixels.shape != differentiable_pixels.shape:
+            raise RuntimeError("Official and differentiable multi-image pixel shapes differ.")
+        difference = differentiable_pixels - official_pixels
+        cosine = F.cosine_similarity(differentiable_pixels.reshape(1, -1), official_pixels.reshape(1, -1), dim=1)[0]
+        with torch.no_grad():
+            official_scores = self._score_single_token_choices_from_inputs(
+                official_pixels, official_grid, question, choices
+            )
+            differentiable_scores = self._score_single_token_choices_from_inputs(
+                differentiable_pixels, differentiable_grid, question, choices
+            )
+        if len(choices) == 2:
+            official_margin = official_scores[1] - official_scores[0]
+            differentiable_margin = differentiable_scores[1] - differentiable_scores[0]
+        else:
+            official_margin = differentiable_margin = torch.tensor(float("nan"))
+        return {
+            "image_count": len(images),
+            "official_image_grid_thw": official_grid.tolist(),
+            "differentiable_image_grid_thw": differentiable_grid.cpu().tolist(),
+            "grid_equal": bool(torch.equal(official_grid.cpu(), differentiable_grid.cpu())),
+            "official_pixel_values_shape": list(official_pixels.shape),
+            "differentiable_pixel_values_shape": list(differentiable_pixels.shape),
+            "pixel_mse": float(difference.square().mean()),
+            "pixel_mae": float(difference.abs().mean()),
+            "pixel_cosine": float(cosine),
+            "pixel_max_abs_difference": float(difference.abs().max()),
+            "official_choice_logprobs": official_scores.float().cpu().tolist(),
+            "differentiable_choice_logprobs": differentiable_scores.float().cpu().tolist(),
+            "choice_logprob_max_abs_difference": float(
+                (official_scores.float() - differentiable_scores.float()).abs().max()
+            ),
+            "official_second_vs_first_logodds_margin": float(official_margin),
+            "differentiable_second_vs_first_logodds_margin": float(differentiable_margin),
+            "logodds_margin_abs_difference": float((official_margin - differentiable_margin).abs()),
+        }
+
     def score_answer(
         self,
         image: torch.Tensor,
@@ -874,6 +945,17 @@ class Qwen25VQATeacherForcedScorer:
         if not isinstance(choices, tuple):
             choices = tuple(choices)
         pixel_values, image_grid_thw = self._differentiable_image_inputs(image)
+        return self._score_single_token_choices_from_inputs(
+            pixel_values, image_grid_thw, question.strip(), choices
+        ).to(image.device)
+
+    def _score_single_token_choices_from_inputs(
+        self,
+        pixel_values: torch.Tensor,
+        image_grid_thw: torch.Tensor,
+        question: str,
+        choices: tuple[str, ...],
+    ) -> torch.Tensor:
         model_device, model_dtype = self._model_device_and_dtype()
         pixel_values = pixel_values.to(device=model_device, dtype=model_dtype)
         image_grid_thw = image_grid_thw.to(model_device)
@@ -888,7 +970,23 @@ class Qwen25VQATeacherForcedScorer:
             return_dict=True,
         )
         next_token_logprobs = F.log_softmax(outputs.logits[0, -1].float(), dim=-1)
-        return next_token_logprobs.gather(0, choice_token_ids).to(image.device)
+        return next_token_logprobs.gather(0, choice_token_ids)
+
+    def score_multi_image_single_token_choices(
+        self,
+        images: Sequence[torch.Tensor],
+        question: str,
+        choices: tuple[str, ...] = ("A", "B"),
+    ) -> torch.Tensor:
+        """Score choices from one forward over an ordered sequence of images."""
+
+        if not isinstance(question, str) or not question.strip():
+            raise ValueError("Multi-image choice scoring requires a non-empty question.")
+        if not isinstance(choices, tuple):
+            choices = tuple(choices)
+        pixel_values, image_grid_thw = self._differentiable_multi_image_inputs(images)
+        scores = self._score_single_token_choices_from_inputs(pixel_values, image_grid_thw, question.strip(), choices)
+        return scores.to(images[0].device)
 
 
 class Qwen25VQAReward:

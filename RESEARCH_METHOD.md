@@ -206,3 +206,39 @@ outputs as increasing and then decreasing. The single question chose stage D rat
 the ensemble's three questions passed both endpoint top-stage checks. Both retained finite nonzero image gradients,
 but the preregistered target-`.8` direction check failed because the middle probe was already scored above the target.
 Consequently ordinal v2.1 did not solve binary saturation and the controller was not run.
+
+## Relative Endpoint Semantic Reward v3
+
+V3 is a separate research hypothesis. For each primitive, frozen Qwen sees three ordered images at once: Source,
+current Candidate, and NativeFull. A second forward reverses the two reference positions. After remapping both
+answers to the same direction, the production score is
+
+```text
+m1 = log P(Full choice | Source, Candidate, Full) - log P(Source choice | Source, Candidate, Full)
+m2 = log P(Full choice | Full, Candidate, Source) - log P(Source choice | Full, Candidate, Source)
+margin = 0.5 * (m1 + m2)
+```
+
+Source and NativeFull margins are cached under `torch.no_grad()`. A requested scalar is mapped linearly into this
+instance-specific margin interval, and optimization minimizes the squared normalized margin residual without
+clamping. This calibration is not pixel, latent, or velocity interpolation, and the margin is not a claim about
+human-perceived semantic strength.
+
+The old RewardFlow Figure-10 parser remains unchanged. V3 has an independent strict Source/NativeFull parser schema,
+cache, CLI, and optional official OpenAI Responses API structured-output adapter. Online parsing is one offline
+preparation call, never part of differentiable inference. Human-audited specs remain supported with explicit
+provenance. No API credential is stored.
+
+The existing binary-v1 and ordinal-v2 ball experiments both failed continuous ordering. V3 therefore must pass
+multi-image processor fidelity, both endpoint preferences in both orders, finite endpoint range, strict ordering on
+held-out model-generated `.2/.5/.8` outputs, and bidirectional real-candidate gradients before the unchanged terminal
+controller can run. Pixel blends are a secondary `NOT MODEL-GENERATED` diagnostic only.
+
+The formal v3 ball audit also failed before controller optimization. Multi-image processor fidelity was high
+(`pixel_cosine=0.999982`; grids and shapes exact), endpoint teacher-forced color answers were correct, and the real
+oracle `.5` Candidate had finite nonzero gradients in both directions. However, the comparative choice itself was
+position-sensitive: Source produced order-remapped margins `-0.125` and `+0.125`, while NativeFull produced `0` and
+`0`. Symmetrization therefore collapsed both endpoint anchors to zero. Held-out model-generated `.2/.5/.8` raw
+margins were `0`, `0.0625`, and `0.0625`, failing strict order at the last pair. The unchanged controller was not run.
+Endpoint-answer validity and gradient existence are therefore still insufficient evidence of a usable continuous
+semantic coordinate.

@@ -1,0 +1,374 @@
+{
+  "scope": "Relative Endpoint Semantic Reward v3 preregistered gate",
+  "semantic_spec": {
+    "edit_instruction": "Make the weighted training ball blue while preserving its shape, texture, lighting, and background.",
+    "primitives": [
+      {
+        "id": "ball_color",
+        "object": "foreground weighted training ball",
+        "attribute": "visible surface color",
+        "edit_description": "change the foreground ball from dark gray to blue",
+        "comparison_focus": "the visible surface color of the foreground weighted training ball",
+        "source_state": "the foreground ball has a dark gray surface",
+        "target_state": "the foreground ball has a vivid blue surface",
+        "endpoint_question": "What is the visible surface color of the foreground weighted training ball?",
+        "source_answer": "Dark gray.",
+        "target_answer": "Blue.",
+        "weight": 1.0
+      }
+    ],
+    "preserve_constraints": [
+      "ball shape and embossed texture",
+      "scene lighting and shadows",
+      "background people, bench, path, and composition"
+    ],
+    "unresolved_instruction_items": []
+  },
+  "semantic_spec_provenance": {
+    "provider": "human",
+    "model": "human-audited",
+    "parser_version": "relative-endpoint-semantic-v3-parser-v1",
+    "source_fingerprint": "093d11fd4882adbe185795b7b94b3c97bdde8f9db9b1683a880f878da0651cdb",
+    "full_fingerprint": "9207344734fafd2ece1d0ebaf454e209c157d512b7932a32bf4c2c03dd3646ff",
+    "edit_instruction": "Make the weighted training ball blue while preserving its shape, texture, lighting, and background.",
+    "created_at": "2026-09-15T15:01:10.294365+00:00"
+  },
+  "semantic_parser": {
+    "online_call_requested": false,
+    "provider": "human",
+    "model": "human-audited"
+  },
+  "score_interpretation": "symmetrized relative endpoint preference margin; not human semantic strength",
+  "oracle_provenance": "held-out model-generated outputs; never used to build or calibrate reward",
+  "pixel_blend_provenance": "secondary NOT MODEL-GENERATED diagnostic; never optimized",
+  "config": {
+    "model": "/data15/hyp/weight/FLUX.1-Kontext-dev",
+    "qwen_model": "/data15/hyp/weight/reward_models/Qwen2.5-VL-3B-Instruct",
+    "source": "/data15/hyp/dataset/kontinuous_kontext/raw/source_images/source_000000.png",
+    "prompt": "Make the weighted training ball blue while preserving its shape, texture, lighting, and background.",
+    "relative_spec": "examples/rewardflow/relative_endpoint_ball_spec.json",
+    "auto_parse": false,
+    "parser_cache": "experiments/relative_endpoint_semantic_v3/parser_cache.json",
+    "oracle_output_dir": "/tmp/st_formal_shared_t4_mask",
+    "output_dir": "experiments/relative_endpoint_semantic_v3",
+    "audit_only": true,
+    "device": "cuda:0",
+    "reward_device": "cuda:0",
+    "steps": 12,
+    "seed": 20260914,
+    "height": 256,
+    "width": 256,
+    "guidance_scale": 2.5,
+    "strengths": [
+      0.2,
+      0.5,
+      0.8
+    ],
+    "control_steps": 4,
+    "control_lr": 0.1,
+    "outer_iters": 20,
+    "lambda_control": 0.0001,
+    "use_checkpointing": true
+  },
+  "native_clamp_audit": {
+    "fraction_below_zero_before_clamp": 0.0320536307990551,
+    "fraction_above_one_before_clamp": 0.00347900390625
+  },
+  "endpoint": {
+    "ball_color": {
+      "source": {
+        "forward_1_logprob_a": -0.6333861351013184,
+        "forward_1_logprob_b": -0.7583861351013184,
+        "forward_1_margin": -0.125,
+        "forward_2_logprob_a": -0.6337358951568604,
+        "forward_2_logprob_b": -0.7587358951568604,
+        "forward_2_margin": 0.125,
+        "raw_margin": 0.0,
+        "order_bias": -0.125
+      },
+      "full": {
+        "forward_1_logprob_a": -0.6939509510993958,
+        "forward_1_logprob_b": -0.6939509510993958,
+        "forward_1_margin": 0.0,
+        "forward_2_logprob_a": -0.6943546533584595,
+        "forward_2_logprob_b": -0.6943546533584595,
+        "forward_2_margin": 0.0,
+        "raw_margin": 0.0,
+        "order_bias": 0.0
+      },
+      "dynamic_range": 0.0,
+      "finite": true,
+      "source_prefers_source_both_orders": false,
+      "full_prefers_full_both_orders": false,
+      "dynamic_range_valid": false,
+      "valid": false
+    }
+  },
+  "endpoint_vqa_audit_not_continuous_reward": {
+    "ball_color": {
+      "source_source_answer_score": -4.096501350402832,
+      "source_target_answer_score": -5.441034317016602,
+      "full_source_answer_score": -5.986993312835693,
+      "full_target_answer_score": -3.8811259269714355,
+      "source_prefers_source_answer": true,
+      "full_prefers_target_answer": true,
+      "valid": true,
+      "used_for_continuous_reward": false
+    }
+  },
+  "multi_image_processor_fidelity": {
+    "image_count": 3,
+    "official_image_grid_thw": [
+      [
+        1,
+        18,
+        18
+      ],
+      [
+        1,
+        18,
+        18
+      ],
+      [
+        1,
+        18,
+        18
+      ]
+    ],
+    "differentiable_image_grid_thw": [
+      [
+        1,
+        18,
+        18
+      ],
+      [
+        1,
+        18,
+        18
+      ],
+      [
+        1,
+        18,
+        18
+      ]
+    ],
+    "grid_equal": true,
+    "official_pixel_values_shape": [
+      972,
+      1176
+    ],
+    "differentiable_pixel_values_shape": [
+      972,
+      1176
+    ],
+    "pixel_mse": 2.8486125302151777e-05,
+    "pixel_mae": 0.004230530466884375,
+    "pixel_cosine": 0.9999822378158569,
+    "pixel_max_abs_difference": 0.12012434005737305,
+    "official_choice_logprobs": [
+      -0.6939606666564941,
+      -0.6939606666564941
+    ],
+    "differentiable_choice_logprobs": [
+      -0.6939473748207092,
+      -0.6939473748207092
+    ],
+    "choice_logprob_max_abs_difference": 1.329183578491211e-05,
+    "official_second_vs_first_logodds_margin": 0.0,
+    "differentiable_second_vs_first_logodds_margin": 0.0,
+    "logodds_margin_abs_difference": 0.0
+  },
+  "oracle": {
+    "rows": [
+      {
+        "provenance": "held_out_model_generated_flux_controller_output",
+        "used_for_reward_construction_or_calibration": false,
+        "strength_label": 0.2,
+        "raw_margin": 0.0,
+        "relative_coordinate": null,
+        "semantic_residual_absolute": null,
+        "semantic_loss": null
+      },
+      {
+        "provenance": "held_out_model_generated_flux_controller_output",
+        "used_for_reward_construction_or_calibration": false,
+        "strength_label": 0.5,
+        "raw_margin": 0.0625,
+        "relative_coordinate": null,
+        "semantic_residual_absolute": null,
+        "semantic_loss": null
+      },
+      {
+        "provenance": "held_out_model_generated_flux_controller_output",
+        "used_for_reward_construction_or_calibration": false,
+        "strength_label": 0.8,
+        "raw_margin": 0.0625,
+        "relative_coordinate": null,
+        "semantic_residual_absolute": null,
+        "semantic_loss": null
+      }
+    ],
+    "summary": {
+      "strict_raw_margin_order": false,
+      "adjacent_raw_margin_gaps": [
+        0.0625,
+        0.0
+      ]
+    }
+  },
+  "gradient": {
+    "candidate_provenance": "held_out_model_generated_oracle_0p5",
+    "directions": {
+      "toward_full": {
+        "loss_definition": "-raw_margin",
+        "initial_margin": 0.0625,
+        "gradient_finite": true,
+        "gradient_nonzero": true,
+        "gradient_l2_norm": 6.917818546295166,
+        "trials": [
+          {
+            "step_rms": 1e-05,
+            "new_margin": 0.0625,
+            "direction_correct": false
+          },
+          {
+            "step_rms": 3e-05,
+            "new_margin": 0.0,
+            "direction_correct": false
+          },
+          {
+            "step_rms": 0.0001,
+            "new_margin": 0.0,
+            "direction_correct": false
+          },
+          {
+            "step_rms": 0.0003,
+            "new_margin": 0.125,
+            "direction_correct": true
+          }
+        ],
+        "passed": true
+      },
+      "toward_source": {
+        "loss_definition": "+raw_margin",
+        "initial_margin": 0.0625,
+        "gradient_finite": true,
+        "gradient_nonzero": true,
+        "gradient_l2_norm": 6.941277503967285,
+        "trials": [
+          {
+            "step_rms": 1e-05,
+            "new_margin": -0.0625,
+            "direction_correct": true
+          },
+          {
+            "step_rms": 3e-05,
+            "new_margin": 0.0,
+            "direction_correct": true
+          },
+          {
+            "step_rms": 0.0001,
+            "new_margin": 0.0,
+            "direction_correct": true
+          },
+          {
+            "step_rms": 0.0003,
+            "new_margin": -0.125,
+            "direction_correct": true
+          }
+        ],
+        "passed": true
+      }
+    },
+    "qwen_parameters_require_grad": false,
+    "qwen_parameters_have_grad": false,
+    "source_requires_grad": false,
+    "full_requires_grad": false
+  },
+  "label_swap_diagnostic": {
+    "diagnostic_only": true,
+    "rows": [
+      {
+        "strength": 0.2,
+        "production_margin": 0.0,
+        "swapped_remapped_margin": -0.125,
+        "change": -0.125
+      },
+      {
+        "strength": 0.5,
+        "production_margin": 0.0625,
+        "swapped_remapped_margin": 0.0,
+        "change": -0.0625
+      },
+      {
+        "strength": 0.8,
+        "production_margin": 0.0625,
+        "swapped_remapped_margin": 0.125,
+        "change": 0.0625
+      }
+    ],
+    "swapped_ordering_strict": true
+  },
+  "pixel_blend": {
+    "rows": [
+      {
+        "provenance": "PIXEL_BLEND_DIAGNOSTIC_NOT_MODEL_GENERATED_OUTPUT",
+        "alpha": 0.0,
+        "raw_margin": 0.0,
+        "relative_coordinate": null
+      },
+      {
+        "provenance": "PIXEL_BLEND_DIAGNOSTIC_NOT_MODEL_GENERATED_OUTPUT",
+        "alpha": 0.2,
+        "raw_margin": 0.0,
+        "relative_coordinate": null
+      },
+      {
+        "provenance": "PIXEL_BLEND_DIAGNOSTIC_NOT_MODEL_GENERATED_OUTPUT",
+        "alpha": 0.4,
+        "raw_margin": 0.0625,
+        "relative_coordinate": null
+      },
+      {
+        "provenance": "PIXEL_BLEND_DIAGNOSTIC_NOT_MODEL_GENERATED_OUTPUT",
+        "alpha": 0.5,
+        "raw_margin": 0.0,
+        "relative_coordinate": null
+      },
+      {
+        "provenance": "PIXEL_BLEND_DIAGNOSTIC_NOT_MODEL_GENERATED_OUTPUT",
+        "alpha": 0.6,
+        "raw_margin": 0.0,
+        "relative_coordinate": null
+      },
+      {
+        "provenance": "PIXEL_BLEND_DIAGNOSTIC_NOT_MODEL_GENERATED_OUTPUT",
+        "alpha": 0.8,
+        "raw_margin": 0.0625,
+        "relative_coordinate": null
+      },
+      {
+        "provenance": "PIXEL_BLEND_DIAGNOSTIC_NOT_MODEL_GENERATED_OUTPUT",
+        "alpha": 1.0,
+        "raw_margin": 0.0625,
+        "relative_coordinate": null
+      }
+    ],
+    "summary": {
+      "spearman": 0.8928571428571427,
+      "inversions": 11,
+      "secondary_diagnostic_only": true
+    }
+  },
+  "gates": {
+    "multi_image_processor_fidelity": true,
+    "endpoint_semantic_preference_both_orders": false,
+    "finite_nonzero_endpoint_dynamic_range": false,
+    "held_out_model_generated_oracle_strict_raw_margin_order": false,
+    "oracle_candidate_gradient_toward_full": true,
+    "oracle_candidate_gradient_toward_source": true,
+    "all_passed": false
+  },
+  "controller_run": false,
+  "controller_result": null
+}

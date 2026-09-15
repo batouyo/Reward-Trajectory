@@ -1,0 +1,4 @@
+provenance,used_for_reward_construction_or_calibration,strength_label,raw_margin,relative_coordinate,semantic_residual_absolute,semantic_loss
+held_out_model_generated_flux_controller_output,False,0.2,0.0,,,
+held_out_model_generated_flux_controller_output,False,0.5,0.0625,,,
+held_out_model_generated_flux_controller_output,False,0.8,0.0625,,,

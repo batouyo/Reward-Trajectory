@@ -1,0 +1,24 @@
+{
+  "edit_instruction": "Make the weighted training ball blue while preserving its shape, texture, lighting, and background.",
+  "primitives": [
+    {
+      "id": "ball_color",
+      "object": "foreground weighted training ball",
+      "attribute": "visible surface color",
+      "edit_description": "change the foreground ball from dark gray to blue",
+      "comparison_focus": "the visible surface color of the foreground weighted training ball",
+      "source_state": "the foreground ball has a dark gray surface",
+      "target_state": "the foreground ball has a vivid blue surface",
+      "endpoint_question": "What is the visible surface color of the foreground weighted training ball?",
+      "source_answer": "Dark gray.",
+      "target_answer": "Blue.",
+      "weight": 1.0
+    }
+  ],
+  "preserve_constraints": [
+    "ball shape and embossed texture",
+    "scene lighting and shadows",
+    "background people, bench, path, and composition"
+  ],
+  "unresolved_instruction_items": []
+}
