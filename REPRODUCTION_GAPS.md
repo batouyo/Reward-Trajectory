@@ -88,9 +88,10 @@ The legacy `reward_guidance=True` path remains separate.
 - V3 multi-image preprocessing concatenates the existing per-image torch-native patches in image-placeholder order.
   The official processor comparison and its `pixel_cosine >= 0.999` engineering gate are diagnostics, not paper
   thresholds.
-- The V3 parser uses its own strict schema/cache and optional official OpenAI Responses API structured output. Its
-  prompt, schema, default `gpt-5.6-luna` snapshot, and human-audit fallback are research choices. It is never substituted
-  for the paper Figure-10 parser.
+- The V3 parser uses its own strict schema/cache and a TianyuAI OpenAI-compatible Chat Completions request with JSON
+  Schema output. TianyuAI is a third-party provider, not OpenAI. Provider, base URL, model, prompt version, endpoint
+  fingerprints, and instruction are cache-bound; credentials are not stored. The prompt, schema, default
+  `gpt-5.6-luna` model name, and human-audit fallback are research choices and never replace the paper Figure-10 parser.
 
 ## NOT-YET-IMPLEMENTED
 
@@ -100,11 +101,10 @@ The legacy `reward_guidance=True` path remains separate.
 - Exact RegionCLIP region proposals, pooling, and reward implementation; the repository class remains a placeholder.
 - Exact text-guided SAM2 object reward, mask-confidence mixture, leakage penalty, and add/remove direction.
 - Perception Encoder reward and a differentiable HPSv2 integration.
-- Live official OpenAI parser validation remains environment-gated by an explicit slow-test flag and
-  `OPENAI_API_KEY`; no official key was available on the H20 host in this run.
-- The configured third-party provider exposed no model named `gpt-5` during the recorded experiment. The committed
-  ball-color spec was therefore produced by direct visual inspection of Source/NativeFull and is labeled as such;
-  no provider credential is stored in the repository.
+- Live TianyuAI parser validation remains environment-gated by `TIANYUAI_API_KEY` and the explicit
+  `RUN_TIANYUAI_SEMANTIC_PARSER_INTEGRATION=1` slow-test flag. The provider's public page documents Chat Completions,
+  but strict `json_schema` support has not yet been verified by a credentialed integration run. There is deliberately
+  no fallback to unstructured text or regex parsing.
 - Batched Qwen VQA association remains undefined. V3 supports an ordered list of batch-one images for one comparison;
   it does not claim general multi-image/multi-sample Q&A semantics.
 - The paper's source-latent noising initialization `z^(0) = alpha_tbar * z0 + sigma_tbar * noise`; the official

@@ -1,4 +1,4 @@
-"""Offline semantic specification and optional official OpenAI parser for v3.
+"""Offline semantic specification and optional TianyuAI parser for v3.
 
 This research parser is independent of RewardFlow's paper semantic parser. It
 describes only Source/Native-Full endpoint semantics and never invents
@@ -23,8 +23,10 @@ import PIL.Image
 
 
 RELATIVE_ENDPOINT_PARSER_VERSION = "relative-endpoint-semantic-v3-parser-v1"
-RELATIVE_ENDPOINT_CACHE_SCHEMA_VERSION = 1
+RELATIVE_ENDPOINT_CACHE_SCHEMA_VERSION = 2
 DEFAULT_RELATIVE_ENDPOINT_PARSER_MODEL = "gpt-5.6-luna"
+DEFAULT_RELATIVE_ENDPOINT_PARSER_PROVIDER = "tianyuai"
+DEFAULT_RELATIVE_ENDPOINT_PARSER_BASE_URL = "https://tianyuai.lol/v1"
 _ID = re.compile(r"[a-z][a-z0-9_]*\Z")
 _FORBIDDEN = re.compile(
     r"%|\bpercent(?:age)?\b|\bstrength\b|\bstage\s*(?:[1-5]|one|two|three|four|five)\b",
@@ -215,6 +217,8 @@ def make_relative_endpoint_cache_key(
     *,
     parser_version: str = RELATIVE_ENDPOINT_PARSER_VERSION,
     model: str = DEFAULT_RELATIVE_ENDPOINT_PARSER_MODEL,
+    provider: str = DEFAULT_RELATIVE_ENDPOINT_PARSER_PROVIDER,
+    base_url: str = DEFAULT_RELATIVE_ENDPOINT_PARSER_BASE_URL,
 ) -> str:
     identity = {
         "source_fingerprint": _string(source_fingerprint, "source_fingerprint"),
@@ -222,6 +226,8 @@ def make_relative_endpoint_cache_key(
         "edit_instruction": " ".join(_string(edit_instruction, "edit_instruction").split()),
         "parser_version": _string(parser_version, "parser_version"),
         "model": _string(model, "model"),
+        "provider": _string(provider, "provider"),
+        "base_url": _string(base_url, "base_url").rstrip("/"),
         "cache_schema_version": RELATIVE_ENDPOINT_CACHE_SCHEMA_VERSION,
     }
     return hashlib.sha256(json.dumps(identity, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
@@ -253,6 +259,7 @@ def save_cached_relative_endpoint_parse(
         "full_fingerprint",
         "edit_instruction",
         "created_at",
+        "base_url",
     }
     if not required.issubset(provenance):
         raise ValueError("Parse provenance is incomplete.")
@@ -264,6 +271,8 @@ def save_cached_relative_endpoint_parse(
         provenance["edit_instruction"],
         parser_version=provenance["parser_version"],
         model=provenance["model"],
+        provider=provenance["provider"],
+        base_url=provenance["base_url"],
     )
     path = Path(cache_path)
     payload = _cache(path)
@@ -283,6 +292,8 @@ def load_cached_relative_endpoint_parse(
     *,
     parser_version: str = RELATIVE_ENDPOINT_PARSER_VERSION,
     model: str = DEFAULT_RELATIVE_ENDPOINT_PARSER_MODEL,
+    provider: str = DEFAULT_RELATIVE_ENDPOINT_PARSER_PROVIDER,
+    base_url: str = DEFAULT_RELATIVE_ENDPOINT_PARSER_BASE_URL,
 ) -> RelativeEndpointParseRecord | None:
     path = Path(cache_path)
     if not path.exists():
@@ -293,6 +304,8 @@ def load_cached_relative_endpoint_parse(
         edit_instruction,
         parser_version=parser_version,
         model=model,
+        provider=provider,
+        base_url=base_url,
     )
     entry = _cache(path)["entries"].get(key)
     if entry is None:
@@ -312,6 +325,7 @@ def make_human_relative_endpoint_parse_record(
         spec=spec,
         provenance={
             "provider": "human",
+            "base_url": "local",
             "model": model,
             "parser_version": RELATIVE_ENDPOINT_PARSER_VERSION,
             "source_fingerprint": source_fingerprint,
@@ -329,17 +343,39 @@ def _image_data_url(path: str | Path) -> str:
     return "data:image/png;base64," + base64.b64encode(buffer.getvalue()).decode("ascii")
 
 
-class OpenAIRelativeEndpointParser:
-    """One-call official OpenAI Responses API structured-output adapter."""
+class TianyuAIRelativeEndpointParser:
+    """One-call TianyuAI Chat Completions structured-output adapter.
 
-    def __init__(self, *, model: str | None = None, client=None):
-        self.model = model or os.getenv("OPENAI_SEMANTIC_PARSER_MODEL", DEFAULT_RELATIVE_ENDPOINT_PARSER_MODEL)
+    The service is OpenAI-compatible but is not operated by OpenAI. Credentials
+    are read from ``TIANYUAI_API_KEY`` and never included in provenance.
+    """
+
+    def __init__(
+        self,
+        *,
+        model: str | None = None,
+        base_url: str | None = None,
+        api_key: str | None = None,
+        client=None,
+    ):
+        self.model = (
+            model
+            or os.getenv("TIANYUAI_SEMANTIC_PARSER_MODEL")
+            or os.getenv("OPENAI_SEMANTIC_PARSER_MODEL", DEFAULT_RELATIVE_ENDPOINT_PARSER_MODEL)
+        )
+        self.provider = DEFAULT_RELATIVE_ENDPOINT_PARSER_PROVIDER
+        self.base_url = (base_url or os.getenv("TIANYUAI_BASE_URL", DEFAULT_RELATIVE_ENDPOINT_PARSER_BASE_URL)).rstrip(
+            "/"
+        )
         if client is None:
+            api_key = api_key or os.getenv("TIANYUAI_API_KEY")
+            if not api_key:
+                raise ValueError("Set `TIANYUAI_API_KEY` before using the online TianyuAI semantic parser.")
             try:
                 from openai import OpenAI
             except ImportError as exc:  # pragma: no cover - optional dependency
                 raise ImportError("Install the official `openai` package to use the online semantic parser.") from exc
-            client = OpenAI()
+            client = OpenAI(api_key=api_key, base_url=self.base_url)
         self.client = client
 
     def parse(
@@ -350,41 +386,41 @@ class OpenAIRelativeEndpointParser:
     ) -> RelativeEndpointParseRecord:
         source_fingerprint = fingerprint_endpoint_image(source_image)
         full_fingerprint = fingerprint_endpoint_image(full_image)
-        response = self.client.responses.create(
+        response = self.client.chat.completions.create(
             model=self.model,
-            store=False,
-            input=[
+            messages=[
                 {
                     "role": "user",
                     "content": [
-                        {"type": "input_image", "image_url": _image_data_url(source_image)},
-                        {"type": "input_image", "image_url": _image_data_url(full_image)},
-                        {
-                            "type": "input_text",
-                            "text": build_relative_endpoint_semantic_parser_prompt(edit_instruction),
-                        },
+                        {"type": "image_url", "image_url": {"url": _image_data_url(source_image)}},
+                        {"type": "image_url", "image_url": {"url": _image_data_url(full_image)}},
+                        {"type": "text", "text": build_relative_endpoint_semantic_parser_prompt(edit_instruction)},
                     ],
                 }
             ],
-            text={
-                "format": {
-                    "type": "json_schema",
+            response_format={
+                "type": "json_schema",
+                "json_schema": {
                     "name": "relative_endpoint_semantic_spec",
                     "strict": True,
                     "schema": relative_endpoint_json_schema(),
-                }
+                },
             },
         )
-        output_text = getattr(response, "output_text", None)
+        try:
+            output_text = response.choices[0].message.content
+        except (AttributeError, IndexError, TypeError) as exc:
+            raise RuntimeError("TianyuAI Chat Completions returned no assistant message.") from exc
         if not isinstance(output_text, str) or not output_text.strip():
-            raise RuntimeError("OpenAI Responses API returned no structured output text.")
+            raise RuntimeError("TianyuAI Chat Completions returned no structured JSON text.")
         spec = parse_relative_endpoint_semantic_json(output_text)
         if _normalized(spec.edit_instruction) != _normalized(edit_instruction):
             raise ValueError("Parser output changed the edit instruction.")
         return RelativeEndpointParseRecord(
             spec=spec,
             provenance={
-                "provider": "openai",
+                "provider": self.provider,
+                "base_url": self.base_url,
                 "model": self.model,
                 "parser_version": RELATIVE_ENDPOINT_PARSER_VERSION,
                 "source_fingerprint": source_fingerprint,
@@ -393,3 +429,8 @@ class OpenAIRelativeEndpointParser:
                 "created_at": datetime.now(timezone.utc).isoformat(),
             },
         )
+
+
+# Backward-compatible import name. Calls now use the explicitly configured
+# TianyuAI Chat Completions provider rather than OpenAI Responses.
+OpenAIRelativeEndpointParser = TianyuAIRelativeEndpointParser

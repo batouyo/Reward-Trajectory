@@ -225,9 +225,11 @@ clamping. This calibration is not pixel, latent, or velocity interpolation, and 
 human-perceived semantic strength.
 
 The old RewardFlow Figure-10 parser remains unchanged. V3 has an independent strict Source/NativeFull parser schema,
-cache, CLI, and optional official OpenAI Responses API structured-output adapter. Online parsing is one offline
-preparation call, never part of differentiable inference. Human-audited specs remain supported with explicit
-provenance. No API credential is stored.
+cache, CLI, and an explicit TianyuAI OpenAI-compatible Chat Completions adapter. Source and NativeFull are sent as
+ordered image data URLs and the request requires strict JSON Schema output. Online parsing is one offline preparation
+call, never part of differentiable inference. The service is third-party, not OpenAI. Its base URL and provider name
+are included in cache identity and provenance, while `TIANYUAI_API_KEY` is read only from the environment and never
+stored. Human-audited specs remain supported with explicit provenance.
 
 The existing binary-v1 and ordinal-v2 ball experiments both failed continuous ordering. V3 therefore must pass
 multi-image processor fidelity, both endpoint preferences in both orders, finite endpoint range, strict ordering on

@@ -20,7 +20,7 @@ from PIL import Image, ImageDraw
 
 from diffusers.pipelines.rewardflow.pipeline_flux_kontext_terminal_control import FluxKontextTerminalControlPipeline
 from diffusers.pipelines.rewardflow.relative_endpoint_parser import (
-    OpenAIRelativeEndpointParser,
+    TianyuAIRelativeEndpointParser,
     fingerprint_endpoint_image,
     make_human_relative_endpoint_parse_record,
     parse_relative_endpoint_semantic_json,
@@ -413,7 +413,7 @@ def main():
             provenance = record.provenance
     else:
         full_path = output_dir / "native_full_MODEL_GENERATED.png"
-        record = OpenAIRelativeEndpointParser().parse(args.source, full_path, args.prompt)
+        record = TianyuAIRelativeEndpointParser().parse(args.source, full_path, args.prompt)
         save_cached_relative_endpoint_parse(args.parser_cache, record)
         spec, provenance = record.spec, record.provenance
     if len(spec.primitives) != 1 or spec.unresolved_instruction_items:
@@ -459,6 +459,7 @@ def main():
             "online_call_requested": args.auto_parse,
             "provider": provenance.get("provider"),
             "model": provenance.get("model"),
+            "base_url": provenance.get("base_url"),
         },
         "score_interpretation": "symmetrized relative endpoint preference margin; not human semantic strength",
         "oracle_provenance": "held-out model-generated outputs; never used to build or calibrate reward",

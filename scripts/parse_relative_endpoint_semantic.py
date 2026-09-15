@@ -1,4 +1,4 @@
-"""Parse and cache a Source/Native-Full semantic specification with OpenAI."""
+"""Parse and cache a Source/Native-Full semantic specification with TianyuAI."""
 
 from __future__ import annotations
 
@@ -8,7 +8,7 @@ from dataclasses import asdict
 from pathlib import Path
 
 from diffusers.pipelines.rewardflow.relative_endpoint_parser import (
-    OpenAIRelativeEndpointParser,
+    TianyuAIRelativeEndpointParser,
     load_cached_relative_endpoint_parse,
     save_cached_relative_endpoint_parse,
 )
@@ -22,9 +22,10 @@ def main():
     parser.add_argument("--cache", required=True)
     parser.add_argument("--output", required=True)
     parser.add_argument("--model")
+    parser.add_argument("--base-url")
     args = parser.parse_args()
 
-    online = OpenAIRelativeEndpointParser(model=args.model)
+    online = TianyuAIRelativeEndpointParser(model=args.model, base_url=args.base_url)
     from diffusers.pipelines.rewardflow.relative_endpoint_parser import fingerprint_endpoint_image
 
     source_fingerprint = fingerprint_endpoint_image(args.source)
@@ -35,6 +36,8 @@ def main():
         full_fingerprint,
         args.instruction,
         model=online.model,
+        provider=online.provider,
+        base_url=online.base_url,
     )
     cache_hit = record is not None
     if record is None:

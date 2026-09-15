@@ -27,9 +27,12 @@ _import_structure = {
     ],
     "relative_endpoint_parser": [
         "DEFAULT_RELATIVE_ENDPOINT_PARSER_MODEL",
+        "DEFAULT_RELATIVE_ENDPOINT_PARSER_PROVIDER",
+        "DEFAULT_RELATIVE_ENDPOINT_PARSER_BASE_URL",
         "RELATIVE_ENDPOINT_CACHE_SCHEMA_VERSION",
         "RELATIVE_ENDPOINT_PARSER_VERSION",
         "OpenAIRelativeEndpointParser",
+        "TianyuAIRelativeEndpointParser",
         "RelativeEndpointParseRecord",
         "RelativeEndpointPrimitiveSpec",
         "RelativeEndpointSemanticSpec",
@@ -273,13 +276,16 @@ if TYPE_CHECKING or DIFFUSERS_SLOW_IMPORT:
         )
 
     from .relative_endpoint_parser import (
+        DEFAULT_RELATIVE_ENDPOINT_PARSER_BASE_URL,
         DEFAULT_RELATIVE_ENDPOINT_PARSER_MODEL,
+        DEFAULT_RELATIVE_ENDPOINT_PARSER_PROVIDER,
         RELATIVE_ENDPOINT_CACHE_SCHEMA_VERSION,
         RELATIVE_ENDPOINT_PARSER_VERSION,
         OpenAIRelativeEndpointParser,
         RelativeEndpointParseRecord,
         RelativeEndpointPrimitiveSpec,
         RelativeEndpointSemanticSpec,
+        TianyuAIRelativeEndpointParser,
         build_relative_endpoint_semantic_parser_prompt,
         fingerprint_endpoint_image,
         load_cached_relative_endpoint_parse,

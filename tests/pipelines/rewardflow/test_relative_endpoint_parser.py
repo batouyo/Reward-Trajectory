@@ -6,7 +6,7 @@ import pytest
 
 from diffusers.pipelines.rewardflow.relative_endpoint_parser import (
     DEFAULT_RELATIVE_ENDPOINT_PARSER_MODEL,
-    OpenAIRelativeEndpointParser,
+    TianyuAIRelativeEndpointParser,
     build_relative_endpoint_semantic_parser_prompt,
     load_cached_relative_endpoint_parse,
     make_human_relative_endpoint_parse_record,
@@ -120,16 +120,26 @@ def test_cache_key_binds_both_images_instruction_parser_version_and_model(tmp_pa
     assert base != make_relative_endpoint_cache_key("source", "full", "turn red")
     assert base != make_relative_endpoint_cache_key("source", "full", "turn blue", parser_version="v2")
     assert base != make_relative_endpoint_cache_key("source", "full", "turn blue", model="other")
+    assert base != make_relative_endpoint_cache_key("source", "full", "turn blue", provider="other")
+    assert base != make_relative_endpoint_cache_key("source", "full", "turn blue", base_url="https://other/v1")
     spec = parse_relative_endpoint_semantic_json(json.dumps(_payload()))
     record = make_human_relative_endpoint_parse_record(spec, "source", "full")
     cache = tmp_path / "cache.json"
     save_cached_relative_endpoint_parse(cache, record)
-    loaded = load_cached_relative_endpoint_parse(cache, "source", "full", spec.edit_instruction, model="human-audited")
+    loaded = load_cached_relative_endpoint_parse(
+        cache,
+        "source",
+        "full",
+        spec.edit_instruction,
+        model="human-audited",
+        provider="human",
+        base_url="local",
+    )
     assert loaded == record
     assert "api_key" not in cache.read_text().casefold()
 
 
-def test_official_provider_uses_one_structured_responses_call_and_ordered_images(tmp_path):
+def test_tianyu_provider_uses_one_structured_chat_completion_and_ordered_images(tmp_path):
     from PIL import Image
 
     source = tmp_path / "source.png"
@@ -138,32 +148,35 @@ def test_official_provider_uses_one_structured_responses_call_and_ordered_images
     Image.new("RGB", (2, 2), "blue").save(full)
     calls = []
 
-    class Responses:
+    class Completions:
         def create(self, **kwargs):
             calls.append(kwargs)
-            return SimpleNamespace(output_text=json.dumps(_payload()))
+            message = SimpleNamespace(content=json.dumps(_payload()))
+            return SimpleNamespace(choices=[SimpleNamespace(message=message)])
 
-    parser = OpenAIRelativeEndpointParser(client=SimpleNamespace(responses=Responses()))
+    client = SimpleNamespace(chat=SimpleNamespace(completions=Completions()))
+    parser = TianyuAIRelativeEndpointParser(client=client)
     record = parser.parse(source, full, "Turn the ball blue.")
     assert len(calls) == 1
     assert calls[0]["model"] == DEFAULT_RELATIVE_ENDPOINT_PARSER_MODEL
-    assert calls[0]["text"]["format"]["strict"] is True
-    content = calls[0]["input"][0]["content"]
-    assert [item["type"] for item in content] == ["input_image", "input_image", "input_text"]
-    assert record.provenance["provider"] == "openai"
+    assert calls[0]["response_format"]["json_schema"]["strict"] is True
+    content = calls[0]["messages"][0]["content"]
+    assert [item["type"] for item in content] == ["image_url", "image_url", "text"]
+    assert record.provenance["provider"] == "tianyuai"
+    assert record.provenance["base_url"] == "https://tianyuai.lol/v1"
 
 
 @pytest.mark.skipif(
-    not os.getenv("OPENAI_API_KEY") or os.getenv("RUN_OPENAI_SEMANTIC_PARSER_INTEGRATION") != "1",
-    reason="requires official OPENAI_API_KEY and explicit RUN_OPENAI_SEMANTIC_PARSER_INTEGRATION=1",
+    not os.getenv("TIANYUAI_API_KEY") or os.getenv("RUN_TIANYUAI_SEMANTIC_PARSER_INTEGRATION") != "1",
+    reason="requires TIANYUAI_API_KEY and explicit RUN_TIANYUAI_SEMANTIC_PARSER_INTEGRATION=1",
 )
-def test_live_openai_semantic_parser_only_when_explicitly_enabled(tmp_path):
+def test_live_tianyu_semantic_parser_only_when_explicitly_enabled(tmp_path):
     from PIL import Image
 
     source = tmp_path / "source.png"
     full = tmp_path / "full.png"
     Image.new("RGB", (32, 32), "black").save(source)
     Image.new("RGB", (32, 32), "blue").save(full)
-    record = OpenAIRelativeEndpointParser().parse(source, full, "Turn the square blue.")
-    assert record.provenance["provider"] == "openai"
+    record = TianyuAIRelativeEndpointParser().parse(source, full, "Turn the square blue.")
+    assert record.provenance["provider"] == "tianyuai"
     assert record.spec.primitives
