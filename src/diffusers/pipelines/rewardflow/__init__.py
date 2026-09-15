@@ -55,6 +55,17 @@ except OptionalDependencyNotAvailable:
 
     _dummy_objects.update(get_objects_from_module(dummy_torch_and_transformers_objects))
 else:
+    _import_structure["endpoint_comparator_metrics"] = [
+        "SMALL_GRADIENT_STEPS",
+        "average_ranks",
+        "gradient_direction_gate",
+        "ordering_diagnostics",
+        "spearman_correlation",
+    ]
+    _import_structure["endpoint_feature_distance"] = [
+        "FeatureEndpointDistanceReward",
+        "build_focus_conditioned_feature_prompt",
+    ]
     _import_structure["paper_components"] = [
         "PaperRewardFlowConfig",
         "clean_latent_kl_energy",
@@ -65,6 +76,11 @@ else:
         "predict_clean_latent",
         "reverse_flow_drift",
         "sample_langevin_noise",
+    ]
+    _import_structure["pairwise_endpoint_semantic"] = [
+        "PairwiseEndpointSemanticReward",
+        "PairwiseEndpointValidationError",
+        "build_pairwise_endpoint_affinity_prompt",
     ]
     _import_structure["ordinal_semantic_progress"] = [
         "ORDINAL_CHOICE_LABELS",
@@ -168,6 +184,17 @@ if TYPE_CHECKING or DIFFUSERS_SLOW_IMPORT:
     except OptionalDependencyNotAvailable:
         from ...utils.dummy_torch_and_transformers_objects import *  # noqa F403
     else:
+        from .endpoint_comparator_metrics import (
+            SMALL_GRADIENT_STEPS,
+            average_ranks,
+            gradient_direction_gate,
+            ordering_diagnostics,
+            spearman_correlation,
+        )
+        from .endpoint_feature_distance import (
+            FeatureEndpointDistanceReward,
+            build_focus_conditioned_feature_prompt,
+        )
         from .ordinal_semantic_progress import (
             ORDINAL_CHOICE_LABELS,
             ORDINAL_SEMANTIC_PROGRESS_CACHE_SCHEMA_VERSION,
@@ -185,6 +212,11 @@ if TYPE_CHECKING or DIFFUSERS_SLOW_IMPORT:
             ordinal_choice_distribution,
             parse_ordinal_semantic_progress_json,
             save_cached_ordinal_semantic_progress_spec,
+        )
+        from .pairwise_endpoint_semantic import (
+            PairwiseEndpointSemanticReward,
+            PairwiseEndpointValidationError,
+            build_pairwise_endpoint_affinity_prompt,
         )
         from .paper_components import (
             PaperRewardFlowConfig,

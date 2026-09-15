@@ -1,0 +1,166 @@
+{
+  "three-image A/B BF16": {
+    "summary": {
+      "endpoint_source": -0.0625,
+      "endpoint_full": 0.0625,
+      "endpoint_range": 0.125,
+      "endpoint_valid": true,
+      "oracle_scores": {
+        "0.2": 0.0,
+        "0.5": 0.0,
+        "0.8": 0.0625
+      },
+      "oracle_ordering": {
+        "strict_order_pass": false,
+        "adjacent_gaps": [
+          0.0,
+          0.0625
+        ],
+        "descending_inversions": [],
+        "descending_inversion_count": 0,
+        "ties": [
+          [
+            0,
+            1
+          ]
+        ],
+        "tie_count": 1,
+        "non_strict_violations": [
+          [
+            0,
+            1
+          ]
+        ],
+        "non_strict_violation_count": 1
+      },
+      "oracle_spearman": 0.8660254037844387,
+      "minimum_adjacent_oracle_gap": 0.0
+    },
+    "gates": {
+      "endpoint_valid": true,
+      "oracle_strict_order": false,
+      "oracle_no_ties": false,
+      "toward_source_small_steps": false,
+      "toward_full_small_steps": true,
+      "order_robust": false
+    }
+  },
+  "three-image A/B FP32": {
+    "summary": {
+      "endpoint_source": -0.011400222778320312,
+      "endpoint_full": 0.022162437438964844,
+      "endpoint_range": 0.033562660217285156,
+      "endpoint_valid": true,
+      "oracle_scores": {
+        "0.2": 0.014196395874023438,
+        "0.5": -0.006282806396484375,
+        "0.8": 0.028598785400390625
+      },
+      "oracle_ordering": {
+        "strict_order_pass": false,
+        "adjacent_gaps": [
+          -0.020479202270507812,
+          0.034881591796875
+        ],
+        "descending_inversions": [
+          [
+            0,
+            1
+          ]
+        ],
+        "descending_inversion_count": 1,
+        "ties": [],
+        "tie_count": 0,
+        "non_strict_violations": [
+          [
+            0,
+            1
+          ]
+        ],
+        "non_strict_violation_count": 1
+      },
+      "oracle_spearman": 0.4999999999999999,
+      "minimum_adjacent_oracle_gap": -0.020479202270507812
+    },
+    "gates": {
+      "endpoint_valid": true,
+      "oracle_strict_order": false,
+      "oracle_no_ties": true,
+      "toward_source_small_steps": false,
+      "toward_full_small_steps": true,
+      "order_robust": false
+    }
+  },
+  "pairwise sentence FP32": {
+    "summary": {
+      "endpoint_source": -0.0,
+      "endpoint_full": 1.0,
+      "endpoint_range": -0.1689831018447876,
+      "endpoint_valid": false,
+      "oracle_scores": {
+        "0.2": 0.8872096538543701,
+        "0.5": 0.906669557094574,
+        "0.8": 0.9646068215370178
+      },
+      "oracle_ordering": {
+        "strict_order_pass": true,
+        "adjacent_gaps": [
+          0.019459903240203857,
+          0.05793726444244385
+        ],
+        "descending_inversions": [],
+        "descending_inversion_count": 0,
+        "ties": [],
+        "tie_count": 0,
+        "non_strict_violations": [],
+        "non_strict_violation_count": 0
+      },
+      "oracle_spearman": 0.9999999999999998,
+      "minimum_adjacent_oracle_gap": 0.019459903240203857
+    },
+    "gates": {
+      "endpoint_valid": false,
+      "oracle_strict_order": true,
+      "oracle_no_ties": true,
+      "toward_source_small_steps": false,
+      "toward_full_small_steps": true,
+      "order_robust": false
+    }
+  },
+  "feature distance FP32": {
+    "summary": {
+      "endpoint_source": -6.264758212637389e-06,
+      "endpoint_full": 1.0000057220458984,
+      "endpoint_range": 1.000011986804111,
+      "endpoint_valid": true,
+      "oracle_scores": {
+        "0.2": 0.8829656839370728,
+        "0.5": 0.9148600697517395,
+        "0.8": 0.9546476006507874
+      },
+      "oracle_ordering": {
+        "strict_order_pass": true,
+        "adjacent_gaps": [
+          0.03189438581466675,
+          0.03978753089904785
+        ],
+        "descending_inversions": [],
+        "descending_inversion_count": 0,
+        "ties": [],
+        "tie_count": 0,
+        "non_strict_violations": [],
+        "non_strict_violation_count": 0
+      },
+      "oracle_spearman": 0.9999999999999998,
+      "minimum_adjacent_oracle_gap": 0.03189438581466675
+    },
+    "gates": {
+      "endpoint_valid": true,
+      "oracle_strict_order": true,
+      "oracle_no_ties": true,
+      "toward_source_small_steps": true,
+      "toward_full_small_steps": true,
+      "order_robust": true
+    }
+  }
+}

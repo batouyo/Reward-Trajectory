@@ -917,20 +917,45 @@ class Qwen25VQATeacherForcedScorer:
         margin: float = 0.0,
         lambda_margin: float = 0.0,
     ) -> torch.Tensor:
+        return self.score_multi_image_answer(
+            (image,),
+            question,
+            answer,
+            margin=margin,
+            lambda_margin=lambda_margin,
+        )
+
+    def score_multi_image_answer(
+        self,
+        images: Sequence[torch.Tensor],
+        question: str,
+        answer: str,
+        *,
+        margin: float = 0.0,
+        lambda_margin: float = 0.0,
+    ) -> torch.Tensor:
+        """Return a length-normalized teacher-forced answer score for ordered images.
+
+        The image sequence is preprocessed entirely with torch. Gradients are
+        therefore retained for any grad-enabled image while callers can pass
+        detached endpoint images in the same forward.
+        """
+
         if not isinstance(question, str) or not question.strip():
             raise ValueError("Teacher-forced scoring requires a non-empty question.")
         if not isinstance(answer, str) or not answer.strip():
             raise ValueError("Teacher-forced scoring requires a non-empty answer.")
-        pixel_values, image_grid_thw = self._differentiable_image_inputs(image)
+        pixel_values, image_grid_thw = self._differentiable_multi_image_inputs(images)
         aligned_logits, answer_ids = self._aligned_answer_logits(
             pixel_values, image_grid_thw, question.strip(), answer.strip()
         )
-        return qwen_vqa_token_reward(
+        score = qwen_vqa_token_reward(
             aligned_logits,
             answer_ids,
             margin=margin,
             lambda_margin=lambda_margin,
-        ).to(image.device)
+        )
+        return score.to(images[0].device)
 
     def score_single_token_choices(
         self,
@@ -956,6 +981,17 @@ class Qwen25VQATeacherForcedScorer:
         question: str,
         choices: tuple[str, ...],
     ) -> torch.Tensor:
+        return self._single_token_choice_logits_from_inputs(pixel_values, image_grid_thw, question, choices)[1]
+
+    def _single_token_choice_logits_from_inputs(
+        self,
+        pixel_values: torch.Tensor,
+        image_grid_thw: torch.Tensor,
+        question: str,
+        choices: tuple[str, ...],
+    ) -> tuple[torch.Tensor, torch.Tensor]:
+        """Return selected raw logits and full-vocabulary-normalized log probabilities."""
+
         model_device, model_dtype = self._model_device_and_dtype()
         pixel_values = pixel_values.to(device=model_device, dtype=model_dtype)
         image_grid_thw = image_grid_thw.to(model_device)
@@ -969,8 +1005,10 @@ class Qwen25VQATeacherForcedScorer:
             use_cache=False,
             return_dict=True,
         )
-        next_token_logprobs = F.log_softmax(outputs.logits[0, -1].float(), dim=-1)
-        return next_token_logprobs.gather(0, choice_token_ids)
+        next_token_logits = outputs.logits[0, -1].float()
+        selected_logits = next_token_logits.gather(0, choice_token_ids)
+        selected_logprobs = F.log_softmax(next_token_logits, dim=-1).gather(0, choice_token_ids)
+        return selected_logits, selected_logprobs
 
     def score_multi_image_single_token_choices(
         self,
@@ -987,6 +1025,54 @@ class Qwen25VQATeacherForcedScorer:
         pixel_values, image_grid_thw = self._differentiable_multi_image_inputs(images)
         scores = self._score_single_token_choices_from_inputs(pixel_values, image_grid_thw, question.strip(), choices)
         return scores.to(images[0].device)
+
+    def score_multi_image_single_token_choices_with_logits(
+        self,
+        images: Sequence[torch.Tensor],
+        question: str,
+        choices: tuple[str, ...] = ("A", "B"),
+    ) -> tuple[torch.Tensor, torch.Tensor]:
+        """Return raw choice logits and log probabilities for precision diagnostics."""
+
+        if not isinstance(question, str) or not question.strip():
+            raise ValueError("Multi-image choice scoring requires a non-empty question.")
+        if not isinstance(choices, tuple):
+            choices = tuple(choices)
+        pixel_values, image_grid_thw = self._differentiable_multi_image_inputs(images)
+        logits, logprobs = self._single_token_choice_logits_from_inputs(
+            pixel_values, image_grid_thw, question.strip(), choices
+        )
+        return logits.to(images[0].device), logprobs.to(images[0].device)
+
+    def focus_conditioned_representation(self, image: torch.Tensor, prompt: str) -> torch.Tensor:
+        """Return the normalized final-layer, final-prompt-token Qwen hidden state.
+
+        This is an explicitly registered diagnostic representation, not an
+        official Qwen embedding API. It remains differentiable with respect to
+        ``image`` and does not enable gradients for frozen model parameters.
+        """
+
+        if not isinstance(prompt, str) or not prompt.strip():
+            raise ValueError("Focus-conditioned representation requires a non-empty prompt.")
+        pixel_values, image_grid_thw = self._differentiable_image_inputs(image)
+        model_device, model_dtype = self._model_device_and_dtype()
+        pixel_values = pixel_values.to(device=model_device, dtype=model_dtype)
+        image_grid_thw = image_grid_thw.to(model_device)
+        input_ids, attention_mask = self._build_prompt_prefix_inputs(image_grid_thw, model_device, prompt.strip())
+        outputs = self.model(
+            input_ids=input_ids,
+            attention_mask=attention_mask,
+            pixel_values=pixel_values,
+            image_grid_thw=image_grid_thw,
+            use_cache=False,
+            output_hidden_states=True,
+            return_dict=True,
+        )
+        hidden_states = getattr(outputs, "hidden_states", None)
+        if not hidden_states:
+            raise NotImplementedError("Qwen did not return language hidden states with `output_hidden_states=True`.")
+        representation = hidden_states[-1][0, -1].float()
+        return F.normalize(representation, dim=0).to(image.device)
 
 
 class Qwen25VQAReward:

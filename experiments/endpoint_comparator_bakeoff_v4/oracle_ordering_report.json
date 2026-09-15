@@ -1,0 +1,86 @@
+{
+  "three-image A/B BF16": {
+    "oracle": {
+      "strict_order_pass": false,
+      "adjacent_gaps": [
+        0.0,
+        0.0625
+      ],
+      "descending_inversions": [],
+      "descending_inversion_count": 0,
+      "ties": [
+        [
+          0,
+          1
+        ]
+      ],
+      "tie_count": 1,
+      "non_strict_violations": [
+        [
+          0,
+          1
+        ]
+      ],
+      "non_strict_violation_count": 1
+    },
+    "spearman": 0.8660254037844387
+  },
+  "three-image A/B FP32": {
+    "oracle": {
+      "strict_order_pass": false,
+      "adjacent_gaps": [
+        -0.020479202270507812,
+        0.034881591796875
+      ],
+      "descending_inversions": [
+        [
+          0,
+          1
+        ]
+      ],
+      "descending_inversion_count": 1,
+      "ties": [],
+      "tie_count": 0,
+      "non_strict_violations": [
+        [
+          0,
+          1
+        ]
+      ],
+      "non_strict_violation_count": 1
+    },
+    "spearman": 0.4999999999999999
+  },
+  "pairwise sentence FP32": {
+    "oracle": {
+      "strict_order_pass": true,
+      "adjacent_gaps": [
+        0.019459903240203857,
+        0.05793726444244385
+      ],
+      "descending_inversions": [],
+      "descending_inversion_count": 0,
+      "ties": [],
+      "tie_count": 0,
+      "non_strict_violations": [],
+      "non_strict_violation_count": 0
+    },
+    "spearman": 0.9999999999999998
+  },
+  "feature distance FP32": {
+    "oracle": {
+      "strict_order_pass": true,
+      "adjacent_gaps": [
+        0.03189438581466675,
+        0.03978753089904785
+      ],
+      "descending_inversions": [],
+      "descending_inversion_count": 0,
+      "ties": [],
+      "tie_count": 0,
+      "non_strict_violations": [],
+      "non_strict_violation_count": 0
+    },
+    "spearman": 0.9999999999999998
+  }
+}

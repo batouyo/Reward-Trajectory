@@ -1,0 +1,59 @@
+{
+  "image_count": 2,
+  "official_image_grid_thw": [
+    [
+      1,
+      18,
+      18
+    ],
+    [
+      1,
+      18,
+      18
+    ]
+  ],
+  "differentiable_image_grid_thw": [
+    [
+      1,
+      18,
+      18
+    ],
+    [
+      1,
+      18,
+      18
+    ]
+  ],
+  "grid_equal": true,
+  "official_pixel_values_shape": [
+    648,
+    1176
+  ],
+  "differentiable_pixel_values_shape": [
+    648,
+    1176
+  ],
+  "pixel_mse": 2.8031343390466645e-05,
+  "pixel_mae": 0.00422686105594039,
+  "pixel_cosine": 1.0000011920928955,
+  "pixel_max_abs_difference": 0.10008478164672852,
+  "official_choice_logprobs": [
+    -5.488786697387695,
+    -10.216691970825195
+  ],
+  "differentiable_choice_logprobs": [
+    -5.2803802490234375,
+    -10.225522994995117
+  ],
+  "choice_logprob_max_abs_difference": 0.2084064483642578,
+  "official_second_vs_first_logodds_margin": -4.7279052734375,
+  "differentiable_second_vs_first_logodds_margin": -4.94514274597168,
+  "logodds_margin_abs_difference": 0.2172374725341797,
+  "engineering_gate_pixel_cosine_at_least_0p999": true,
+  "threshold_is_engineering_not_paper": true,
+  "runtime": {
+    "runtime_seconds": 0.2668945570476353,
+    "peak_allocated_gib": 14.17266035079956,
+    "peak_reserved_gib": 25.919921875
+  }
+}

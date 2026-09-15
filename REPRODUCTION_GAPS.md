@@ -92,6 +92,12 @@ The legacy `reward_guidance=True` path remains separate.
   Schema output. TianyuAI is a third-party provider, not OpenAI. Provider, base URL, model, prompt version, endpoint
   fingerprints, and instruction are cache-bound; credentials are not stored. The prompt, schema, default
   `gpt-5.6-luna` model name, and human-audit fallback are research choices and never replace the paper Figure-10 parser.
+- Endpoint comparator v4 is independent research code, not a RewardFlow paper component. Its fixed affirmative
+  pairwise statement, symmetric four-forward affinity, final-layer/final-prompt-token Qwen representation, L2
+  normalization, cosine-distance ratio, strict gates, and gradient-step sizes are preregistered engineering choices.
+- The brief does not numerically define when pairwise and feature gaps are "close". The bake-off records the explicit
+  selection assumption that pairwise is close when its minimum adjacent oracle gap is at least 90% of the feature
+  baseline's gap; this affects recommendation only, never comparator scores or gates.
 
 ## NOT-YET-IMPLEMENTED
 
@@ -101,10 +107,10 @@ The legacy `reward_guidance=True` path remains separate.
 - Exact RegionCLIP region proposals, pooling, and reward implementation; the repository class remains a placeholder.
 - Exact text-guided SAM2 object reward, mask-confidence mixture, leakage penalty, and add/remove direction.
 - Perception Encoder reward and a differentiable HPSv2 integration.
-- Live TianyuAI parser validation remains environment-gated by `TIANYUAI_API_KEY` and the explicit
-  `RUN_TIANYUAI_SEMANTIC_PARSER_INTEGRATION=1` slow-test flag. The provider's public page documents Chat Completions,
-  but strict `json_schema` support has not yet been verified by a credentialed integration run. There is deliberately
-  no fallback to unstructured text or regex parsing.
+- Repeatable live TianyuAI parser validation remains environment-gated by `TIANYUAI_API_KEY` and the explicit
+  `RUN_TIANYUAI_SEMANTIC_PARSER_INTEGRATION=1` slow-test flag. A credentialed `gpt-5.6-luna` parse on 2026-09-15
+  succeeded with `cache_hit=false` and strict structured output; provider-side determinism and availability remain
+  external dependencies. There is deliberately no fallback to unstructured text or regex parsing.
 - Batched Qwen VQA association remains undefined. V3 supports an ordered list of batch-one images for one comparison;
   it does not claim general multi-image/multi-sample Q&A semantics.
 - The paper's source-latent noising initialization `z^(0) = alpha_tbar * z0 + sigma_tbar * noise`; the official
@@ -123,3 +129,11 @@ The legacy `reward_guidance=True` path remains separate.
   `.2/.5/.8` margins were `0`, `0.0625`, `0.0625`, so strict ordering failed. Processor fidelity and both image-gradient
   directions passed, demonstrating that differentiability alone does not make the VLM preference a reliable
   continuous coordinate.
+- The formal endpoint-comparator-v4 bake-off found that true FP32 removes BF16 score quantization but does not repair
+  three-image A/B ordering or position/label sensitivity. Symmetric pairwise full-sentence affinity orders the three
+  oracle probes only after calibration by a reversed Source-to-Full raw range and fails order and toward-Source
+  gradient gates. It must not be connected to the controller.
+- The FP32 focus-conditioned Qwen feature-distance baseline passed this one ball-edit bake-off, including strict
+  oracle ordering and both small-step gradient gates. Generalization across objects, attributes, prompts, seeds, and
+  endpoint pairs is not established. Connecting it to the frozen terminal controller is intentionally deferred to a
+  separately versioned experiment.

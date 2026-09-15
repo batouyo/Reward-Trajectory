@@ -1,0 +1,17 @@
+{
+  "input": [
+    0,
+    0,
+    1,
+    1,
+    2
+  ],
+  "average_ranks": [
+    0.5,
+    0.5,
+    2.5,
+    2.5,
+    4.0
+  ],
+  "spearman_against_increasing_index": 0.9486832980505138
+}

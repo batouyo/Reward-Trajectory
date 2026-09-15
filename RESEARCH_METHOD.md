@@ -244,3 +244,35 @@ position-sensitive: Source produced order-remapped margins `-0.125` and `+0.125`
 margins were `0`, `0.0625`, and `0.0625`, failing strict order at the last pair. The unchanged controller was not run.
 Endpoint-answer validity and gradient existence are therefore still insufficient evidence of a usable continuous
 semantic coordinate.
+
+## Endpoint comparator bake-off v4
+
+V4 freezes the controller and parser and isolates the comparator. It audits the unchanged three-image A/B formula
+with true BF16 and true FP32 Qwen checkpoints, then compares it with two preregistered alternatives: independently
+scored symmetric Candidate/Source and Candidate/Full full-sentence affinities, and a focus-conditioned Qwen hidden-
+state distance baseline. The pairwise method teacher-forces exactly the same affirmative sentence for both endpoints;
+the feature baseline uses the L2-normalized final-layer hidden state at the final prompt token and a cosine-distance
+ratio. Neither score is called a human semantic percentage.
+
+The fixed ball statement, pair prompt, feature layer/token/normalization, dtype, and score formulas are defined before
+reading the held-out `.2/.5/.8` model outputs. A comparator must have a finite positive endpoint range, strict held-out
+ordering without ties, both gradient directions correct for at least two of RMS steps `1e-5`, `3e-5`, and `1e-4`, and
+acceptable order robustness. Step `3e-4` is diagnostic only. Spearman uses average ranks for ties and never overrides
+a strict-order failure. Pixel blends remain explicitly secondary, non-model-generated diagnostics.
+
+**Research hypothesis:** endpoint-relative structure may be recoverable by removing BF16 quantization, removing direct
+three-image A/B endpoint competition, or reading a continuous internal multimodal representation. These are separate
+causal hypotheses; no result is assumed in advance and the terminal controller remains unchanged and unrun in v4.
+
+The formal H20 run rejected both language-head comparators. True FP32 removed BF16's exact `0`/`0.0625`/`0.125`
+score steps, but the three-image A/B oracle scores were still non-monotonic (`.01420`, `-.00628`, `.02860`) and its two
+image orders disagreed. The symmetric full-sentence pairwise coordinate ordered the oracle probes (`.88721`, `.90667`,
+`.96461`), but its raw Source-to-Full affinity range was negative (`-.16898`), both unsymmetrized orders failed, and
+only one of three toward-Source small steps improved. Thus it failed the endpoint, order, and gradient gates.
+
+The FP32 focus-conditioned feature distance was the only method to pass every preregistered gate. Its Source/Full
+coordinate was approximately `-0.000006`/`1.000006`; oracle `.2/.5/.8` scores were `.88297`, `.91486`, and `.95465`
+with no ties, and all three small steps improved in both gradient directions. This is evidence that this Qwen contains
+usable continuous endpoint structure internally while the tested language likelihood heads do not read it out
+reliably. It is still a single-edit diagnostic, not a general strength metric. The controller remains frozen and was
+not run; v4 provides no evidence that controller changes are needed.

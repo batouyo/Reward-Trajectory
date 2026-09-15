@@ -1,0 +1,374 @@
+{
+  "three-image A/B BF16": {
+    "candidate_provenance": "held_out_model_generated_oracle_0p5",
+    "optimized_score": "symmetrized_three_image_ab_logprob_margin",
+    "initial_score": 0.0,
+    "gradient_l2_norm": 6.988519191741943,
+    "gradient_rms": 0.015761028975248337,
+    "gradient_finite": true,
+    "gradient_nonzero": true,
+    "directions": {
+      "toward_full": {
+        "trials": [
+          {
+            "step_rms": 1e-05,
+            "new_score": 0.0625,
+            "direction_correct": true
+          },
+          {
+            "step_rms": 3e-05,
+            "new_score": 0.0625,
+            "direction_correct": true
+          },
+          {
+            "step_rms": 0.0001,
+            "new_score": 0.0,
+            "direction_correct": false
+          },
+          {
+            "step_rms": 0.0003,
+            "new_score": 0.125,
+            "direction_correct": true
+          }
+        ],
+        "small_steps": [
+          1e-05,
+          3e-05,
+          0.0001
+        ],
+        "correct_small_step_count": 2,
+        "required_correct_count": 2,
+        "passed": true,
+        "larger_steps_diagnostic_only": [
+          {
+            "step_rms": 0.0003,
+            "new_score": 0.125,
+            "direction_correct": true
+          }
+        ]
+      },
+      "toward_source": {
+        "trials": [
+          {
+            "step_rms": 1e-05,
+            "new_score": 0.0,
+            "direction_correct": false
+          },
+          {
+            "step_rms": 3e-05,
+            "new_score": 0.0,
+            "direction_correct": false
+          },
+          {
+            "step_rms": 0.0001,
+            "new_score": -0.0625,
+            "direction_correct": true
+          },
+          {
+            "step_rms": 0.0003,
+            "new_score": 0.0,
+            "direction_correct": false
+          }
+        ],
+        "small_steps": [
+          1e-05,
+          3e-05,
+          0.0001
+        ],
+        "correct_small_step_count": 1,
+        "required_correct_count": 2,
+        "passed": false,
+        "larger_steps_diagnostic_only": [
+          {
+            "step_rms": 0.0003,
+            "new_score": 0.0,
+            "direction_correct": false
+          }
+        ]
+      }
+    },
+    "qwen_parameters_require_grad": false,
+    "qwen_parameters_have_grad": false,
+    "toward_full_pass": true,
+    "toward_source_pass": false
+  },
+  "three-image A/B FP32": {
+    "candidate_provenance": "held_out_model_generated_oracle_0p5",
+    "optimized_score": "symmetrized_three_image_ab_logprob_margin",
+    "initial_score": -0.006282806396484375,
+    "gradient_l2_norm": 4.888552188873291,
+    "gradient_rms": 0.011025026440620422,
+    "gradient_finite": true,
+    "gradient_nonzero": true,
+    "directions": {
+      "toward_full": {
+        "trials": [
+          {
+            "step_rms": 1e-05,
+            "new_score": 0.00920867919921875,
+            "direction_correct": true
+          },
+          {
+            "step_rms": 3e-05,
+            "new_score": 0.021574020385742188,
+            "direction_correct": true
+          },
+          {
+            "step_rms": 0.0001,
+            "new_score": 0.026437759399414062,
+            "direction_correct": true
+          },
+          {
+            "step_rms": 0.0003,
+            "new_score": 0.08277511596679688,
+            "direction_correct": true
+          }
+        ],
+        "small_steps": [
+          1e-05,
+          3e-05,
+          0.0001
+        ],
+        "correct_small_step_count": 3,
+        "required_correct_count": 2,
+        "passed": true,
+        "larger_steps_diagnostic_only": [
+          {
+            "step_rms": 0.0003,
+            "new_score": 0.08277511596679688,
+            "direction_correct": true
+          }
+        ]
+      },
+      "toward_source": {
+        "trials": [
+          {
+            "step_rms": 1e-05,
+            "new_score": -0.005031585693359375,
+            "direction_correct": false
+          },
+          {
+            "step_rms": 3e-05,
+            "new_score": -0.018845558166503906,
+            "direction_correct": true
+          },
+          {
+            "step_rms": 0.0001,
+            "new_score": -0.00457000732421875,
+            "direction_correct": false
+          },
+          {
+            "step_rms": 0.0003,
+            "new_score": -0.05053520202636719,
+            "direction_correct": true
+          }
+        ],
+        "small_steps": [
+          1e-05,
+          3e-05,
+          0.0001
+        ],
+        "correct_small_step_count": 1,
+        "required_correct_count": 2,
+        "passed": false,
+        "larger_steps_diagnostic_only": [
+          {
+            "step_rms": 0.0003,
+            "new_score": -0.05053520202636719,
+            "direction_correct": true
+          }
+        ]
+      }
+    },
+    "qwen_parameters_require_grad": false,
+    "qwen_parameters_have_grad": false,
+    "toward_full_pass": true,
+    "toward_source_pass": false
+  },
+  "pairwise sentence FP32": {
+    "candidate_provenance": "held_out_model_generated_oracle_0p5",
+    "optimized_score": "symmetric_pairwise_endpoint_affinity_margin",
+    "initial_score": -0.019375324249267578,
+    "gradient_l2_norm": 4.573859214782715,
+    "gradient_rms": 0.010315308347344398,
+    "gradient_finite": true,
+    "gradient_nonzero": true,
+    "directions": {
+      "toward_full": {
+        "trials": [
+          {
+            "step_rms": 1e-05,
+            "new_score": -0.007306575775146484,
+            "direction_correct": true
+          },
+          {
+            "step_rms": 3e-05,
+            "new_score": -0.007323741912841797,
+            "direction_correct": true
+          },
+          {
+            "step_rms": 0.0001,
+            "new_score": -0.012536287307739258,
+            "direction_correct": true
+          },
+          {
+            "step_rms": 0.0003,
+            "new_score": -0.010773420333862305,
+            "direction_correct": true
+          }
+        ],
+        "small_steps": [
+          1e-05,
+          3e-05,
+          0.0001
+        ],
+        "correct_small_step_count": 3,
+        "required_correct_count": 2,
+        "passed": true,
+        "larger_steps_diagnostic_only": [
+          {
+            "step_rms": 0.0003,
+            "new_score": -0.010773420333862305,
+            "direction_correct": true
+          }
+        ]
+      },
+      "toward_source": {
+        "trials": [
+          {
+            "step_rms": 1e-05,
+            "new_score": -0.010878682136535645,
+            "direction_correct": false
+          },
+          {
+            "step_rms": 3e-05,
+            "new_score": -0.014458775520324707,
+            "direction_correct": false
+          },
+          {
+            "step_rms": 0.0001,
+            "new_score": -0.019986629486083984,
+            "direction_correct": true
+          },
+          {
+            "step_rms": 0.0003,
+            "new_score": -0.03249049186706543,
+            "direction_correct": true
+          }
+        ],
+        "small_steps": [
+          1e-05,
+          3e-05,
+          0.0001
+        ],
+        "correct_small_step_count": 1,
+        "required_correct_count": 2,
+        "passed": false,
+        "larger_steps_diagnostic_only": [
+          {
+            "step_rms": 0.0003,
+            "new_score": -0.03249049186706543,
+            "direction_correct": true
+          }
+        ]
+      }
+    },
+    "qwen_parameters_require_grad": false,
+    "qwen_parameters_have_grad": false,
+    "toward_full_pass": true,
+    "toward_source_pass": false
+  },
+  "feature distance FP32": {
+    "candidate_provenance": "held_out_model_generated_oracle_0p5",
+    "optimized_score": "focus_conditioned_cosine_distance_ratio",
+    "initial_score": 0.9148600697517395,
+    "gradient_l2_norm": 9.427586555480957,
+    "gradient_rms": 0.02126179449260235,
+    "gradient_finite": true,
+    "gradient_nonzero": true,
+    "directions": {
+      "toward_full": {
+        "trials": [
+          {
+            "step_rms": 1e-05,
+            "new_score": 0.9225843548774719,
+            "direction_correct": true
+          },
+          {
+            "step_rms": 3e-05,
+            "new_score": 0.9350106120109558,
+            "direction_correct": true
+          },
+          {
+            "step_rms": 0.0001,
+            "new_score": 0.9560922980308533,
+            "direction_correct": true
+          },
+          {
+            "step_rms": 0.0003,
+            "new_score": 0.9501432776451111,
+            "direction_correct": true
+          }
+        ],
+        "small_steps": [
+          1e-05,
+          3e-05,
+          0.0001
+        ],
+        "correct_small_step_count": 3,
+        "required_correct_count": 2,
+        "passed": true,
+        "larger_steps_diagnostic_only": [
+          {
+            "step_rms": 0.0003,
+            "new_score": 0.9501432776451111,
+            "direction_correct": true
+          }
+        ]
+      },
+      "toward_source": {
+        "trials": [
+          {
+            "step_rms": 1e-05,
+            "new_score": 0.8990956544876099,
+            "direction_correct": true
+          },
+          {
+            "step_rms": 3e-05,
+            "new_score": 0.8733999729156494,
+            "direction_correct": true
+          },
+          {
+            "step_rms": 0.0001,
+            "new_score": 0.855548620223999,
+            "direction_correct": true
+          },
+          {
+            "step_rms": 0.0003,
+            "new_score": 0.8711415529251099,
+            "direction_correct": true
+          }
+        ],
+        "small_steps": [
+          1e-05,
+          3e-05,
+          0.0001
+        ],
+        "correct_small_step_count": 3,
+        "required_correct_count": 2,
+        "passed": true,
+        "larger_steps_diagnostic_only": [
+          {
+            "step_rms": 0.0003,
+            "new_score": 0.8711415529251099,
+            "direction_correct": true
+          }
+        ]
+      }
+    },
+    "qwen_parameters_require_grad": false,
+    "qwen_parameters_have_grad": false,
+    "toward_full_pass": true,
+    "toward_source_pass": true
+  }
+}

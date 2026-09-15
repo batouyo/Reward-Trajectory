@@ -1,0 +1,941 @@
+{
+  "scope": "Endpoint comparator bake-off v4; comparator only; controller frozen and not run",
+  "old_head_expected": "152705b58e45ed053f3b850bf6ef9ad34ff90973",
+  "config": {
+    "model": "/data15/hyp/weight/FLUX.1-Kontext-dev",
+    "qwen_model": "/data15/hyp/weight/reward_models/Qwen2.5-VL-3B-Instruct",
+    "source": "/data15/hyp/dataset/kontinuous_kontext/raw/source_images/source_000000.png",
+    "prompt": "Make the weighted training ball blue while preserving its shape, texture, lighting, and background.",
+    "relative_spec": "examples/rewardflow/relative_endpoint_ball_spec.json",
+    "full": "experiments/relative_endpoint_semantic_v3/native_full_MODEL_GENERATED.png",
+    "oracle_output_dir": "/tmp/st_formal_shared_t4_mask",
+    "output_dir": "experiments/endpoint_comparator_bakeoff_v4",
+    "device": "cuda:0",
+    "qwen_dtype": "both"
+  },
+  "preregistered_pairwise_statement": {
+    "ball_color": "The two images show a similar visible color state for the weighted training ball."
+  },
+  "feature_representation": {
+    "layer": "last",
+    "token_position": "final prompt token",
+    "normalization": "L2",
+    "primary_distance": "cosine distance ratio"
+  },
+  "selection_close_rule_assumption": "pairwise minimum adjacent gap >= 90% of feature gap",
+  "oracle_provenance": "held-out MODEL-GENERATED FLUX CONTROLLER PROBES; not used to design comparator",
+  "pixel_probe_provenance": "PIXEL BLEND DIAGNOSTIC; NOT MODEL-GENERATED OUTPUT",
+  "dtype_audit": {
+    "bf16": {
+      "requested": "bf16",
+      "parameter_elements_by_dtype": {
+        "bfloat16": 3754622976
+      },
+      "floating_parameter_dtypes": [
+        "bfloat16"
+      ],
+      "true_checkpoint_dtype": true
+    },
+    "fp32": {
+      "requested": "fp32",
+      "parameter_elements_by_dtype": {
+        "float32": 3754622976
+      },
+      "floating_parameter_dtypes": [
+        "float32"
+      ],
+      "true_checkpoint_dtype": true
+    }
+  },
+  "runtime_and_vram": {
+    "three-image A/B BF16": {
+      "runtime_seconds": 5.605597774032503,
+      "peak_allocated_gib": 12.777414798736572,
+      "peak_reserved_gib": 12.921875
+    },
+    "three-image A/B FP32": {
+      "runtime_seconds": 11.704600465018302,
+      "peak_allocated_gib": 25.058095932006836,
+      "peak_reserved_gib": 25.919921875
+    },
+    "pairwise sentence FP32": {
+      "runtime_seconds": 16.10162777500227,
+      "peak_allocated_gib": 27.95026159286499,
+      "peak_reserved_gib": 28.349609375
+    },
+    "feature distance FP32": {
+      "runtime_seconds": 2.129683068022132,
+      "peak_allocated_gib": 15.717265129089355,
+      "peak_reserved_gib": 28.349609375
+    }
+  },
+  "methods": {
+    "three-image A/B BF16": {
+      "summary": {
+        "endpoint_source": -0.0625,
+        "endpoint_full": 0.0625,
+        "endpoint_range": 0.125,
+        "endpoint_valid": true,
+        "oracle_scores": {
+          "0.2": 0.0,
+          "0.5": 0.0,
+          "0.8": 0.0625
+        },
+        "oracle_ordering": {
+          "strict_order_pass": false,
+          "adjacent_gaps": [
+            0.0,
+            0.0625
+          ],
+          "descending_inversions": [],
+          "descending_inversion_count": 0,
+          "ties": [
+            [
+              0,
+              1
+            ]
+          ],
+          "tie_count": 1,
+          "non_strict_violations": [
+            [
+              0,
+              1
+            ]
+          ],
+          "non_strict_violation_count": 1
+        },
+        "oracle_spearman": 0.8660254037844387,
+        "minimum_adjacent_oracle_gap": 0.0
+      },
+      "order": {
+        "max_forward_order_score_change": 0.25,
+        "max_label_swap_score_change": 0.125,
+        "forward_summaries": {
+          "forward_1": {
+            "endpoint_source": -0.125,
+            "endpoint_full": 0.0,
+            "endpoint_range": 0.125,
+            "endpoint_valid": true,
+            "oracle_scores": {
+              "0.2": -0.125,
+              "0.5": 0.0,
+              "0.8": 0.125
+            },
+            "oracle_ordering": {
+              "strict_order_pass": true,
+              "adjacent_gaps": [
+                0.125,
+                0.125
+              ],
+              "descending_inversions": [],
+              "descending_inversion_count": 0,
+              "ties": [],
+              "tie_count": 0,
+              "non_strict_violations": [],
+              "non_strict_violation_count": 0
+            },
+            "oracle_spearman": 0.9999999999999998,
+            "minimum_adjacent_oracle_gap": 0.125
+          },
+          "forward_2": {
+            "endpoint_source": 0.0,
+            "endpoint_full": 0.125,
+            "endpoint_range": 0.125,
+            "endpoint_valid": true,
+            "oracle_scores": {
+              "0.2": 0.125,
+              "0.5": 0.0,
+              "0.8": 0.0
+            },
+            "oracle_ordering": {
+              "strict_order_pass": false,
+              "adjacent_gaps": [
+                -0.125,
+                0.0
+              ],
+              "descending_inversions": [
+                [
+                  0,
+                  1
+                ],
+                [
+                  0,
+                  2
+                ]
+              ],
+              "descending_inversion_count": 2,
+              "ties": [
+                [
+                  1,
+                  2
+                ]
+              ],
+              "tie_count": 1,
+              "non_strict_violations": [
+                [
+                  0,
+                  1
+                ],
+                [
+                  0,
+                  2
+                ],
+                [
+                  1,
+                  2
+                ]
+              ],
+              "non_strict_violation_count": 3
+            },
+            "oracle_spearman": -0.8660254037844387,
+            "minimum_adjacent_oracle_gap": -0.125
+          },
+          "label_swapped": {
+            "endpoint_source": -0.125,
+            "endpoint_full": -0.0625,
+            "endpoint_range": 0.0625,
+            "endpoint_valid": true,
+            "oracle_scores": {
+              "0.2": -0.0625,
+              "0.5": -0.0625,
+              "0.8": 0.0
+            },
+            "oracle_ordering": {
+              "strict_order_pass": false,
+              "adjacent_gaps": [
+                0.0,
+                0.0625
+              ],
+              "descending_inversions": [],
+              "descending_inversion_count": 0,
+              "ties": [
+                [
+                  0,
+                  1
+                ]
+              ],
+              "tie_count": 1,
+              "non_strict_violations": [
+                [
+                  0,
+                  1
+                ]
+              ],
+              "non_strict_violation_count": 1
+            },
+            "oracle_spearman": 0.8660254037844387,
+            "minimum_adjacent_oracle_gap": 0.0
+          }
+        },
+        "order_robust": false
+      },
+      "gradient": {
+        "candidate_provenance": "held_out_model_generated_oracle_0p5",
+        "optimized_score": "symmetrized_three_image_ab_logprob_margin",
+        "initial_score": 0.0,
+        "gradient_l2_norm": 6.988519191741943,
+        "gradient_rms": 0.015761028975248337,
+        "gradient_finite": true,
+        "gradient_nonzero": true,
+        "directions": {
+          "toward_full": {
+            "trials": [
+              {
+                "step_rms": 1e-05,
+                "new_score": 0.0625,
+                "direction_correct": true
+              },
+              {
+                "step_rms": 3e-05,
+                "new_score": 0.0625,
+                "direction_correct": true
+              },
+              {
+                "step_rms": 0.0001,
+                "new_score": 0.0,
+                "direction_correct": false
+              },
+              {
+                "step_rms": 0.0003,
+                "new_score": 0.125,
+                "direction_correct": true
+              }
+            ],
+            "small_steps": [
+              1e-05,
+              3e-05,
+              0.0001
+            ],
+            "correct_small_step_count": 2,
+            "required_correct_count": 2,
+            "passed": true,
+            "larger_steps_diagnostic_only": [
+              {
+                "step_rms": 0.0003,
+                "new_score": 0.125,
+                "direction_correct": true
+              }
+            ]
+          },
+          "toward_source": {
+            "trials": [
+              {
+                "step_rms": 1e-05,
+                "new_score": 0.0,
+                "direction_correct": false
+              },
+              {
+                "step_rms": 3e-05,
+                "new_score": 0.0,
+                "direction_correct": false
+              },
+              {
+                "step_rms": 0.0001,
+                "new_score": -0.0625,
+                "direction_correct": true
+              },
+              {
+                "step_rms": 0.0003,
+                "new_score": 0.0,
+                "direction_correct": false
+              }
+            ],
+            "small_steps": [
+              1e-05,
+              3e-05,
+              0.0001
+            ],
+            "correct_small_step_count": 1,
+            "required_correct_count": 2,
+            "passed": false,
+            "larger_steps_diagnostic_only": [
+              {
+                "step_rms": 0.0003,
+                "new_score": 0.0,
+                "direction_correct": false
+              }
+            ]
+          }
+        },
+        "qwen_parameters_require_grad": false,
+        "qwen_parameters_have_grad": false,
+        "toward_full_pass": true,
+        "toward_source_pass": false
+      },
+      "gates": {
+        "endpoint_valid": true,
+        "oracle_strict_order": false,
+        "oracle_no_ties": false,
+        "toward_source_small_steps": false,
+        "toward_full_small_steps": true,
+        "order_robust": false
+      }
+    },
+    "three-image A/B FP32": {
+      "summary": {
+        "endpoint_source": -0.011400222778320312,
+        "endpoint_full": 0.022162437438964844,
+        "endpoint_range": 0.033562660217285156,
+        "endpoint_valid": true,
+        "oracle_scores": {
+          "0.2": 0.014196395874023438,
+          "0.5": -0.006282806396484375,
+          "0.8": 0.028598785400390625
+        },
+        "oracle_ordering": {
+          "strict_order_pass": false,
+          "adjacent_gaps": [
+            -0.020479202270507812,
+            0.034881591796875
+          ],
+          "descending_inversions": [
+            [
+              0,
+              1
+            ]
+          ],
+          "descending_inversion_count": 1,
+          "ties": [],
+          "tie_count": 0,
+          "non_strict_violations": [
+            [
+              0,
+              1
+            ]
+          ],
+          "non_strict_violation_count": 1
+        },
+        "oracle_spearman": 0.4999999999999999,
+        "minimum_adjacent_oracle_gap": -0.020479202270507812
+      },
+      "order": {
+        "max_forward_order_score_change": 0.27654266357421875,
+        "max_label_swap_score_change": 0.08818531036376953,
+        "forward_summaries": {
+          "forward_1": {
+            "endpoint_source": -0.13225173950195312,
+            "endpoint_full": -0.09852981567382812,
+            "endpoint_range": 0.033721923828125,
+            "endpoint_valid": true,
+            "oracle_scores": {
+              "0.2": -0.12407493591308594,
+              "0.5": -0.11150360107421875,
+              "0.8": -0.062236785888671875
+            },
+            "oracle_ordering": {
+              "strict_order_pass": true,
+              "adjacent_gaps": [
+                0.012571334838867188,
+                0.049266815185546875
+              ],
+              "descending_inversions": [],
+              "descending_inversion_count": 0,
+              "ties": [],
+              "tie_count": 0,
+              "non_strict_violations": [],
+              "non_strict_violation_count": 0
+            },
+            "oracle_spearman": 0.9999999999999998,
+            "minimum_adjacent_oracle_gap": 0.012571334838867188
+          },
+          "forward_2": {
+            "endpoint_source": 0.1094512939453125,
+            "endpoint_full": 0.1428546905517578,
+            "endpoint_range": 0.03340339660644531,
+            "endpoint_valid": true,
+            "oracle_scores": {
+              "0.2": 0.1524677276611328,
+              "0.5": 0.09893798828125,
+              "0.8": 0.11943435668945312
+            },
+            "oracle_ordering": {
+              "strict_order_pass": false,
+              "adjacent_gaps": [
+                -0.05352973937988281,
+                0.020496368408203125
+              ],
+              "descending_inversions": [
+                [
+                  0,
+                  1
+                ],
+                [
+                  0,
+                  2
+                ]
+              ],
+              "descending_inversion_count": 2,
+              "ties": [],
+              "tie_count": 0,
+              "non_strict_violations": [
+                [
+                  0,
+                  1
+                ],
+                [
+                  0,
+                  2
+                ]
+              ],
+              "non_strict_violation_count": 2
+            },
+            "oracle_spearman": -0.4999999999999999,
+            "minimum_adjacent_oracle_gap": -0.05352973937988281
+          },
+          "label_swapped": {
+            "endpoint_source": -0.09958553314208984,
+            "endpoint_full": -0.06499958038330078,
+            "endpoint_range": 0.03458595275878906,
+            "endpoint_valid": true,
+            "oracle_scores": {
+              "0.2": -0.046680450439453125,
+              "0.5": -0.0512542724609375,
+              "0.8": -0.03387260437011719
+            },
+            "oracle_ordering": {
+              "strict_order_pass": false,
+              "adjacent_gaps": [
+                -0.004573822021484375,
+                0.017381668090820312
+              ],
+              "descending_inversions": [
+                [
+                  0,
+                  1
+                ]
+              ],
+              "descending_inversion_count": 1,
+              "ties": [],
+              "tie_count": 0,
+              "non_strict_violations": [
+                [
+                  0,
+                  1
+                ]
+              ],
+              "non_strict_violation_count": 1
+            },
+            "oracle_spearman": 0.4999999999999999,
+            "minimum_adjacent_oracle_gap": -0.004573822021484375
+          }
+        },
+        "order_robust": false
+      },
+      "gradient": {
+        "candidate_provenance": "held_out_model_generated_oracle_0p5",
+        "optimized_score": "symmetrized_three_image_ab_logprob_margin",
+        "initial_score": -0.006282806396484375,
+        "gradient_l2_norm": 4.888552188873291,
+        "gradient_rms": 0.011025026440620422,
+        "gradient_finite": true,
+        "gradient_nonzero": true,
+        "directions": {
+          "toward_full": {
+            "trials": [
+              {
+                "step_rms": 1e-05,
+                "new_score": 0.00920867919921875,
+                "direction_correct": true
+              },
+              {
+                "step_rms": 3e-05,
+                "new_score": 0.021574020385742188,
+                "direction_correct": true
+              },
+              {
+                "step_rms": 0.0001,
+                "new_score": 0.026437759399414062,
+                "direction_correct": true
+              },
+              {
+                "step_rms": 0.0003,
+                "new_score": 0.08277511596679688,
+                "direction_correct": true
+              }
+            ],
+            "small_steps": [
+              1e-05,
+              3e-05,
+              0.0001
+            ],
+            "correct_small_step_count": 3,
+            "required_correct_count": 2,
+            "passed": true,
+            "larger_steps_diagnostic_only": [
+              {
+                "step_rms": 0.0003,
+                "new_score": 0.08277511596679688,
+                "direction_correct": true
+              }
+            ]
+          },
+          "toward_source": {
+            "trials": [
+              {
+                "step_rms": 1e-05,
+                "new_score": -0.005031585693359375,
+                "direction_correct": false
+              },
+              {
+                "step_rms": 3e-05,
+                "new_score": -0.018845558166503906,
+                "direction_correct": true
+              },
+              {
+                "step_rms": 0.0001,
+                "new_score": -0.00457000732421875,
+                "direction_correct": false
+              },
+              {
+                "step_rms": 0.0003,
+                "new_score": -0.05053520202636719,
+                "direction_correct": true
+              }
+            ],
+            "small_steps": [
+              1e-05,
+              3e-05,
+              0.0001
+            ],
+            "correct_small_step_count": 1,
+            "required_correct_count": 2,
+            "passed": false,
+            "larger_steps_diagnostic_only": [
+              {
+                "step_rms": 0.0003,
+                "new_score": -0.05053520202636719,
+                "direction_correct": true
+              }
+            ]
+          }
+        },
+        "qwen_parameters_require_grad": false,
+        "qwen_parameters_have_grad": false,
+        "toward_full_pass": true,
+        "toward_source_pass": false
+      },
+      "gates": {
+        "endpoint_valid": true,
+        "oracle_strict_order": false,
+        "oracle_no_ties": true,
+        "toward_source_small_steps": false,
+        "toward_full_small_steps": true,
+        "order_robust": false
+      }
+    },
+    "pairwise sentence FP32": {
+      "summary": {
+        "endpoint_source": -0.0,
+        "endpoint_full": 1.0,
+        "endpoint_range": -0.1689831018447876,
+        "endpoint_valid": false,
+        "oracle_scores": {
+          "0.2": 0.8872096538543701,
+          "0.5": 0.906669557094574,
+          "0.8": 0.9646068215370178
+        },
+        "oracle_ordering": {
+          "strict_order_pass": true,
+          "adjacent_gaps": [
+            0.019459903240203857,
+            0.05793726444244385
+          ],
+          "descending_inversions": [],
+          "descending_inversion_count": 0,
+          "ties": [],
+          "tie_count": 0,
+          "non_strict_violations": [],
+          "non_strict_violation_count": 0
+        },
+        "oracle_spearman": 0.9999999999999998,
+        "minimum_adjacent_oracle_gap": 0.019459903240203857
+      },
+      "order": {
+        "max_order_score_change": 0.05719149112701416,
+        "directional_summaries": {
+          "candidate_first": {
+            "endpoint_source": 0.16053223609924316,
+            "endpoint_full": -0.008450746536254883,
+            "endpoint_range": -0.16898298263549805,
+            "endpoint_valid": false,
+            "oracle_scores": {
+              "0.2": -0.001069188117980957,
+              "0.5": -0.011849522590637207,
+              "0.8": -0.0005699396133422852
+            },
+            "oracle_ordering": {
+              "strict_order_pass": false,
+              "adjacent_gaps": [
+                -0.01078033447265625,
+                0.011279582977294922
+              ],
+              "descending_inversions": [
+                [
+                  0,
+                  1
+                ]
+              ],
+              "descending_inversion_count": 1,
+              "ties": [],
+              "tie_count": 0,
+              "non_strict_violations": [
+                [
+                  0,
+                  1
+                ]
+              ],
+              "non_strict_violation_count": 1
+            },
+            "oracle_spearman": 0.4999999999999999,
+            "minimum_adjacent_oracle_gap": -0.01078033447265625
+          },
+          "reference_first": {
+            "endpoint_source": 0.10714066028594971,
+            "endpoint_full": -0.06184232234954834,
+            "endpoint_range": -0.16898298263549805,
+            "endpoint_valid": false,
+            "oracle_scores": {
+              "0.2": -0.03110480308532715,
+              "0.5": -0.02690136432647705,
+              "0.8": -0.057761430740356445
+            },
+            "oracle_ordering": {
+              "strict_order_pass": false,
+              "adjacent_gaps": [
+                0.004203438758850098,
+                -0.030860066413879395
+              ],
+              "descending_inversions": [
+                [
+                  0,
+                  2
+                ],
+                [
+                  1,
+                  2
+                ]
+              ],
+              "descending_inversion_count": 2,
+              "ties": [],
+              "tie_count": 0,
+              "non_strict_violations": [
+                [
+                  0,
+                  2
+                ],
+                [
+                  1,
+                  2
+                ]
+              ],
+              "non_strict_violation_count": 2
+            },
+            "oracle_spearman": -0.4999999999999999,
+            "minimum_adjacent_oracle_gap": -0.030860066413879395
+          }
+        },
+        "order_robust": false,
+        "criterion": "both unsymmetrized image orders preserve positive endpoint range and strict oracle ordering"
+      },
+      "gradient": {
+        "candidate_provenance": "held_out_model_generated_oracle_0p5",
+        "optimized_score": "symmetric_pairwise_endpoint_affinity_margin",
+        "initial_score": -0.019375324249267578,
+        "gradient_l2_norm": 4.573859214782715,
+        "gradient_rms": 0.010315308347344398,
+        "gradient_finite": true,
+        "gradient_nonzero": true,
+        "directions": {
+          "toward_full": {
+            "trials": [
+              {
+                "step_rms": 1e-05,
+                "new_score": -0.007306575775146484,
+                "direction_correct": true
+              },
+              {
+                "step_rms": 3e-05,
+                "new_score": -0.007323741912841797,
+                "direction_correct": true
+              },
+              {
+                "step_rms": 0.0001,
+                "new_score": -0.012536287307739258,
+                "direction_correct": true
+              },
+              {
+                "step_rms": 0.0003,
+                "new_score": -0.010773420333862305,
+                "direction_correct": true
+              }
+            ],
+            "small_steps": [
+              1e-05,
+              3e-05,
+              0.0001
+            ],
+            "correct_small_step_count": 3,
+            "required_correct_count": 2,
+            "passed": true,
+            "larger_steps_diagnostic_only": [
+              {
+                "step_rms": 0.0003,
+                "new_score": -0.010773420333862305,
+                "direction_correct": true
+              }
+            ]
+          },
+          "toward_source": {
+            "trials": [
+              {
+                "step_rms": 1e-05,
+                "new_score": -0.010878682136535645,
+                "direction_correct": false
+              },
+              {
+                "step_rms": 3e-05,
+                "new_score": -0.014458775520324707,
+                "direction_correct": false
+              },
+              {
+                "step_rms": 0.0001,
+                "new_score": -0.019986629486083984,
+                "direction_correct": true
+              },
+              {
+                "step_rms": 0.0003,
+                "new_score": -0.03249049186706543,
+                "direction_correct": true
+              }
+            ],
+            "small_steps": [
+              1e-05,
+              3e-05,
+              0.0001
+            ],
+            "correct_small_step_count": 1,
+            "required_correct_count": 2,
+            "passed": false,
+            "larger_steps_diagnostic_only": [
+              {
+                "step_rms": 0.0003,
+                "new_score": -0.03249049186706543,
+                "direction_correct": true
+              }
+            ]
+          }
+        },
+        "qwen_parameters_require_grad": false,
+        "qwen_parameters_have_grad": false,
+        "toward_full_pass": true,
+        "toward_source_pass": false
+      },
+      "gates": {
+        "endpoint_valid": false,
+        "oracle_strict_order": true,
+        "oracle_no_ties": true,
+        "toward_source_small_steps": false,
+        "toward_full_small_steps": true,
+        "order_robust": false
+      }
+    },
+    "feature distance FP32": {
+      "summary": {
+        "endpoint_source": -6.264758212637389e-06,
+        "endpoint_full": 1.0000057220458984,
+        "endpoint_range": 1.000011986804111,
+        "endpoint_valid": true,
+        "oracle_scores": {
+          "0.2": 0.8829656839370728,
+          "0.5": 0.9148600697517395,
+          "0.8": 0.9546476006507874
+        },
+        "oracle_ordering": {
+          "strict_order_pass": true,
+          "adjacent_gaps": [
+            0.03189438581466675,
+            0.03978753089904785
+          ],
+          "descending_inversions": [],
+          "descending_inversion_count": 0,
+          "ties": [],
+          "tie_count": 0,
+          "non_strict_violations": [],
+          "non_strict_violation_count": 0
+        },
+        "oracle_spearman": 0.9999999999999998,
+        "minimum_adjacent_oracle_gap": 0.03189438581466675
+      },
+      "order": {
+        "max_order_score_change": 0.0,
+        "order_robust": true,
+        "criterion": "not applicable: each image is independently encoded with the same focus prompt"
+      },
+      "gradient": {
+        "candidate_provenance": "held_out_model_generated_oracle_0p5",
+        "optimized_score": "focus_conditioned_cosine_distance_ratio",
+        "initial_score": 0.9148600697517395,
+        "gradient_l2_norm": 9.427586555480957,
+        "gradient_rms": 0.02126179449260235,
+        "gradient_finite": true,
+        "gradient_nonzero": true,
+        "directions": {
+          "toward_full": {
+            "trials": [
+              {
+                "step_rms": 1e-05,
+                "new_score": 0.9225843548774719,
+                "direction_correct": true
+              },
+              {
+                "step_rms": 3e-05,
+                "new_score": 0.9350106120109558,
+                "direction_correct": true
+              },
+              {
+                "step_rms": 0.0001,
+                "new_score": 0.9560922980308533,
+                "direction_correct": true
+              },
+              {
+                "step_rms": 0.0003,
+                "new_score": 0.9501432776451111,
+                "direction_correct": true
+              }
+            ],
+            "small_steps": [
+              1e-05,
+              3e-05,
+              0.0001
+            ],
+            "correct_small_step_count": 3,
+            "required_correct_count": 2,
+            "passed": true,
+            "larger_steps_diagnostic_only": [
+              {
+                "step_rms": 0.0003,
+                "new_score": 0.9501432776451111,
+                "direction_correct": true
+              }
+            ]
+          },
+          "toward_source": {
+            "trials": [
+              {
+                "step_rms": 1e-05,
+                "new_score": 0.8990956544876099,
+                "direction_correct": true
+              },
+              {
+                "step_rms": 3e-05,
+                "new_score": 0.8733999729156494,
+                "direction_correct": true
+              },
+              {
+                "step_rms": 0.0001,
+                "new_score": 0.855548620223999,
+                "direction_correct": true
+              },
+              {
+                "step_rms": 0.0003,
+                "new_score": 0.8711415529251099,
+                "direction_correct": true
+              }
+            ],
+            "small_steps": [
+              1e-05,
+              3e-05,
+              0.0001
+            ],
+            "correct_small_step_count": 3,
+            "required_correct_count": 2,
+            "passed": true,
+            "larger_steps_diagnostic_only": [
+              {
+                "step_rms": 0.0003,
+                "new_score": 0.8711415529251099,
+                "direction_correct": true
+              }
+            ]
+          }
+        },
+        "qwen_parameters_require_grad": false,
+        "qwen_parameters_have_grad": false,
+        "toward_full_pass": true,
+        "toward_source_pass": true
+      },
+      "gates": {
+        "endpoint_valid": true,
+        "oracle_strict_order": true,
+        "oracle_no_ties": true,
+        "toward_source_small_steps": true,
+        "toward_full_small_steps": true,
+        "order_robust": true
+      }
+    }
+  },
+  "recommended_comparator": "feature distance FP32",
+  "selection_reason": "Selected by minimum adjacent oracle gap, then order bias, then implementation simplicity.",
+  "controller_run": false,
+  "controller_remains_frozen": true
+}
