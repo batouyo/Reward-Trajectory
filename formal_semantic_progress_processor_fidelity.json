@@ -1,0 +1,110 @@
+{
+  "source": {
+    "official_image_grid_thw": [
+      [
+        1,
+        18,
+        18
+      ]
+    ],
+    "differentiable_image_grid_thw": [
+      [
+        1,
+        18,
+        18
+      ]
+    ],
+    "official_pixel_values_shape": [
+      324,
+      1176
+    ],
+    "differentiable_pixel_values_shape": [
+      324,
+      1176
+    ],
+    "pixel_mse": 2.7544178010430187e-05,
+    "pixel_mae": 0.004233961459249258,
+    "pixel_cosine": 0.9999859929084778,
+    "pixel_max_abs_difference": 0.05804264545440674,
+    "aligned_logits_mse": 0.01204787939786911,
+    "target_logits_mse": 0.015625,
+    "target_token_logprob_mean_difference": 0.37420177459716797,
+    "target_token_logprob_mae": 0.37420177459716797,
+    "official_reward": -12.878021240234375,
+    "differentiable_reward": -12.503819465637207,
+    "reward_difference": 0.37420177459716797,
+    "reward_abs_difference": 0.37420177459716797
+  },
+  "native_full": {
+    "official_image_grid_thw": [
+      [
+        1,
+        18,
+        18
+      ]
+    ],
+    "differentiable_image_grid_thw": [
+      [
+        1,
+        18,
+        18
+      ]
+    ],
+    "official_pixel_values_shape": [
+      324,
+      1176
+    ],
+    "differentiable_pixel_values_shape": [
+      324,
+      1176
+    ],
+    "pixel_mse": 2.920682163676247e-05,
+    "pixel_mae": 0.0042217629961669445,
+    "pixel_cosine": 1.0000022649765015,
+    "pixel_max_abs_difference": 0.12012434005737305,
+    "aligned_logits_mse": 0.004845046438276768,
+    "target_logits_mse": 0.0,
+    "target_token_logprob_mean_difference": 0.1242380142211914,
+    "target_token_logprob_mae": 0.1242380142211914,
+    "official_reward": -10.128935813903809,
+    "differentiable_reward": -10.004697799682617,
+    "reward_difference": 0.1242380142211914,
+    "reward_abs_difference": 0.1242380142211914
+  },
+  "middle_probe": {
+    "official_image_grid_thw": [
+      [
+        1,
+        18,
+        18
+      ]
+    ],
+    "differentiable_image_grid_thw": [
+      [
+        1,
+        18,
+        18
+      ]
+    ],
+    "official_pixel_values_shape": [
+      324,
+      1176
+    ],
+    "differentiable_pixel_values_shape": [
+      324,
+      1176
+    ],
+    "pixel_mse": 2.756325193331577e-05,
+    "pixel_mae": 0.004238140303641558,
+    "pixel_cosine": 0.9999839663505554,
+    "pixel_max_abs_difference": 0.05894064903259277,
+    "aligned_logits_mse": 0.03298112750053406,
+    "target_logits_mse": 0.0,
+    "target_token_logprob_mean_difference": 0.1251239776611328,
+    "target_token_logprob_mae": 0.1251239776611328,
+    "official_reward": -10.005016326904297,
+    "differentiable_reward": -9.879892349243164,
+    "reward_difference": 0.1251239776611328,
+    "reward_abs_difference": 0.1251239776611328
+  }
+}

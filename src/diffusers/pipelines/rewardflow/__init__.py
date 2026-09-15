@@ -77,9 +77,23 @@ else:
     ]
     _import_structure["rewards"] = [
         "Qwen25VQAReward",
+        "Qwen25VQATeacherForcedScorer",
         "ResearchStaticRewardGuidance",
         "StaticRewardGuidance",
         "qwen_vqa_token_reward",
+    ]
+    _import_structure["semantic_progress"] = [
+        "SEMANTIC_PROGRESS_CACHE_SCHEMA_VERSION",
+        "SEMANTIC_PROGRESS_PARSER_VERSION",
+        "EndpointRelativeSemanticProgressReward",
+        "EndpointSemanticValidationError",
+        "SemanticPrimitiveSpec",
+        "SemanticProgressSpec",
+        "build_semantic_progress_parser_prompt",
+        "load_cached_semantic_progress_spec",
+        "make_semantic_progress_cache_key",
+        "parse_semantic_progress_json",
+        "save_cached_semantic_progress_spec",
     ]
     _import_structure["terminal_control"] = [
         "BestTerminalControlCheckpoint",
@@ -128,9 +142,23 @@ if TYPE_CHECKING or DIFFUSERS_SLOW_IMPORT:
         from .pipeline_rewardflow_flux import FluxRewardFlowPipeline
         from .rewards import (
             Qwen25VQAReward,
+            Qwen25VQATeacherForcedScorer,
             ResearchStaticRewardGuidance,
             StaticRewardGuidance,
             qwen_vqa_token_reward,
+        )
+        from .semantic_progress import (
+            SEMANTIC_PROGRESS_CACHE_SCHEMA_VERSION,
+            SEMANTIC_PROGRESS_PARSER_VERSION,
+            EndpointRelativeSemanticProgressReward,
+            EndpointSemanticValidationError,
+            SemanticPrimitiveSpec,
+            SemanticProgressSpec,
+            build_semantic_progress_parser_prompt,
+            load_cached_semantic_progress_spec,
+            make_semantic_progress_cache_key,
+            parse_semantic_progress_json,
+            save_cached_semantic_progress_spec,
         )
         from .strength_trajectory import (
             StrengthBranchLayout,

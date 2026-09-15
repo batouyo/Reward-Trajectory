@@ -43,6 +43,7 @@ class TerminalObjectiveOutput:
     full_score: torch.Tensor
     target_score: torch.Tensor
     achieved_score: torch.Tensor
+    diagnostics: dict[str, object] | None = None
 
 
 @dataclass(frozen=True)

@@ -69,6 +69,10 @@ The legacy `reward_guidance=True` path remains separate.
   define Q&A association for batched or multi-image reward calls.
 - The VQA Eq. 4 typography is ambiguous. `qwen_vqa_token_reward` implements the textual description: target token log
   probability minus a non-negative target-vs-best-other margin penalty, so higher is always better.
+- The endpoint-relative semantic-progress path is a new research hypothesis: target-vs-source answer contrast is
+  assumed to provide a continuous coordinate between Source and NativeFull. It is not part of RewardFlow.
+- Its independent cache binds both endpoint fingerprints, the instruction, and a parser version. The paper Figure-10
+  cache is intentionally unchanged and incompatible with this new schema.
 
 ## NOT-YET-IMPLEMENTED
 
@@ -79,6 +83,9 @@ The legacy `reward_guidance=True` path remains separate.
 - Exact text-guided SAM2 object reward, mask-confidence mixture, leakage penalty, and add/remove direction.
 - Perception Encoder reward and a differentiable HPSv2 integration.
 - Provider/API integration for semantic parsing; this phase supplies only prompt, schema validation, and cache.
+- The configured third-party provider exposed no model named `gpt-5` during the recorded experiment. The committed
+  ball-color spec was therefore produced by direct visual inspection of Source/NativeFull and is labeled as such;
+  no provider credential is stored in the repository.
 - Multi-Q&A aggregation and batched/multi-image Qwen VQA.
 - The paper's source-latent noising initialization `z^(0) = alpha_tbar * z0 + sigma_tbar * noise`; the official
   pipeline instead samples target latents and supplies source latents as concatenated conditioning tokens.

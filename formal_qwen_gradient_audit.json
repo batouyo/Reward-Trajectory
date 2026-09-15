@@ -1,0 +1,78 @@
+{
+  "qwen_parameters_require_grad": false,
+  "targets": {
+    "0.2": {
+      "initial_progress": 1.0540540218353271,
+      "initial_loss": 0.7294082641601562,
+      "gradient_finite": true,
+      "gradient_nonzero": true,
+      "gradient_l2_norm": 34.30586242675781,
+      "gradient_rms": 0.07736913859844208,
+      "gradient_max_abs": 5.733916759490967,
+      "small_step_trials": [
+        {
+          "perturbation_rms": 1e-05,
+          "progress": 1.0,
+          "loss": 0.64000004529953,
+          "loss_decreased": true
+        },
+        {
+          "perturbation_rms": 3e-05,
+          "progress": 0.9459459185600281,
+          "loss": 0.5564353466033936,
+          "loss_decreased": true
+        },
+        {
+          "perturbation_rms": 0.0001,
+          "progress": 0.9189189076423645,
+          "loss": 0.5168443918228149,
+          "loss_decreased": true
+        },
+        {
+          "perturbation_rms": 0.0003,
+          "progress": 0.8648648858070374,
+          "loss": 0.44204533100128174,
+          "loss_decreased": true
+        }
+      ],
+      "any_small_step_decreased_loss": true
+    },
+    "0.8": {
+      "initial_progress": 1.0540540218353271,
+      "initial_loss": 0.06454344093799591,
+      "gradient_finite": true,
+      "gradient_nonzero": true,
+      "gradient_l2_norm": 9.835478782653809,
+      "gradient_rms": 0.022181706503033638,
+      "gradient_max_abs": 1.610236644744873,
+      "small_step_trials": [
+        {
+          "perturbation_rms": 1e-05,
+          "progress": 1.0270270109176636,
+          "loss": 0.05154125764966011,
+          "loss_decreased": true
+        },
+        {
+          "perturbation_rms": 3e-05,
+          "progress": 0.9459459185600281,
+          "loss": 0.02130020782351494,
+          "loss_decreased": true
+        },
+        {
+          "perturbation_rms": 0.0001,
+          "progress": 0.8918918967247009,
+          "loss": 0.008444118313491344,
+          "loss_decreased": true
+        },
+        {
+          "perturbation_rms": 0.0003,
+          "progress": 0.8918918967247009,
+          "loss": 0.008444118313491344,
+          "loss_decreased": true
+        }
+      ],
+      "any_small_step_decreased_loss": true
+    }
+  },
+  "qwen_parameters_have_gradient": false
+}

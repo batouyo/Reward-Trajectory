@@ -1,0 +1,19 @@
+{
+  "edit_instruction": "Make the weighted training ball blue while preserving its shape, texture, lighting, and background.",
+  "primitives": [
+    {
+      "id": "ball_color",
+      "edit_description": "change weighted training ball color to blue",
+      "question": "What color is the weighted training ball?",
+      "source_answer": "black",
+      "target_answer": "blue",
+      "weight": 1.0
+    }
+  ],
+  "preserve_constraints": [
+    "shape",
+    "texture",
+    "lighting",
+    "background"
+  ]
+}

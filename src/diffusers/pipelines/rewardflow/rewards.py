@@ -485,8 +485,8 @@ def qwen_vqa_token_reward(
     return (log_prob_correct - float(lambda_margin) * margin_penalty).mean()
 
 
-class Qwen25VQAReward:
-    """Differentiable teacher-forced VQA reward using frozen Qwen2.5-VL 3B.
+class Qwen25VQATeacherForcedScorer:
+    """Reusable differentiable answer scorer backed by one frozen Qwen2.5-VL model.
 
     Images remain torch tensors throughout preprocessing. The current adapter
     supports one image because RewardFlow's paper experiments use batch size one
@@ -495,12 +495,8 @@ class Qwen25VQAReward:
 
     def __init__(
         self,
-        question: str,
-        answer: str,
         model_id: str = "Qwen/Qwen2.5-VL-3B-Instruct",
         *,
-        margin: float | None = None,
-        lambda_margin: float | None = None,
         max_answer_tokens: int = 70,
         device: torch.device | str | None = None,
         dtype: torch.dtype | None = None,
@@ -510,16 +506,6 @@ class Qwen25VQAReward:
         revision: str | None = None,
         trust_remote_code: bool = True,
     ):
-        # ASSUMPTION: The paper does not disclose experimental values for the
-        # token margin or its coefficient, so both must be caller-supplied.
-        if not question.strip() or not answer.strip():
-            raise ValueError("Qwen25VQAReward requires non-empty `question` and `answer`.")
-        if margin is None or lambda_margin is None:
-            raise ValueError(
-                "Qwen25VQAReward requires explicit `margin` and `lambda_margin`; the paper values are unavailable."
-            )
-        if margin < 0 or lambda_margin < 0:
-            raise ValueError("`margin` and `lambda_margin` must be non-negative.")
         if not 1 <= max_answer_tokens <= 70:
             raise ValueError("`max_answer_tokens` must be between 1 and the paper's approximate cap of 70.")
 
@@ -546,10 +532,6 @@ class Qwen25VQAReward:
         for parameter in self.model.parameters():
             parameter.requires_grad_(False)
 
-        self.question = question.strip()
-        self.answer = answer.strip()
-        self.margin = float(margin)
-        self.lambda_margin = float(lambda_margin)
         self.max_answer_tokens = int(max_answer_tokens)
         self._validate_image_processor()
 
@@ -645,7 +627,13 @@ class Qwen25VQAReward:
         image_grid_thw = torch.tensor([[grid_t, grid_h, grid_w]], device=image.device, dtype=torch.long)
         return pixel_values, image_grid_thw
 
-    def _teacher_forced_inputs(self, image_grid_thw: torch.Tensor, device: torch.device):
+    def _teacher_forced_inputs(
+        self,
+        image_grid_thw: torch.Tensor,
+        device: torch.device,
+        question: str,
+        answer: str,
+    ):
         # ASSUMPTION: The paper does not define the exact Qwen chat template or
         # whether the assistant terminator belongs to a*. We use the checkpoint's
         # official chat template as prefix and score answer tokens only.
@@ -654,7 +642,7 @@ class Qwen25VQAReward:
                 "role": "user",
                 "content": [
                     {"type": "image"},
-                    {"type": "text", "text": self.question},
+                    {"type": "text", "text": question},
                 ],
             }
         ]
@@ -668,7 +656,7 @@ class Qwen25VQAReward:
 
         tokenizer = self.processor.tokenizer
         prefix_ids = tokenizer(prompt_text, add_special_tokens=False, return_tensors="pt").input_ids[0]
-        answer_ids = tokenizer(self.answer, add_special_tokens=False, return_tensors="pt").input_ids[0]
+        answer_ids = tokenizer(answer, add_special_tokens=False, return_tensors="pt").input_ids[0]
         answer_ids = answer_ids[: self.max_answer_tokens]
         if answer_ids.numel() == 0:
             raise ValueError("The target answer produced no tokens.")
@@ -697,6 +685,8 @@ class Qwen25VQAReward:
         self,
         pixel_values: torch.Tensor,
         image_grid_thw: torch.Tensor,
+        question: str,
+        answer: str,
     ) -> tuple[torch.Tensor, torch.Tensor]:
         """Run Qwen and return next-token logits aligned to the target answer."""
 
@@ -704,7 +694,7 @@ class Qwen25VQAReward:
         pixel_values = pixel_values.to(device=model_device, dtype=model_dtype)
         image_grid_thw = image_grid_thw.to(model_device)
         input_ids, attention_mask, answer_ids, target_positions = self._teacher_forced_inputs(
-            image_grid_thw, model_device
+            image_grid_thw, model_device, question, answer
         )
         outputs = self.model(
             input_ids=input_ids,
@@ -739,7 +729,15 @@ class Qwen25VQAReward:
         tensor_image = torch.from_numpy(array).permute(2, 0, 1).float().div(255).unsqueeze(0)
         return pil_image, tensor_image
 
-    def compare_with_official_processor(self, image: PIL.Image.Image | torch.Tensor) -> dict[str, object]:
+    def compare_with_official_processor(
+        self,
+        image: PIL.Image.Image | torch.Tensor,
+        question: str,
+        answer: str,
+        *,
+        margin: float = 0.0,
+        lambda_margin: float = 0.0,
+    ) -> dict[str, object]:
         """Compare the differentiable adapter with the official Qwen processor.
 
         This test/debug helper intentionally uses a non-differentiable PIL
@@ -761,9 +759,11 @@ class Qwen25VQAReward:
         # This helper is diagnostic only. The production differentiable path
         # remains grad-enabled through `_aligned_answer_logits` and `__call__`.
         with torch.no_grad():
-            official_logits, official_targets = self._aligned_answer_logits(official_pixels, official_grid)
+            official_logits, official_targets = self._aligned_answer_logits(
+                official_pixels, official_grid, question, answer
+            )
             differentiable_logits, differentiable_targets = self._aligned_answer_logits(
-                differentiable_pixels, differentiable_grid
+                differentiable_pixels, differentiable_grid, question, answer
             )
             if not torch.equal(official_targets, differentiable_targets):
                 raise RuntimeError("Official and differentiable paths produced different answer token IDs.")
@@ -778,14 +778,14 @@ class Qwen25VQAReward:
             official_reward = qwen_vqa_token_reward(
                 official_logits,
                 official_targets,
-                margin=self.margin,
-                lambda_margin=self.lambda_margin,
+                margin=margin,
+                lambda_margin=lambda_margin,
             )
             differentiable_reward = qwen_vqa_token_reward(
                 differentiable_logits,
                 differentiable_targets,
-                margin=self.margin,
-                lambda_margin=self.lambda_margin,
+                margin=margin,
+                lambda_margin=lambda_margin,
             )
 
         reward_difference = differentiable_reward - official_reward
@@ -808,18 +808,100 @@ class Qwen25VQAReward:
             "reward_abs_difference": float(reward_difference.abs()),
         }
 
-    def prepare(self, prompt: str | list[str], device: torch.device | None = None):
-        return None
-
-    def __call__(self, image: torch.Tensor, prompt: str | list[str]) -> torch.Tensor:
+    def score_answer(
+        self,
+        image: torch.Tensor,
+        question: str,
+        answer: str,
+        *,
+        margin: float = 0.0,
+        lambda_margin: float = 0.0,
+    ) -> torch.Tensor:
+        if not isinstance(question, str) or not question.strip():
+            raise ValueError("Teacher-forced scoring requires a non-empty question.")
+        if not isinstance(answer, str) or not answer.strip():
+            raise ValueError("Teacher-forced scoring requires a non-empty answer.")
         pixel_values, image_grid_thw = self._differentiable_image_inputs(image)
-        aligned_logits, answer_ids = self._aligned_answer_logits(pixel_values, image_grid_thw)
+        aligned_logits, answer_ids = self._aligned_answer_logits(
+            pixel_values, image_grid_thw, question.strip(), answer.strip()
+        )
         return qwen_vqa_token_reward(
             aligned_logits,
             answer_ids,
+            margin=margin,
+            lambda_margin=lambda_margin,
+        ).to(image.device)
+
+
+class Qwen25VQAReward:
+    """Backward-compatible fixed-Q&A RewardFlow wrapper over the reusable scorer."""
+
+    def __init__(
+        self,
+        question: str,
+        answer: str,
+        model_id: str = "Qwen/Qwen2.5-VL-3B-Instruct",
+        *,
+        margin: float | None = None,
+        lambda_margin: float | None = None,
+        max_answer_tokens: int = 70,
+        device: torch.device | str | None = None,
+        dtype: torch.dtype | None = None,
+        cache_dir: str | None = None,
+        local_files_only: bool | None = None,
+        token: str | None = None,
+        revision: str | None = None,
+        trust_remote_code: bool = True,
+    ):
+        # ASSUMPTION: The paper does not disclose experimental values for the
+        # token margin or its coefficient, so both remain caller-supplied.
+        if not isinstance(question, str) or not question.strip() or not isinstance(answer, str) or not answer.strip():
+            raise ValueError("Qwen25VQAReward requires non-empty `question` and `answer`.")
+        if margin is None or lambda_margin is None:
+            raise ValueError(
+                "Qwen25VQAReward requires explicit `margin` and `lambda_margin`; the paper values are unavailable."
+            )
+        if margin < 0 or lambda_margin < 0:
+            raise ValueError("`margin` and `lambda_margin` must be non-negative.")
+        self.scorer = Qwen25VQATeacherForcedScorer(
+            model_id=model_id,
+            max_answer_tokens=max_answer_tokens,
+            device=device,
+            dtype=dtype,
+            cache_dir=cache_dir,
+            local_files_only=local_files_only,
+            token=token,
+            revision=revision,
+            trust_remote_code=trust_remote_code,
+        )
+        self.model = self.scorer.model
+        self.processor = self.scorer.processor
+        self.question = question.strip()
+        self.answer = answer.strip()
+        self.margin = float(margin)
+        self.lambda_margin = float(lambda_margin)
+        self.max_answer_tokens = int(max_answer_tokens)
+
+    def prepare(self, prompt: str | list[str], device: torch.device | None = None):
+        return None
+
+    def compare_with_official_processor(self, image: PIL.Image.Image | torch.Tensor) -> dict[str, object]:
+        return self.scorer.compare_with_official_processor(
+            image,
+            self.question,
+            self.answer,
             margin=self.margin,
             lambda_margin=self.lambda_margin,
-        ).to(image.device)
+        )
+
+    def __call__(self, image: torch.Tensor, prompt: str | list[str]) -> torch.Tensor:
+        return self.scorer.score_answer(
+            image,
+            self.question,
+            self.answer,
+            margin=self.margin,
+            lambda_margin=self.lambda_margin,
+        )
 
 
 # class Qwen3VLCaptionReward:

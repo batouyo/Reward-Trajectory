@@ -160,3 +160,24 @@ calibration logits; frozen directions and frozen FLUX modules must have no gradi
 loss is averaged across strengths and the existing regularizer is evaluated on the actual amplitude-scaled masked
 controls. This is reward-calibrated scalar magnitude over a reward-learned shared early control direction. It is not
 velocity interpolation and does not establish semantic strength calibration.
+
+## Endpoint-relative semantic progress experiment
+
+This independent research path reuses the frozen, differentiable Qwen2.5-VL teacher-forced answer scorer but does
+not change RewardFlow paper mode. For each semantic primitive, it defines answer contrast and endpoint-normalized
+progress as:
+
+```text
+contrast(I) = log P(target_answer | I, question) - log P(source_answer | I, question)
+progress(I) = (contrast(I) - contrast(Source)) / (contrast(NativeFull) - contrast(Source))
+```
+
+Fixed Source and NativeFull anchors are prepared under `torch.no_grad()`. Candidate scoring stays grad-enabled and
+never converts the candidate to PIL/NumPy. Optimization uses raw, unclamped progress; clamping is diagnostic only.
+The implementation accepts multiple weighted primitives, while the first real controller experiment is explicitly
+restricted to one primitive and one shared direction family.
+
+**Research assumption:** source-vs-target answer contrast is a continuous semantic-progress coordinate. This is not
+a RewardFlow paper statement. Endpoint preference, ordered pixel probes, gradient directionality, and existing
+on-manifold controller outputs are separate fail-fast gates before any end-to-end optimization. Pixel oracle and
+blue-direction scores remain evaluation-only and never participate in semantic backward.

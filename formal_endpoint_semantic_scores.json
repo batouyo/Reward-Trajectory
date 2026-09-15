@@ -1,0 +1,18 @@
+{
+  "endpoint_semantic_validation_failed": false,
+  "primitives": {
+    "ball_color": {
+      "source_answer_score_source": -12.128782272338867,
+      "target_answer_score_source": -12.503782272338867,
+      "source_answer_score_full": -13.880953788757324,
+      "target_answer_score_full": -9.630953788757324,
+      "source_contrast": -0.375,
+      "full_contrast": 4.25,
+      "contrast_dynamic_range": 4.625,
+      "source_preference_valid": true,
+      "full_preference_valid": true,
+      "contrast_order_valid": true,
+      "valid": true
+    }
+  }
+}
