@@ -7,6 +7,8 @@ from diffusers.pipelines.rewardflow.paper_components import paper_euler_update
 from diffusers.pipelines.rewardflow.terminal_control import (
     BlueEndpointTargetLoss,
     EndpointPixelTargetLoss,
+    MonotonicStrengthCalibration,
+    amplitude_scaled_effective_controls,
     build_velocity_edit_masks,
     freeze_terminal_control_modules,
     initialize_velocity_controls,
@@ -115,6 +117,57 @@ def test_shared_linear_controls_use_one_direction_and_exact_strength_scaling():
     torch.testing.assert_close(controls[0.8], torch.full_like(direction, 0.4))
     assert controls[1.0].abs().max().item() == 0
     assert tuple(direction for _ in range(1)) == (direction,)
+
+
+def test_monotonic_calibration_initializes_to_linear_strength_amplitudes():
+    calibration = MonotonicStrengthCalibration((0.2, 0.5, 0.8))
+
+    torch.testing.assert_close(calibration.amplitudes(), torch.tensor([0.8, 0.5, 0.2]))
+    torch.testing.assert_close(calibration.amplitude(0.2), torch.tensor(0.8))
+    torch.testing.assert_close(calibration.amplitude(0.5), torch.tensor(0.5))
+    torch.testing.assert_close(calibration.amplitude(0.8), torch.tensor(0.2))
+
+
+def test_monotonic_calibration_is_ordered_for_arbitrary_logits_and_has_exact_endpoints():
+    calibration = MonotonicStrengthCalibration((0.2, 0.5, 0.8))
+    with torch.no_grad():
+        calibration.raw_interval_logits.copy_(torch.tensor([4.0, -3.0, 1.0, 0.5]))
+    amplitudes = calibration.amplitudes()
+
+    assert torch.all(amplitudes[:-1] > amplitudes[1:])
+    assert calibration.amplitude(0.0).item() == 1.0
+    assert calibration.amplitude(1.0).item() == 0.0
+
+
+def test_amplitude_scaled_masked_control_is_exactly_zero_outside_mask():
+    direction = torch.randn(1, 4, 3)
+    mask = torch.tensor([[[1.0], [0.0], [1.0], [0.0]]])
+    amplitude = torch.tensor(0.37, requires_grad=True)
+    effective = amplitude_scaled_effective_controls([direction], [mask], amplitude)[0]
+
+    torch.testing.assert_close(effective[:, 1::2], torch.zeros_like(effective[:, 1::2]), rtol=0, atol=0)
+    torch.testing.assert_close(effective[:, 0::2], direction[:, 0::2] * amplitude)
+
+
+def test_calibration_backward_updates_only_logits_with_frozen_direction_and_model():
+    calibration = MonotonicStrengthCalibration((0.2, 0.5, 0.8))
+    direction = torch.randn(1, 3, 2, requires_grad=False)
+    mask = torch.ones(1, 3, 1)
+    frozen_model = torch.nn.Linear(2, 1, bias=False)
+    frozen_model.requires_grad_(False)
+
+    for strength, target in zip((0.2, 0.5, 0.8), (0.3, -0.1, 0.2)):
+        # Recompute the amplitude for each branch so no branch shares an autograd graph.
+        amplitude = calibration.amplitude(strength)
+        control = amplitude_scaled_effective_controls([direction], [mask], amplitude)[0]
+        loss = (frozen_model(control).mean() - target).square()
+        loss.backward()
+
+    assert calibration.raw_interval_logits.grad is not None
+    assert torch.isfinite(calibration.raw_interval_logits.grad).all()
+    assert calibration.raw_interval_logits.grad.abs().sum() > 0
+    assert direction.grad is None
+    assert all(parameter.grad is None for parameter in frozen_model.parameters())
 
 
 def test_strength_one_shared_control_has_exact_native_parity():

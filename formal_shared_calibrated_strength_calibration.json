@@ -1,0 +1,511 @@
+{
+  "parameterization": "softmax interval drops with exact amplitude endpoints A(0)=1 and A(1)=0",
+  "directions_frozen": true,
+  "initial": {
+    "raw_interval_logits": [
+      -1.6094379425048828,
+      -1.2039728164672852,
+      -1.2039728164672852,
+      -1.6094379425048828
+    ],
+    "interval_drops": [
+      0.19999998807907104,
+      0.30000001192092896,
+      0.30000001192092896,
+      0.19999998807907104
+    ],
+    "amplitudes": {
+      "0.2": 0.800000011920929,
+      "0.5": 0.5,
+      "0.8": 0.19999998807907104
+    },
+    "endpoint_amplitudes": {
+      "0.0": 1.0,
+      "1.0": 0.0
+    }
+  },
+  "best": {
+    "iteration": 10,
+    "mean_objective_error": 0.001992354247098168,
+    "raw_interval_logits": [
+      -2.09326171875,
+      -1.680161952972412,
+      -0.724047839641571,
+      -1.1300582885742188
+    ],
+    "interval_drops": [
+      0.11032864451408386,
+      0.16676127910614014,
+      0.43384069204330444,
+      0.28906944394111633
+    ],
+    "amplitudes": {
+      "0.2": 0.8896713256835938,
+      "0.5": 0.7229100465774536,
+      "0.8": 0.28906941413879395
+    },
+    "endpoint_amplitudes": {
+      "0.0": 1.0,
+      "1.0": 0.0
+    }
+  },
+  "best_global_control_energy": 0.04925498366355896,
+  "final": {
+    "iteration": 10,
+    "mean_objective_error": 0.001992354247098168,
+    "raw_interval_logits": [
+      -2.09326171875,
+      -1.680161952972412,
+      -0.724047839641571,
+      -1.1300582885742188
+    ],
+    "interval_drops": [
+      0.11032864451408386,
+      0.16676127910614014,
+      0.43384069204330444,
+      0.28906944394111633
+    ],
+    "amplitudes": {
+      "0.2": 0.8896713256835938,
+      "0.5": 0.7229100465774536,
+      "0.8": 0.28906941413879395
+    },
+    "endpoint_amplitudes": {
+      "0.0": 1.0,
+      "1.0": 0.0
+    }
+  },
+  "final_global_control_energy": 0.04925498366355896,
+  "trace": [
+    {
+      "calibration_iter": 1,
+      "state_before_step": {
+        "raw_interval_logits": [
+          -1.6094379425048828,
+          -1.2039728164672852,
+          -1.2039728164672852,
+          -1.6094379425048828
+        ],
+        "interval_drops": [
+          0.19999998807907104,
+          0.30000001192092896,
+          0.30000001192092896,
+          0.19999998807907104
+        ],
+        "amplitudes": {
+          "0.2": 0.800000011920929,
+          "0.5": 0.5,
+          "0.8": 0.19999998807907104
+        },
+        "endpoint_amplitudes": {
+          "0.0": 1.0,
+          "1.0": 0.0
+        }
+      },
+      "objective_error_before_step": {
+        "0.2": 0.00501460675150156,
+        "0.5": 0.002216366585344076,
+        "0.8": 0.0003861207515001297
+      },
+      "terminal_objective_loss_before_step": {
+        "0.2": 0.00501460675150156,
+        "0.5": 0.002216366585344076,
+        "0.8": 0.0003861207515001297
+      },
+      "mean_objective_error_before_step": 0.002539031362781922,
+      "global_control_energy": 0.032773807644844055,
+      "active_control_energy": 0.13109523057937622,
+      "calibration_logit_gradient_norm": 0.0007756700506433845,
+      "directions_have_gradient": false,
+      "model_parameters_have_gradient": false,
+      "elapsed_seconds": 18.027984743006527
+    },
+    {
+      "calibration_iter": 2,
+      "state_before_step": {
+        "raw_interval_logits": [
+          -1.6594369411468506,
+          -1.2539703845977783,
+          -1.1539744138717651,
+          -1.5594391822814941
+        ],
+        "interval_drops": [
+          0.1900084912776947,
+          0.2850131392478943,
+          0.3149869740009308,
+          0.20999139547348022
+        ],
+        "amplitudes": {
+          "0.2": 0.8099914789199829,
+          "0.5": 0.5249783992767334,
+          "0.8": 0.20999139547348022
+        },
+        "endpoint_amplitudes": {
+          "0.0": 1.0,
+          "1.0": 0.0
+        }
+      },
+      "objective_error_before_step": {
+        "0.2": 0.005006382241845131,
+        "0.5": 0.0021370581816881895,
+        "0.8": 0.0003622437361627817
+      },
+      "terminal_objective_loss_before_step": {
+        "0.2": 0.005006382241845131,
+        "0.5": 0.0021370581816881895,
+        "0.8": 0.0003622437361627817
+      },
+      "mean_objective_error_before_step": 0.0025018947198987007,
+      "global_control_energy": 0.03438729792833328,
+      "active_control_energy": 0.13754919171333313,
+      "calibration_logit_gradient_norm": 0.0008524591685272753,
+      "directions_have_gradient": false,
+      "model_parameters_have_gradient": false,
+      "elapsed_seconds": 18.021086586173624
+    },
+    {
+      "calibration_iter": 3,
+      "state_before_step": {
+        "raw_interval_logits": [
+          -1.7094241380691528,
+          -1.303853988647461,
+          -1.1050106287002563,
+          -1.5095932483673096
+        ],
+        "interval_drops": [
+          0.18013042211532593,
+          0.27022403478622437,
+          0.32967084646224976,
+          0.21997462213039398
+        ],
+        "amplitudes": {
+          "0.2": 0.8198695778846741,
+          "0.5": 0.5496455430984497,
+          "0.8": 0.21997469663619995
+        },
+        "endpoint_amplitudes": {
+          "0.0": 1.0,
+          "1.0": 0.0
+        }
+      },
+      "objective_error_before_step": {
+        "0.2": 0.004840155132114887,
+        "0.5": 0.0020409803837537766,
+        "0.8": 0.00038544597919099033
+      },
+      "terminal_objective_loss_before_step": {
+        "0.2": 0.004840155132114887,
+        "0.5": 0.0020409803837537766,
+        "0.8": 0.00038544597919099033
+      },
+      "mean_objective_error_before_step": 0.0024221938316865512,
+      "global_control_energy": 0.03604009747505188,
+      "active_control_energy": 0.14416038990020752,
+      "calibration_logit_gradient_norm": 0.00070033292286098,
+      "directions_have_gradient": false,
+      "model_parameters_have_gradient": false,
+      "elapsed_seconds": 18.16448863223195
+    },
+    {
+      "calibration_iter": 4,
+      "state_before_step": {
+        "raw_interval_logits": [
+          -1.7590417861938477,
+          -1.3534631729125977,
+          -1.0559779405593872,
+          -1.460132122039795
+        ],
+        "interval_drops": [
+          0.17040158808231354,
+          0.25563138723373413,
+          0.34419962763786316,
+          0.22976742684841156
+        ],
+        "amplitudes": {
+          "0.2": 0.8295984268188477,
+          "0.5": 0.5739670395851135,
+          "0.8": 0.22976744174957275
+        },
+        "endpoint_amplitudes": {
+          "0.0": 1.0,
+          "1.0": 0.0
+        }
+      },
+      "objective_error_before_step": {
+        "0.2": 0.004980472847819328,
+        "0.5": 0.0020129764452576637,
+        "0.8": 0.0003698925138451159
+      },
+      "terminal_objective_loss_before_step": {
+        "0.2": 0.004980472847819328,
+        "0.5": 0.0020129764452576637,
+        "0.8": 0.0003698925138451159
+      },
+      "mean_objective_error_before_step": 0.002454447268974036,
+      "global_control_energy": 0.037723880261182785,
+      "active_control_energy": 0.15089552104473114,
+      "calibration_logit_gradient_norm": 0.0006303140544332564,
+      "directions_have_gradient": false,
+      "model_parameters_have_gradient": false,
+      "elapsed_seconds": 18.090255436953157
+    },
+    {
+      "calibration_iter": 5,
+      "state_before_step": {
+        "raw_interval_logits": [
+          -1.8083586692810059,
+          -1.4019951820373535,
+          -1.0069535970687866,
+          -1.4114042520523071
+        ],
+        "interval_drops": [
+          0.16084136068820953,
+          0.24147889018058777,
+          0.3584623336791992,
+          0.23921744525432587
+        ],
+        "amplitudes": {
+          "0.2": 0.8391586542129517,
+          "0.5": 0.5976797342300415,
+          "0.8": 0.23921740055084229
+        },
+        "endpoint_amplitudes": {
+          "0.0": 1.0,
+          "1.0": 0.0
+        }
+      },
+      "objective_error_before_step": {
+        "0.2": 0.004794876556843519,
+        "0.5": 0.0019307676702737808,
+        "0.8": 0.0003448385978117585
+      },
+      "terminal_objective_loss_before_step": {
+        "0.2": 0.004794876556843519,
+        "0.5": 0.0019307676702737808,
+        "0.8": 0.0003448385978117585
+      },
+      "mean_objective_error_before_step": 0.002356827608309686,
+      "global_control_energy": 0.03942137211561203,
+      "active_control_energy": 0.15768545866012573,
+      "calibration_logit_gradient_norm": 0.0005895404028706253,
+      "directions_have_gradient": false,
+      "model_parameters_have_gradient": false,
+      "elapsed_seconds": 18.104242211207747
+    },
+    {
+      "calibration_iter": 6,
+      "state_before_step": {
+        "raw_interval_logits": [
+          -1.8572877645492554,
+          -1.4498134851455688,
+          -0.9581642746925354,
+          -1.3632450103759766
+        ],
+        "interval_drops": [
+          0.15152907371520996,
+          0.2277507483959198,
+          0.37237483263015747,
+          0.24834531545639038
+        ],
+        "amplitudes": {
+          "0.2": 0.84847092628479,
+          "0.5": 0.6207201480865479,
+          "0.8": 0.24834537506103516
+        },
+        "endpoint_amplitudes": {
+          "0.0": 1.0,
+          "1.0": 0.0
+        }
+      },
+      "objective_error_before_step": {
+        "0.2": 0.004537684377282858,
+        "0.5": 0.0017275739228352904,
+        "0.8": 0.0003183182852808386
+      },
+      "terminal_objective_loss_before_step": {
+        "0.2": 0.004537684377282858,
+        "0.5": 0.0017275739228352904,
+        "0.8": 0.0003183182852808386
+      },
+      "mean_objective_error_before_step": 0.002194525528466329,
+      "global_control_energy": 0.04112132638692856,
+      "active_control_energy": 0.16448530554771423,
+      "calibration_logit_gradient_norm": 0.0005364863318391144,
+      "directions_have_gradient": false,
+      "model_parameters_have_gradient": false,
+      "elapsed_seconds": 18.08338795369491
+    },
+    {
+      "calibration_iter": 7,
+      "state_before_step": {
+        "raw_interval_logits": [
+          -1.9056658744812012,
+          -1.496849536895752,
+          -0.9100528359413147,
+          -1.315621256828308
+        ],
+        "interval_drops": [
+          0.1425417810678482,
+          0.21453040838241577,
+          0.38577261567115784,
+          0.257155179977417
+        ],
+        "amplitudes": {
+          "0.2": 0.857458233833313,
+          "0.5": 0.6429278254508972,
+          "0.8": 0.257155179977417
+        },
+        "endpoint_amplitudes": {
+          "0.0": 1.0,
+          "1.0": 0.0
+        }
+      },
+      "objective_error_before_step": {
+        "0.2": 0.004722367972135544,
+        "0.5": 0.001711295684799552,
+        "0.8": 0.00031275543733499944
+      },
+      "terminal_objective_loss_before_step": {
+        "0.2": 0.004722367972135544,
+        "0.5": 0.001711295684799552,
+        "0.8": 0.00031275543733499944
+      },
+      "mean_objective_error_before_step": 0.0022488063647566983,
+      "global_control_energy": 0.04280751571059227,
+      "active_control_energy": 0.17123006284236908,
+      "calibration_logit_gradient_norm": 0.0005099924746900797,
+      "directions_have_gradient": false,
+      "model_parameters_have_gradient": false,
+      "elapsed_seconds": 17.97053949488327
+    },
+    {
+      "calibration_iter": 8,
+      "state_before_step": {
+        "raw_interval_logits": [
+          -1.9534592628479004,
+          -1.5433430671691895,
+          -0.8627763986587524,
+          -1.2683959007263184
+        ],
+        "interval_drops": [
+          0.13391909003257751,
+          0.20181508362293243,
+          0.39858412742614746,
+          0.26568174362182617
+        ],
+        "amplitudes": {
+          "0.2": 0.8660808801651001,
+          "0.5": 0.6642658114433289,
+          "0.8": 0.2656816840171814
+        },
+        "endpoint_amplitudes": {
+          "0.0": 1.0,
+          "1.0": 0.0
+        }
+      },
+      "objective_error_before_step": {
+        "0.2": 0.004560479894280434,
+        "0.5": 0.001608624355867505,
+        "0.8": 0.0003094178391620517
+      },
+      "terminal_objective_loss_before_step": {
+        "0.2": 0.004560479894280434,
+        "0.5": 0.001608624355867505,
+        "0.8": 0.0003094178391620517
+      },
+      "mean_objective_error_before_step": 0.00215950736310333,
+      "global_control_energy": 0.04447130486369133,
+      "active_control_energy": 0.17788521945476532,
+      "calibration_logit_gradient_norm": 0.0005016381037421525,
+      "directions_have_gradient": false,
+      "model_parameters_have_gradient": false,
+      "elapsed_seconds": 17.936558444052935
+    },
+    {
+      "calibration_iter": 9,
+      "state_before_step": {
+        "raw_interval_logits": [
+          -2.000746488571167,
+          -1.5896685123443604,
+          -0.8159042596817017,
+          -1.2215560674667358
+        ],
+        "interval_drops": [
+          0.12565463781356812,
+          0.18954287469387054,
+          0.4109121561050415,
+          0.27389031648635864
+        ],
+        "amplitudes": {
+          "0.2": 0.8743453621864319,
+          "0.5": 0.6848024725914001,
+          "0.8": 0.27389031648635864
+        },
+        "endpoint_amplitudes": {
+          "0.0": 1.0,
+          "1.0": 0.0
+        }
+      },
+      "objective_error_before_step": {
+        "0.2": 0.004495258908718824,
+        "0.5": 0.0015036622062325478,
+        "0.8": 0.00031107221730053425
+      },
+      "terminal_objective_loss_before_step": {
+        "0.2": 0.004495258908718824,
+        "0.5": 0.0015036622062325478,
+        "0.8": 0.00031107221730053425
+      },
+      "mean_objective_error_before_step": 0.0021033311107506356,
+      "global_control_energy": 0.04611063748598099,
+      "active_control_energy": 0.18444256484508514,
+      "calibration_logit_gradient_norm": 0.00043904248741455376,
+      "directions_have_gradient": false,
+      "model_parameters_have_gradient": false,
+      "elapsed_seconds": 18.00942728528753
+    },
+    {
+      "calibration_iter": 10,
+      "state_before_step": {
+        "raw_interval_logits": [
+          -2.047358751296997,
+          -1.6351600885391235,
+          -0.7694448232650757,
+          -1.1756054162979126
+        ],
+        "interval_drops": [
+          0.11778037995100021,
+          0.177864208817482,
+          0.42273083329200745,
+          0.2816246449947357
+        ],
+        "amplitudes": {
+          "0.2": 0.8822196125984192,
+          "0.5": 0.7043554186820984,
+          "0.8": 0.28162455558776855
+        },
+        "endpoint_amplitudes": {
+          "0.0": 1.0,
+          "1.0": 0.0
+        }
+      },
+      "objective_error_before_step": {
+        "0.2": 0.00437382236123085,
+        "0.5": 0.0014869602164253592,
+        "0.8": 0.0003183373773936182
+      },
+      "terminal_objective_loss_before_step": {
+        "0.2": 0.00437382236123085,
+        "0.5": 0.0014869602164253592,
+        "0.8": 0.0003183373773936182
+      },
+      "mean_objective_error_before_step": 0.002059706651683276,
+      "global_control_energy": 0.04770669341087341,
+      "active_control_energy": 0.19082677364349365,
+      "calibration_logit_gradient_norm": 0.00042979742283932865,
+      "directions_have_gradient": false,
+      "model_parameters_have_gradient": false,
+      "elapsed_seconds": 18.276928543113172
+    }
+  ]
+}

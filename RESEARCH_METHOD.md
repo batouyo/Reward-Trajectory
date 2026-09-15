@@ -138,3 +138,25 @@ There are no branch-specific residual directions. Regularization is applied to t
 over strengths and steps, rather than to the unscaled directions. This is an experimental controller-capacity test:
 the pixel-interpolated endpoint remains an oracle target and is not a semantic edit-strength reward or a claim that
 continuous semantic editing has been solved.
+
+### Reward-calibrated shared magnitude diagnostic
+
+The `shared-calibrated` mode tests whether the hand-written linear magnitude, rather than the learned shared
+direction, limits oracle accuracy. It keeps the same four early directions and velocity-top-k masks. Stage A learns
+those directions with the unchanged `shared-linear` controller. Stage B freezes every direction and optimizes only
+four scalar interval logits:
+
+```text
+interval_drops = softmax(raw_interval_logits)
+amplitude(0) = 1
+amplitude(s_i) = 1 - cumulative_sum(interval_drops) at s_i
+amplitude(1) = 0
+effective_control[t, s] = amplitude(s) * mask[t] * shared_direction[t]
+```
+
+Positive normalized drops structurally guarantee monotonic amplitudes in `[0, 1]` and exact endpoints. Initial
+drops equal the strength intervals, so Stage B begins at `amplitude(s) = 1 - s`. Its optimizer contains only the
+calibration logits; frozen directions and frozen FLUX modules must have no gradients. The terminal pixel-oracle
+loss is averaged across strengths and the existing regularizer is evaluated on the actual amplitude-scaled masked
+controls. This is reward-calibrated scalar magnitude over a reward-learned shared early control direction. It is not
+velocity interpolation and does not establish semantic strength calibration.

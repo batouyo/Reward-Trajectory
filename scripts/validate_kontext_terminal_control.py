@@ -25,6 +25,8 @@ from diffusers.pipelines.rewardflow.pipeline_flux_kontext_terminal_control impor
 )
 from diffusers.pipelines.rewardflow.terminal_control import (
     EndpointPixelTargetLoss,
+    MonotonicStrengthCalibration,
+    amplitude_scaled_effective_controls,
     endpoint_soft_mask,
     initialize_velocity_controls,
     masked_effective_controls,
@@ -51,10 +53,24 @@ def _parse_args():
     parser.add_argument("--device", default="cuda:0")
     parser.add_argument("--strengths", type=float, nargs="+", default=(0.2, 0.5, 0.8))
     parser.add_argument("--control-steps", type=int, choices=(2, 3, 4), default=2)
-    parser.add_argument("--control-mode", choices=("independent", "shared-linear"), default="independent")
+    parser.add_argument(
+        "--control-mode", choices=("independent", "shared-linear", "shared-calibrated"), default="independent"
+    )
     parser.add_argument("--control-mask-mode", choices=("none", "velocity-topk"), default="none")
     parser.add_argument("--control-mask-topk-fraction", type=float, default=0.25)
-    parser.add_argument("--outer-iters", type=int, default=20)
+    parser.add_argument(
+        "--outer-iters",
+        type=int,
+        default=20,
+        help="Optimization iterations for independent/shared-linear modes; ignored by shared-calibrated.",
+    )
+    parser.add_argument(
+        "--direction-iters", type=int, default=10, help="Stage-A iterations in shared-calibrated mode."
+    )
+    parser.add_argument(
+        "--calibration-iters", type=int, default=10, help="Stage-B iterations in shared-calibrated mode."
+    )
+    parser.add_argument("--calibration-lr", type=float, default=0.05, help="Stage-B calibration learning rate.")
     parser.add_argument("--control-lr", type=float, default=0.1)
     parser.add_argument("--lambda-control", type=float, default=1e-4)
     parser.add_argument("--grad-clip", type=float, default=None)
@@ -66,8 +82,12 @@ def _parse_args():
         parser.error("--steps must be at least --control-steps.")
     if args.outer_iters < 0:
         parser.error("--outer-iters must be non-negative.")
+    if args.direction_iters < 0 or args.calibration_iters < 0:
+        parser.error("--direction-iters and --calibration-iters must be non-negative.")
     if args.control_lr <= 0 or not math.isfinite(args.control_lr):
         parser.error("--control-lr must be finite and positive.")
+    if args.calibration_lr <= 0 or not math.isfinite(args.calibration_lr):
+        parser.error("--calibration-lr must be finite and positive.")
     if args.lambda_control < 0 or not math.isfinite(args.lambda_control):
         parser.error("--lambda-control must be finite and non-negative.")
     if not 0 < args.control_mask_topk_fraction <= 1:
@@ -76,6 +96,17 @@ def _parse_args():
         parser.error("--grad-clip must be finite and positive when provided.")
     if len(set(args.strengths)) != len(args.strengths) or any(not 0 <= value <= 1 for value in args.strengths):
         parser.error("Strengths must be unique values in [0, 1].")
+    if args.control_mode == "shared-calibrated":
+        if args.control_steps != 4:
+            parser.error("shared-calibrated is a fixed T=4 diagnostic; pass --control-steps 4.")
+        if args.control_mask_mode != "velocity-topk" or args.control_mask_topk_fraction != 0.25:
+            parser.error(
+                "shared-calibrated requires --control-mask-mode velocity-topk and --control-mask-topk-fraction 0.25."
+            )
+        if any(not 0 < value < 1 for value in args.strengths):
+            parser.error("shared-calibrated strengths must be interior points in (0, 1).")
+        if tuple(sorted(args.strengths)) != tuple(args.strengths):
+            parser.error("shared-calibrated strengths must be strictly increasing.")
     return args
 
 
@@ -218,8 +249,12 @@ def _evaluate(
     target,
     endpoint_weight,
     velocity_image_mask,
+    amplitude=None,
 ):
-    controls = masked_effective_controls(directions, masks, strength=strength if shared else None)
+    if amplitude is None:
+        controls = masked_effective_controls(directions, masks, strength=strength if shared else None)
+    else:
+        controls = amplitude_scaled_effective_controls(directions, masks, amplitude)
     with torch.no_grad():
         unroll = pipe.unroll_terminal_controls(inputs, controls, use_checkpointing=False)
         image = pipe.decode_terminal_latent(unroll.final_latent, inputs).detach()
@@ -353,8 +388,22 @@ def _independent_optimize(
 
 
 def _shared_optimize(
-    pipe, inputs, masks, objective, args, strengths, native_states, source, full, targets, endpoint_weight, image_mask
+    pipe,
+    inputs,
+    masks,
+    objective,
+    args,
+    strengths,
+    native_states,
+    source,
+    full,
+    targets,
+    endpoint_weight,
+    image_mask,
+    iteration_count=None,
 ):
+    if iteration_count is None:
+        iteration_count = args.outer_iters
     directions = initialize_velocity_controls(inputs.initial_latent, args.control_steps)
     optimizer = torch.optim.Adam(directions, lr=args.control_lr)
 
@@ -384,7 +433,7 @@ def _shared_optimize(
         None, iteration=0, objective_error=torch.tensor(initial_mean), controls=directions
     )
     trace = []
-    for iteration in range(1, args.outer_iters + 1):
+    for iteration in range(1, iteration_count + 1):
         optimizer.zero_grad(set_to_none=True)
         branch_errors = []
         for strength in strengths:
@@ -434,7 +483,7 @@ def _shared_optimize(
     final = evaluate_all(directions)
     final_mean = sum(item["objective_error"] for item in final.values()) / len(strengths)
     best = update_best_control_checkpoint(
-        best, iteration=args.outer_iters, objective_error=torch.tensor(final_mean), controls=directions
+        best, iteration=iteration_count, objective_error=torch.tensor(final_mean), controls=directions
     )
     best_results = evaluate_all(best.controls)
     families = [masked_effective_controls(directions, masks, strength=s) for s in strengths]
@@ -466,7 +515,188 @@ def _shared_optimize(
         "best_family_mean_objective_error": best.objective_error,
         "final_family_mean_objective_error": final_mean,
     }
-    return results, stats
+    frozen_directions = tuple(direction.detach().clone() for direction in directions)
+    return results, stats, frozen_directions
+
+
+def _calibration_state(calibration, strengths):
+    return {
+        "raw_interval_logits": calibration.raw_interval_logits.detach().float().cpu().tolist(),
+        "interval_drops": calibration.interval_drops().detach().float().cpu().tolist(),
+        "amplitudes": {
+            str(strength): calibration.amplitude(strength).detach().float().cpu().item() for strength in strengths
+        },
+        "endpoint_amplitudes": {
+            "0.0": calibration.amplitude(0.0).detach().float().cpu().item(),
+            "1.0": calibration.amplitude(1.0).detach().float().cpu().item(),
+        },
+    }
+
+
+def _calibrate_amplitudes(
+    pipe,
+    inputs,
+    directions,
+    masks,
+    objective,
+    args,
+    strengths,
+    native_states,
+    source,
+    full,
+    targets,
+    endpoint_weight,
+    image_mask,
+):
+    directions = tuple(direction.detach().clone().requires_grad_(False) for direction in directions)
+    calibration = MonotonicStrengthCalibration(strengths, device=inputs.initial_latent.device)
+    optimizer = torch.optim.Adam(calibration.parameters(), lr=args.calibration_lr)
+
+    def evaluate_all(module):
+        return {
+            strength: _evaluate(
+                pipe,
+                inputs,
+                directions,
+                masks,
+                strength,
+                True,
+                objective,
+                native_states,
+                source,
+                full,
+                targets[strength],
+                endpoint_weight,
+                image_mask,
+                amplitude=module.amplitude(strength).detach(),
+            )
+            for strength in strengths
+        }
+
+    initial_state = _calibration_state(calibration, strengths)
+    initial = evaluate_all(calibration)
+    initial_mean = sum(item["objective_error"] for item in initial.values()) / len(strengths)
+    best_mean = initial_mean
+    best_iteration = 0
+    best_logits = calibration.raw_interval_logits.detach().clone()
+    trace = []
+
+    for iteration in range(1, args.calibration_iters + 1):
+        optimizer.zero_grad(set_to_none=True)
+        started = time.perf_counter()
+        branch_errors = {}
+        branch_losses = {}
+        state_before_step = _calibration_state(calibration, strengths)
+        for strength in strengths:
+            # Each branch gets a newly computed amplitude graph. This makes sequential
+            # backward safe without retain_graph while keeping the shared logits trainable.
+            amplitude = calibration.amplitude(strength)
+            controls = amplitude_scaled_effective_controls(directions, masks, amplitude)
+            unroll = pipe.unroll_terminal_controls(inputs, controls, use_checkpointing=args.use_checkpointing)
+            image = pipe.decode_terminal_latent(unroll.final_latent, inputs)
+            output = objective(image, strength)
+            (output.loss / len(strengths)).backward()
+            branch_errors[str(strength)] = output.objective_error.detach().item()
+            branch_losses[str(strength)] = output.loss.detach().item()
+            del controls, unroll, image, output, amplitude
+
+        # Recompute all amplitudes and controls so the regularizer owns a fresh graph.
+        regularization_controls = [
+            amplitude_scaled_effective_controls(directions, masks, calibration.amplitude(strength))
+            for strength in strengths
+        ]
+        regularization = normalized_effective_control_energy(regularization_controls)
+        (args.lambda_control * regularization).backward()
+        gradient = calibration.raw_interval_logits.grad
+        if gradient is None or not torch.isfinite(gradient).all():
+            raise RuntimeError("Calibration-logit gradient is missing or non-finite.")
+        if any(direction.grad is not None for direction in directions):
+            raise RuntimeError("Frozen shared directions unexpectedly received gradients during calibration.")
+        if _model_has_gradient(pipe):
+            raise RuntimeError("Frozen model parameters unexpectedly received gradients during calibration.")
+
+        mean_error = sum(branch_errors.values()) / len(strengths)
+        if mean_error < best_mean:
+            best_mean = mean_error
+            best_iteration = iteration - 1
+            best_logits = calibration.raw_interval_logits.detach().clone()
+        active_energy = torch.stack([_active_energy(controls, masks) for controls in regularization_controls]).mean()
+        trace.append(
+            {
+                "calibration_iter": iteration,
+                "state_before_step": state_before_step,
+                "objective_error_before_step": branch_errors,
+                "terminal_objective_loss_before_step": branch_losses,
+                "mean_objective_error_before_step": mean_error,
+                "global_control_energy": regularization.detach().item(),
+                "active_control_energy": active_energy.detach().item(),
+                "calibration_logit_gradient_norm": torch.linalg.vector_norm(gradient.detach().float()).item(),
+                "directions_have_gradient": any(direction.grad is not None for direction in directions),
+                "model_parameters_have_gradient": _model_has_gradient(pipe),
+                "elapsed_seconds": time.perf_counter() - started,
+            }
+        )
+        optimizer.step()
+
+    final_state = _calibration_state(calibration, strengths)
+    final = evaluate_all(calibration)
+    final_mean = sum(item["objective_error"] for item in final.values()) / len(strengths)
+    final_families = [
+        amplitude_scaled_effective_controls(directions, masks, calibration.amplitude(strength).detach())
+        for strength in strengths
+    ]
+    final_global_energy = normalized_effective_control_energy(final_families).detach().item()
+    if final_mean < best_mean:
+        best_mean = final_mean
+        best_iteration = args.calibration_iters
+        best_logits = calibration.raw_interval_logits.detach().clone()
+
+    with torch.no_grad():
+        calibration.raw_interval_logits.copy_(best_logits)
+    best_state = _calibration_state(calibration, strengths)
+    best = evaluate_all(calibration)
+    best_families = [
+        amplitude_scaled_effective_controls(directions, masks, calibration.amplitude(strength).detach())
+        for strength in strengths
+    ]
+    best_global_energy = normalized_effective_control_energy(best_families).detach().item()
+
+    results = {}
+    for strength in strengths:
+        final_controls = amplitude_scaled_effective_controls(
+            directions, masks, torch.tensor(final_state["amplitudes"][str(strength)], device=directions[0].device)
+        )
+        final_energy = normalized_effective_control_energy([final_controls]).detach().item()
+        reduction = initial[strength]["objective_error"] - final[strength]["objective_error"]
+        results[strength] = {
+            "initial": initial[strength],
+            "best": best[strength],
+            "final": final[strength],
+            "best_iter": best_iteration,
+            "best_family_mean_objective_error": best_mean,
+            "final_objective_error": final[strength]["objective_error"],
+            "global_control_energy": final_energy,
+            "active_control_energy": _active_energy(final_controls, masks).detach().item(),
+            "error_reduction": reduction,
+            "error_reduction_per_global_control_energy": reduction / final_energy if final_energy else None,
+            "trace": [],
+        }
+
+    calibration_report = {
+        "parameterization": "softmax interval drops with exact amplitude endpoints A(0)=1 and A(1)=0",
+        "directions_frozen": True,
+        "initial": initial_state,
+        "best": {"iteration": best_iteration, "mean_objective_error": best_mean, **best_state},
+        "best_global_control_energy": best_global_energy,
+        "final": {
+            "iteration": args.calibration_iters,
+            "mean_objective_error": final_mean,
+            **final_state,
+        },
+        "final_global_control_energy": final_global_energy,
+        "trace": trace,
+    }
+    return results, calibration_report
 
 
 def _score_to_pil(score: torch.Tensor, token_height: int, token_width: int, image_size):
@@ -506,6 +736,29 @@ def _make_grid(source, native, targets, results, result_name):
     for strength, target in targets.items():
         images.extend([_tensor_to_pil(target[0]), _tensor_to_pil(results[strength][result_name]["image"][0])])
         labels.extend([f"Target {strength:g}", f"{result_name.title()} {strength:g}"])
+    images.append(native)
+    labels.append("Native Full")
+    width, height = source.size
+    grid = Image.new("RGB", (width * len(images), height + 30), "white")
+    draw = ImageDraw.Draw(grid)
+    for index, (image, label) in enumerate(zip(images, labels)):
+        draw.text((index * width + 6, 8), label, fill="black")
+        grid.paste(image.resize((width, height), Image.Resampling.LANCZOS), (index * width, 30))
+    return grid
+
+
+def _make_linear_vs_calibrated_grid(source, native, targets, linear_results, calibrated_results, result_name):
+    images = [source]
+    labels = ["Source"]
+    for strength, target in targets.items():
+        images.extend(
+            [
+                _tensor_to_pil(target[0]),
+                _tensor_to_pil(linear_results[strength]["final"]["image"][0]),
+                _tensor_to_pil(calibrated_results[strength][result_name]["image"][0]),
+            ]
+        )
+        labels.extend([f"Target {strength:g}", f"Linear {strength:g}", f"Calibrated {result_name} {strength:g}"])
     images.append(native)
     labels.append("Native Full")
     width, height = source.size
@@ -622,8 +875,12 @@ def main():
     for strength, target in targets.items():
         _tensor_to_pil(target[0]).save(output_dir / f"target_{_float_tag(strength)}.png")
 
+    calibration_report = None
+    linear_results = None
+    stage_times = {}
     if args.control_mode == "shared-linear":
-        results, shared_stats = _shared_optimize(
+        stage_started = time.perf_counter()
+        results, shared_stats, _ = _shared_optimize(
             pipe,
             inputs,
             velocity_masks.masks,
@@ -637,7 +894,53 @@ def main():
             endpoint_weight,
             velocity_image_mask,
         )
+        stage_times["shared_linear_seconds"] = time.perf_counter() - stage_started
         (output_dir / "shared_direction_stats.json").write_text(json.dumps(shared_stats, indent=2), encoding="utf-8")
+    elif args.control_mode == "shared-calibrated":
+        stage_started = time.perf_counter()
+        linear_results, shared_stats, directions = _shared_optimize(
+            pipe,
+            inputs,
+            velocity_masks.masks,
+            objective,
+            args,
+            strengths,
+            native_unroll.states,
+            source,
+            full,
+            targets,
+            endpoint_weight,
+            velocity_image_mask,
+            iteration_count=args.direction_iters,
+        )
+        stage_times["direction_learning_seconds"] = time.perf_counter() - stage_started
+        stage_started = time.perf_counter()
+        results, calibration_report = _calibrate_amplitudes(
+            pipe,
+            inputs,
+            directions,
+            velocity_masks.masks,
+            objective,
+            args,
+            strengths,
+            native_unroll.states,
+            source,
+            full,
+            targets,
+            endpoint_weight,
+            velocity_image_mask,
+        )
+        stage_times["amplitude_calibration_seconds"] = time.perf_counter() - stage_started
+        (output_dir / "shared_direction_stats.json").write_text(json.dumps(shared_stats, indent=2), encoding="utf-8")
+        (output_dir / "strength_calibration.json").write_text(
+            json.dumps(calibration_report, indent=2), encoding="utf-8"
+        )
+        (output_dir / "calibration_evolution.json").write_text(
+            json.dumps(calibration_report["trace"], indent=2), encoding="utf-8"
+        )
+        for strength, result in linear_results.items():
+            _tensor_to_pil(result["final"]["image"][0]).save(output_dir / f"linear_final_{_float_tag(strength)}.png")
+        _make_grid(source_pil, native_pil, targets, linear_results, "final").save(output_dir / "linear_grid.png")
     else:
         shared_stats = None
         results = {
@@ -666,6 +969,12 @@ def main():
             _tensor_to_pil(result[result_name]["image"][0]).save(output_dir / f"{result_name}_{tag}.png")
     _make_grid(source_pil, native_pil, targets, results, "best").save(output_dir / "comparison_grid_best.png")
     _make_grid(source_pil, native_pil, targets, results, "final").save(output_dir / "comparison_grid_final.png")
+    if linear_results is not None:
+        _make_grid(source_pil, native_pil, targets, results, "best").save(output_dir / "calibrated_best_grid.png")
+        _make_grid(source_pil, native_pil, targets, results, "final").save(output_dir / "calibrated_final_grid.png")
+        _make_linear_vs_calibrated_grid(source_pil, native_pil, targets, linear_results, results, "best").save(
+            output_dir / "linear_vs_calibrated_grid.png"
+        )
     _write_trace(output_dir / "trace.csv", trace)
 
     source_order = [results[strength]["final"]["endpoint_distances"]["mse_to_source"] for strength in strengths]
@@ -696,6 +1005,13 @@ def main():
         },
         "model_parameters_have_gradient": _model_has_gradient(pipe),
         "shared_direction_stats": shared_stats,
+        "stage_times": stage_times,
+        "strength_calibration": calibration_report,
+        "linear_stage_results": (
+            {str(strength): _serializable(result) for strength, result in linear_results.items()}
+            if linear_results is not None
+            else None
+        ),
         "results": {str(strength): _serializable(result) for strength, result in results.items()},
     }
     (output_dir / "report.json").write_text(json.dumps(report, indent=2), encoding="utf-8")

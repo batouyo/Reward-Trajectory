@@ -12,6 +12,7 @@ from dataclasses import dataclass
 from typing import Callable, Sequence
 
 import torch
+from torch import nn
 from torch.utils.checkpoint import checkpoint
 
 from .paper_components import freeze_module_parameters, paper_euler_update
@@ -59,6 +60,59 @@ class VelocityEditMasks:
 
     scores: tuple[torch.Tensor, ...]
     masks: tuple[torch.Tensor, ...]
+
+
+class MonotonicStrengthCalibration(nn.Module):
+    """Monotonic scalar amplitudes over fixed strength nodes.
+
+    Positive interval drops sum to one, so the fixed endpoints are exactly
+    ``amplitude(0)=1`` and ``amplitude(1)=0``. Interior amplitudes are the
+    remaining cumulative mass. Initial drops equal the strength intervals,
+    which reproduces ``amplitude(s)=1-s`` before calibration.
+    """
+
+    def __init__(
+        self,
+        strengths: Sequence[float],
+        *,
+        device: torch.device | str | None = None,
+        dtype: torch.dtype = torch.float32,
+    ):
+        super().__init__()
+        strengths = tuple(float(value) for value in strengths)
+        if not strengths or any(not 0 < value < 1 for value in strengths):
+            raise ValueError("Calibration strengths must be interior points in (0, 1).")
+        if any(left >= right for left, right in zip(strengths, strengths[1:])):
+            raise ValueError("Calibration strengths must be strictly increasing and unique.")
+        self._strengths = strengths
+        nodes = torch.tensor((0.0, *strengths, 1.0), device=device, dtype=dtype)
+        initial_drops = nodes[1:] - nodes[:-1]
+        self.raw_interval_logits = nn.Parameter(initial_drops.log())
+        self.register_buffer("strength_nodes", nodes, persistent=True)
+
+    def interval_drops(self) -> torch.Tensor:
+        """Return positive normalized drops for every adjacent node interval."""
+
+        return self.raw_interval_logits.softmax(dim=0)
+
+    def amplitudes(self) -> torch.Tensor:
+        """Return amplitudes for configured interior strengths in node order."""
+
+        return 1 - self.interval_drops().cumsum(dim=0)[:-1]
+
+    def amplitude(self, strength: float) -> torch.Tensor:
+        """Return one configured amplitude, with exact fixed endpoint tensors."""
+
+        strength = float(strength)
+        if strength == 0:
+            return self.raw_interval_logits.new_tensor(1.0)
+        if strength == 1:
+            return self.raw_interval_logits.new_tensor(0.0)
+        try:
+            index = self._strengths.index(strength)
+        except ValueError as error:
+            raise ValueError("Requested strength is not a configured calibration node.") from error
+        return self.amplitudes()[index]
 
 
 def update_best_control_checkpoint(
@@ -207,6 +261,30 @@ def masked_effective_controls(
         if direction.ndim != 3 or mask.shape != (*direction.shape[:2], 1):
             raise ValueError("Direction [B,T,C] requires mask [B,T,1].")
         effective.append(direction * mask.to(device=direction.device, dtype=direction.dtype) * scale)
+    return tuple(effective)
+
+
+def amplitude_scaled_effective_controls(
+    directions: Sequence[torch.Tensor],
+    masks: Sequence[torch.Tensor],
+    amplitude: torch.Tensor | float,
+) -> tuple[torch.Tensor, ...]:
+    """Apply one differentiable scalar amplitude to a masked shared direction."""
+
+    if len(directions) != len(masks):
+        raise ValueError("Every direction requires one control mask.")
+    if not directions:
+        raise ValueError("At least one shared direction is required.")
+    amplitude = torch.as_tensor(amplitude, device=directions[0].device, dtype=directions[0].dtype)
+    if amplitude.numel() != 1 or not torch.isfinite(amplitude.detach()).all():
+        raise ValueError("Control amplitude must be one finite scalar.")
+    if bool(((amplitude.detach() < 0) | (amplitude.detach() > 1)).item()):
+        raise ValueError("Control amplitude must lie in [0, 1].")
+    effective = []
+    for direction, mask in zip(directions, masks):
+        if direction.ndim != 3 or mask.shape != (*direction.shape[:2], 1):
+            raise ValueError("Direction [B,T,C] requires mask [B,T,1].")
+        effective.append(direction * mask.to(device=direction.device, dtype=direction.dtype) * amplitude)
     return tuple(effective)
 
 

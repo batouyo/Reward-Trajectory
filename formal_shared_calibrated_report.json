@@ -1,0 +1,3592 @@
+{
+  "scope": "oracle controller validation; pixel interpolation is not semantic strength",
+  "model": "/data15/hyp/weight/FLUX.1-Kontext-dev",
+  "source": "/data15/hyp/dataset/kontinuous_kontext/raw/source_images/source_000000.png",
+  "prompt": "Make the weighted training ball blue while preserving its shape, texture, lighting, and background.",
+  "output_dir": "/tmp/st_calibrated_compute_matched",
+  "steps": 12,
+  "seed": 20260914,
+  "height": 256,
+  "width": 256,
+  "guidance_scale": 2.5,
+  "dtype": "bfloat16",
+  "device": "cuda:0",
+  "strengths": [
+    0.2,
+    0.5,
+    0.8
+  ],
+  "control_steps": 4,
+  "control_mode": "shared-calibrated",
+  "control_mask_mode": "velocity-topk",
+  "control_mask_topk_fraction": 0.25,
+  "outer_iters": 20,
+  "direction_iters": 10,
+  "calibration_iters": 10,
+  "calibration_lr": 0.05,
+  "control_lr": 0.1,
+  "lambda_control": 0.0001,
+  "grad_clip": null,
+  "use_checkpointing": true,
+  "gpu_name": "NVIDIA H20",
+  "official_vs_native_parity": {
+    "max_absolute_error": 0.0,
+    "mean_absolute_error": 0.0,
+    "cosine_similarity": 1.0
+  },
+  "zero_control_vs_native_parity": {
+    "max_absolute_error": 0.0,
+    "mean_absolute_error": 0.0,
+    "cosine_similarity": 1.0
+  },
+  "source_alignment": {
+    "sampling_shape": [
+      1,
+      256,
+      64
+    ],
+    "aligned_source_shape": [
+      1,
+      256,
+      64
+    ],
+    "sampling_token_grid": [
+      16,
+      16
+    ]
+  },
+  "controlled_step_indices": [
+    0,
+    1,
+    2,
+    3
+  ],
+  "mask_active_fractions": [
+    0.25,
+    0.25,
+    0.25,
+    0.25
+  ],
+  "max_absolute_effective_control_outside_mask": 0.0,
+  "strength_ordering": {
+    "mse_to_source_non_decreasing": true,
+    "mse_to_full_non_increasing": true,
+    "mse_to_source": [
+      0.008325125090777874,
+      0.010711699724197388,
+      0.015446646139025688
+    ],
+    "mse_to_full": [
+      0.0029037350323051214,
+      0.0016851368127390742,
+      0.00028413801919668913
+    ]
+  },
+  "model_parameters_have_gradient": false,
+  "shared_direction_stats": {
+    "raw_shared_direction_norms": [
+      40.30031967163086,
+      41.382789611816406,
+      41.234317779541016,
+      43.49338150024414
+    ],
+    "strength_scaling": {
+      "0.2": 0.8,
+      "0.5": 0.5,
+      "0.8": 0.19999999999999996
+    },
+    "number_of_direction_parameter_tensors": 4,
+    "has_branch_specific_direction_parameters": false,
+    "best_family_mean_objective_error": 0.0025390314403921366,
+    "final_family_mean_objective_error": 0.002539031362781922
+  },
+  "stage_times": {
+    "direction_learning_seconds": 199.10124751506373,
+    "amplitude_calibration_seconds": 198.8287628260441
+  },
+  "strength_calibration": {
+    "parameterization": "softmax interval drops with exact amplitude endpoints A(0)=1 and A(1)=0",
+    "directions_frozen": true,
+    "initial": {
+      "raw_interval_logits": [
+        -1.6094379425048828,
+        -1.2039728164672852,
+        -1.2039728164672852,
+        -1.6094379425048828
+      ],
+      "interval_drops": [
+        0.19999998807907104,
+        0.30000001192092896,
+        0.30000001192092896,
+        0.19999998807907104
+      ],
+      "amplitudes": {
+        "0.2": 0.800000011920929,
+        "0.5": 0.5,
+        "0.8": 0.19999998807907104
+      },
+      "endpoint_amplitudes": {
+        "0.0": 1.0,
+        "1.0": 0.0
+      }
+    },
+    "best": {
+      "iteration": 10,
+      "mean_objective_error": 0.001992354247098168,
+      "raw_interval_logits": [
+        -2.09326171875,
+        -1.680161952972412,
+        -0.724047839641571,
+        -1.1300582885742188
+      ],
+      "interval_drops": [
+        0.11032864451408386,
+        0.16676127910614014,
+        0.43384069204330444,
+        0.28906944394111633
+      ],
+      "amplitudes": {
+        "0.2": 0.8896713256835938,
+        "0.5": 0.7229100465774536,
+        "0.8": 0.28906941413879395
+      },
+      "endpoint_amplitudes": {
+        "0.0": 1.0,
+        "1.0": 0.0
+      }
+    },
+    "best_global_control_energy": 0.04925498366355896,
+    "final": {
+      "iteration": 10,
+      "mean_objective_error": 0.001992354247098168,
+      "raw_interval_logits": [
+        -2.09326171875,
+        -1.680161952972412,
+        -0.724047839641571,
+        -1.1300582885742188
+      ],
+      "interval_drops": [
+        0.11032864451408386,
+        0.16676127910614014,
+        0.43384069204330444,
+        0.28906944394111633
+      ],
+      "amplitudes": {
+        "0.2": 0.8896713256835938,
+        "0.5": 0.7229100465774536,
+        "0.8": 0.28906941413879395
+      },
+      "endpoint_amplitudes": {
+        "0.0": 1.0,
+        "1.0": 0.0
+      }
+    },
+    "final_global_control_energy": 0.04925498366355896,
+    "trace": [
+      {
+        "calibration_iter": 1,
+        "state_before_step": {
+          "raw_interval_logits": [
+            -1.6094379425048828,
+            -1.2039728164672852,
+            -1.2039728164672852,
+            -1.6094379425048828
+          ],
+          "interval_drops": [
+            0.19999998807907104,
+            0.30000001192092896,
+            0.30000001192092896,
+            0.19999998807907104
+          ],
+          "amplitudes": {
+            "0.2": 0.800000011920929,
+            "0.5": 0.5,
+            "0.8": 0.19999998807907104
+          },
+          "endpoint_amplitudes": {
+            "0.0": 1.0,
+            "1.0": 0.0
+          }
+        },
+        "objective_error_before_step": {
+          "0.2": 0.00501460675150156,
+          "0.5": 0.002216366585344076,
+          "0.8": 0.0003861207515001297
+        },
+        "terminal_objective_loss_before_step": {
+          "0.2": 0.00501460675150156,
+          "0.5": 0.002216366585344076,
+          "0.8": 0.0003861207515001297
+        },
+        "mean_objective_error_before_step": 0.002539031362781922,
+        "global_control_energy": 0.032773807644844055,
+        "active_control_energy": 0.13109523057937622,
+        "calibration_logit_gradient_norm": 0.0007756700506433845,
+        "directions_have_gradient": false,
+        "model_parameters_have_gradient": false,
+        "elapsed_seconds": 18.027984743006527
+      },
+      {
+        "calibration_iter": 2,
+        "state_before_step": {
+          "raw_interval_logits": [
+            -1.6594369411468506,
+            -1.2539703845977783,
+            -1.1539744138717651,
+            -1.5594391822814941
+          ],
+          "interval_drops": [
+            0.1900084912776947,
+            0.2850131392478943,
+            0.3149869740009308,
+            0.20999139547348022
+          ],
+          "amplitudes": {
+            "0.2": 0.8099914789199829,
+            "0.5": 0.5249783992767334,
+            "0.8": 0.20999139547348022
+          },
+          "endpoint_amplitudes": {
+            "0.0": 1.0,
+            "1.0": 0.0
+          }
+        },
+        "objective_error_before_step": {
+          "0.2": 0.005006382241845131,
+          "0.5": 0.0021370581816881895,
+          "0.8": 0.0003622437361627817
+        },
+        "terminal_objective_loss_before_step": {
+          "0.2": 0.005006382241845131,
+          "0.5": 0.0021370581816881895,
+          "0.8": 0.0003622437361627817
+        },
+        "mean_objective_error_before_step": 0.0025018947198987007,
+        "global_control_energy": 0.03438729792833328,
+        "active_control_energy": 0.13754919171333313,
+        "calibration_logit_gradient_norm": 0.0008524591685272753,
+        "directions_have_gradient": false,
+        "model_parameters_have_gradient": false,
+        "elapsed_seconds": 18.021086586173624
+      },
+      {
+        "calibration_iter": 3,
+        "state_before_step": {
+          "raw_interval_logits": [
+            -1.7094241380691528,
+            -1.303853988647461,
+            -1.1050106287002563,
+            -1.5095932483673096
+          ],
+          "interval_drops": [
+            0.18013042211532593,
+            0.27022403478622437,
+            0.32967084646224976,
+            0.21997462213039398
+          ],
+          "amplitudes": {
+            "0.2": 0.8198695778846741,
+            "0.5": 0.5496455430984497,
+            "0.8": 0.21997469663619995
+          },
+          "endpoint_amplitudes": {
+            "0.0": 1.0,
+            "1.0": 0.0
+          }
+        },
+        "objective_error_before_step": {
+          "0.2": 0.004840155132114887,
+          "0.5": 0.0020409803837537766,
+          "0.8": 0.00038544597919099033
+        },
+        "terminal_objective_loss_before_step": {
+          "0.2": 0.004840155132114887,
+          "0.5": 0.0020409803837537766,
+          "0.8": 0.00038544597919099033
+        },
+        "mean_objective_error_before_step": 0.0024221938316865512,
+        "global_control_energy": 0.03604009747505188,
+        "active_control_energy": 0.14416038990020752,
+        "calibration_logit_gradient_norm": 0.00070033292286098,
+        "directions_have_gradient": false,
+        "model_parameters_have_gradient": false,
+        "elapsed_seconds": 18.16448863223195
+      },
+      {
+        "calibration_iter": 4,
+        "state_before_step": {
+          "raw_interval_logits": [
+            -1.7590417861938477,
+            -1.3534631729125977,
+            -1.0559779405593872,
+            -1.460132122039795
+          ],
+          "interval_drops": [
+            0.17040158808231354,
+            0.25563138723373413,
+            0.34419962763786316,
+            0.22976742684841156
+          ],
+          "amplitudes": {
+            "0.2": 0.8295984268188477,
+            "0.5": 0.5739670395851135,
+            "0.8": 0.22976744174957275
+          },
+          "endpoint_amplitudes": {
+            "0.0": 1.0,
+            "1.0": 0.0
+          }
+        },
+        "objective_error_before_step": {
+          "0.2": 0.004980472847819328,
+          "0.5": 0.0020129764452576637,
+          "0.8": 0.0003698925138451159
+        },
+        "terminal_objective_loss_before_step": {
+          "0.2": 0.004980472847819328,
+          "0.5": 0.0020129764452576637,
+          "0.8": 0.0003698925138451159
+        },
+        "mean_objective_error_before_step": 0.002454447268974036,
+        "global_control_energy": 0.037723880261182785,
+        "active_control_energy": 0.15089552104473114,
+        "calibration_logit_gradient_norm": 0.0006303140544332564,
+        "directions_have_gradient": false,
+        "model_parameters_have_gradient": false,
+        "elapsed_seconds": 18.090255436953157
+      },
+      {
+        "calibration_iter": 5,
+        "state_before_step": {
+          "raw_interval_logits": [
+            -1.8083586692810059,
+            -1.4019951820373535,
+            -1.0069535970687866,
+            -1.4114042520523071
+          ],
+          "interval_drops": [
+            0.16084136068820953,
+            0.24147889018058777,
+            0.3584623336791992,
+            0.23921744525432587
+          ],
+          "amplitudes": {
+            "0.2": 0.8391586542129517,
+            "0.5": 0.5976797342300415,
+            "0.8": 0.23921740055084229
+          },
+          "endpoint_amplitudes": {
+            "0.0": 1.0,
+            "1.0": 0.0
+          }
+        },
+        "objective_error_before_step": {
+          "0.2": 0.004794876556843519,
+          "0.5": 0.0019307676702737808,
+          "0.8": 0.0003448385978117585
+        },
+        "terminal_objective_loss_before_step": {
+          "0.2": 0.004794876556843519,
+          "0.5": 0.0019307676702737808,
+          "0.8": 0.0003448385978117585
+        },
+        "mean_objective_error_before_step": 0.002356827608309686,
+        "global_control_energy": 0.03942137211561203,
+        "active_control_energy": 0.15768545866012573,
+        "calibration_logit_gradient_norm": 0.0005895404028706253,
+        "directions_have_gradient": false,
+        "model_parameters_have_gradient": false,
+        "elapsed_seconds": 18.104242211207747
+      },
+      {
+        "calibration_iter": 6,
+        "state_before_step": {
+          "raw_interval_logits": [
+            -1.8572877645492554,
+            -1.4498134851455688,
+            -0.9581642746925354,
+            -1.3632450103759766
+          ],
+          "interval_drops": [
+            0.15152907371520996,
+            0.2277507483959198,
+            0.37237483263015747,
+            0.24834531545639038
+          ],
+          "amplitudes": {
+            "0.2": 0.84847092628479,
+            "0.5": 0.6207201480865479,
+            "0.8": 0.24834537506103516
+          },
+          "endpoint_amplitudes": {
+            "0.0": 1.0,
+            "1.0": 0.0
+          }
+        },
+        "objective_error_before_step": {
+          "0.2": 0.004537684377282858,
+          "0.5": 0.0017275739228352904,
+          "0.8": 0.0003183182852808386
+        },
+        "terminal_objective_loss_before_step": {
+          "0.2": 0.004537684377282858,
+          "0.5": 0.0017275739228352904,
+          "0.8": 0.0003183182852808386
+        },
+        "mean_objective_error_before_step": 0.002194525528466329,
+        "global_control_energy": 0.04112132638692856,
+        "active_control_energy": 0.16448530554771423,
+        "calibration_logit_gradient_norm": 0.0005364863318391144,
+        "directions_have_gradient": false,
+        "model_parameters_have_gradient": false,
+        "elapsed_seconds": 18.08338795369491
+      },
+      {
+        "calibration_iter": 7,
+        "state_before_step": {
+          "raw_interval_logits": [
+            -1.9056658744812012,
+            -1.496849536895752,
+            -0.9100528359413147,
+            -1.315621256828308
+          ],
+          "interval_drops": [
+            0.1425417810678482,
+            0.21453040838241577,
+            0.38577261567115784,
+            0.257155179977417
+          ],
+          "amplitudes": {
+            "0.2": 0.857458233833313,
+            "0.5": 0.6429278254508972,
+            "0.8": 0.257155179977417
+          },
+          "endpoint_amplitudes": {
+            "0.0": 1.0,
+            "1.0": 0.0
+          }
+        },
+        "objective_error_before_step": {
+          "0.2": 0.004722367972135544,
+          "0.5": 0.001711295684799552,
+          "0.8": 0.00031275543733499944
+        },
+        "terminal_objective_loss_before_step": {
+          "0.2": 0.004722367972135544,
+          "0.5": 0.001711295684799552,
+          "0.8": 0.00031275543733499944
+        },
+        "mean_objective_error_before_step": 0.0022488063647566983,
+        "global_control_energy": 0.04280751571059227,
+        "active_control_energy": 0.17123006284236908,
+        "calibration_logit_gradient_norm": 0.0005099924746900797,
+        "directions_have_gradient": false,
+        "model_parameters_have_gradient": false,
+        "elapsed_seconds": 17.97053949488327
+      },
+      {
+        "calibration_iter": 8,
+        "state_before_step": {
+          "raw_interval_logits": [
+            -1.9534592628479004,
+            -1.5433430671691895,
+            -0.8627763986587524,
+            -1.2683959007263184
+          ],
+          "interval_drops": [
+            0.13391909003257751,
+            0.20181508362293243,
+            0.39858412742614746,
+            0.26568174362182617
+          ],
+          "amplitudes": {
+            "0.2": 0.8660808801651001,
+            "0.5": 0.6642658114433289,
+            "0.8": 0.2656816840171814
+          },
+          "endpoint_amplitudes": {
+            "0.0": 1.0,
+            "1.0": 0.0
+          }
+        },
+        "objective_error_before_step": {
+          "0.2": 0.004560479894280434,
+          "0.5": 0.001608624355867505,
+          "0.8": 0.0003094178391620517
+        },
+        "terminal_objective_loss_before_step": {
+          "0.2": 0.004560479894280434,
+          "0.5": 0.001608624355867505,
+          "0.8": 0.0003094178391620517
+        },
+        "mean_objective_error_before_step": 0.00215950736310333,
+        "global_control_energy": 0.04447130486369133,
+        "active_control_energy": 0.17788521945476532,
+        "calibration_logit_gradient_norm": 0.0005016381037421525,
+        "directions_have_gradient": false,
+        "model_parameters_have_gradient": false,
+        "elapsed_seconds": 17.936558444052935
+      },
+      {
+        "calibration_iter": 9,
+        "state_before_step": {
+          "raw_interval_logits": [
+            -2.000746488571167,
+            -1.5896685123443604,
+            -0.8159042596817017,
+            -1.2215560674667358
+          ],
+          "interval_drops": [
+            0.12565463781356812,
+            0.18954287469387054,
+            0.4109121561050415,
+            0.27389031648635864
+          ],
+          "amplitudes": {
+            "0.2": 0.8743453621864319,
+            "0.5": 0.6848024725914001,
+            "0.8": 0.27389031648635864
+          },
+          "endpoint_amplitudes": {
+            "0.0": 1.0,
+            "1.0": 0.0
+          }
+        },
+        "objective_error_before_step": {
+          "0.2": 0.004495258908718824,
+          "0.5": 0.0015036622062325478,
+          "0.8": 0.00031107221730053425
+        },
+        "terminal_objective_loss_before_step": {
+          "0.2": 0.004495258908718824,
+          "0.5": 0.0015036622062325478,
+          "0.8": 0.00031107221730053425
+        },
+        "mean_objective_error_before_step": 0.0021033311107506356,
+        "global_control_energy": 0.04611063748598099,
+        "active_control_energy": 0.18444256484508514,
+        "calibration_logit_gradient_norm": 0.00043904248741455376,
+        "directions_have_gradient": false,
+        "model_parameters_have_gradient": false,
+        "elapsed_seconds": 18.00942728528753
+      },
+      {
+        "calibration_iter": 10,
+        "state_before_step": {
+          "raw_interval_logits": [
+            -2.047358751296997,
+            -1.6351600885391235,
+            -0.7694448232650757,
+            -1.1756054162979126
+          ],
+          "interval_drops": [
+            0.11778037995100021,
+            0.177864208817482,
+            0.42273083329200745,
+            0.2816246449947357
+          ],
+          "amplitudes": {
+            "0.2": 0.8822196125984192,
+            "0.5": 0.7043554186820984,
+            "0.8": 0.28162455558776855
+          },
+          "endpoint_amplitudes": {
+            "0.0": 1.0,
+            "1.0": 0.0
+          }
+        },
+        "objective_error_before_step": {
+          "0.2": 0.00437382236123085,
+          "0.5": 0.0014869602164253592,
+          "0.8": 0.0003183373773936182
+        },
+        "terminal_objective_loss_before_step": {
+          "0.2": 0.00437382236123085,
+          "0.5": 0.0014869602164253592,
+          "0.8": 0.0003183373773936182
+        },
+        "mean_objective_error_before_step": 0.002059706651683276,
+        "global_control_energy": 0.04770669341087341,
+        "active_control_energy": 0.19082677364349365,
+        "calibration_logit_gradient_norm": 0.00042979742283932865,
+        "directions_have_gradient": false,
+        "model_parameters_have_gradient": false,
+        "elapsed_seconds": 18.276928543113172
+      }
+    ]
+  },
+  "linear_stage_results": {
+    "0.2": {
+      "initial": {
+        "objective_error": 0.012102559208869934,
+        "terminal_objective_loss": 0.012102559208869934,
+        "source_blue_score": -0.14011427760124207,
+        "full_blue_score": -0.06981238722801208,
+        "target_blue_score": -0.12605389952659607,
+        "achieved_blue_score": -0.06981238722801208,
+        "controlled_steps": [
+          {
+            "step_index": 0,
+            "raw_direction_norm": 0.0,
+            "effective_control_norm": 0.0,
+            "native_velocity_norm": 260.4215087890625,
+            "active_region_effective_control_rms": 0.0,
+            "active_region_native_velocity_rms": 2.7667975425720215,
+            "active_control_native_ratio": 0.0,
+            "global_effective_control_rms": 0.0,
+            "global_native_velocity_rms": 2.034543037414551,
+            "global_control_native_ratio": 0.0,
+            "control_native_cosine": null,
+            "mask_active_fraction": 0.25,
+            "max_control_outside_mask": 0.0
+          },
+          {
+            "step_index": 1,
+            "raw_direction_norm": 0.0,
+            "effective_control_norm": 0.0,
+            "native_velocity_norm": 181.4399871826172,
+            "active_region_effective_control_rms": 0.0,
+            "active_region_native_velocity_rms": 1.5735987424850464,
+            "active_control_native_ratio": 0.0,
+            "global_effective_control_rms": 0.0,
+            "global_native_velocity_rms": 1.4174998998641968,
+            "global_control_native_ratio": 0.0,
+            "control_native_cosine": null,
+            "mask_active_fraction": 0.25,
+            "max_control_outside_mask": 0.0
+          },
+          {
+            "step_index": 2,
+            "raw_direction_norm": 0.0,
+            "effective_control_norm": 0.0,
+            "native_velocity_norm": 176.74009704589844,
+            "active_region_effective_control_rms": 0.0,
+            "active_region_native_velocity_rms": 1.537780523300171,
+            "active_control_native_ratio": 0.0,
+            "global_effective_control_rms": 0.0,
+            "global_native_velocity_rms": 1.3807820081710815,
+            "global_control_native_ratio": 0.0,
+            "control_native_cosine": null,
+            "mask_active_fraction": 0.25,
+            "max_control_outside_mask": 0.0
+          },
+          {
+            "step_index": 3,
+            "raw_direction_norm": 0.0,
+            "effective_control_norm": 0.0,
+            "native_velocity_norm": 177.25193786621094,
+            "active_region_effective_control_rms": 0.0,
+            "active_region_native_velocity_rms": 1.5711815357208252,
+            "active_control_native_ratio": 0.0,
+            "global_effective_control_rms": 0.0,
+            "global_native_velocity_rms": 1.384780764579773,
+            "global_control_native_ratio": 0.0,
+            "control_native_cosine": null,
+            "mask_active_fraction": 0.25,
+            "max_control_outside_mask": 0.0
+          }
+        ],
+        "trajectory_distances": [
+          {
+            "state_index": 0,
+            "after_step_index": -1,
+            "latent_mad_from_native": 0.0,
+            "latent_l2_from_native": 0.0
+          },
+          {
+            "state_index": 1,
+            "after_step_index": 0,
+            "latent_mad_from_native": 0.0,
+            "latent_l2_from_native": 0.0
+          },
+          {
+            "state_index": 2,
+            "after_step_index": 1,
+            "latent_mad_from_native": 0.0,
+            "latent_l2_from_native": 0.0
+          },
+          {
+            "state_index": 3,
+            "after_step_index": 2,
+            "latent_mad_from_native": 0.0,
+            "latent_l2_from_native": 0.0
+          },
+          {
+            "state_index": 4,
+            "after_step_index": 3,
+            "latent_mad_from_native": 0.0,
+            "latent_l2_from_native": 0.0
+          },
+          {
+            "state_index": 5,
+            "after_step_index": 4,
+            "latent_mad_from_native": 0.0,
+            "latent_l2_from_native": 0.0
+          },
+          {
+            "state_index": 6,
+            "after_step_index": 5,
+            "latent_mad_from_native": 0.0,
+            "latent_l2_from_native": 0.0
+          },
+          {
+            "state_index": 7,
+            "after_step_index": 6,
+            "latent_mad_from_native": 0.0,
+            "latent_l2_from_native": 0.0
+          },
+          {
+            "state_index": 8,
+            "after_step_index": 7,
+            "latent_mad_from_native": 0.0,
+            "latent_l2_from_native": 0.0
+          },
+          {
+            "state_index": 9,
+            "after_step_index": 8,
+            "latent_mad_from_native": 0.0,
+            "latent_l2_from_native": 0.0
+          },
+          {
+            "state_index": 10,
+            "after_step_index": 9,
+            "latent_mad_from_native": 0.0,
+            "latent_l2_from_native": 0.0
+          },
+          {
+            "state_index": 11,
+            "after_step_index": 10,
+            "latent_mad_from_native": 0.0,
+            "latent_l2_from_native": 0.0
+          },
+          {
+            "state_index": 12,
+            "after_step_index": 11,
+            "latent_mad_from_native": 0.0,
+            "latent_l2_from_native": 0.0
+          }
+        ],
+        "endpoint_distances": {
+          "mse_to_source": 0.018910249695181847,
+          "mad_to_source": 0.05583079904317856,
+          "mse_to_full": 0.0,
+          "mad_to_full": 0.0,
+          "mse_to_target": 0.01210209634155035,
+          "mad_to_target": 0.04466330632567406,
+          "background_mse_to_source": 0.006174194160848856,
+          "background_mad_to_source": 0.03413531184196472,
+          "inside_velocity_mask_mse_to_source": 0.04966505989432335,
+          "outside_velocity_mask_mse_to_source": 0.0010648666648194194
+        }
+      },
+      "best": {
+        "objective_error": 0.00501460675150156,
+        "terminal_objective_loss": 0.00501460675150156,
+        "source_blue_score": -0.14011427760124207,
+        "full_blue_score": -0.06981238722801208,
+        "target_blue_score": -0.12605389952659607,
+        "achieved_blue_score": -0.08397111296653748,
+        "controlled_steps": [
+          {
+            "step_index": 0,
+            "raw_direction_norm": 40.30031967163086,
+            "effective_control_norm": 32.240257263183594,
+            "native_velocity_norm": 260.4215087890625,
+            "active_region_effective_control_rms": 0.5037540197372437,
+            "active_region_native_velocity_rms": 2.7667975425720215,
+            "active_control_native_ratio": 0.18207115337718305,
+            "global_effective_control_rms": 0.2518770098686218,
+            "global_native_velocity_rms": 2.034543037414551,
+            "global_control_native_ratio": 0.12380028597905758,
+            "control_native_cosine": -0.08067718148231506,
+            "mask_active_fraction": 0.25,
+            "max_control_outside_mask": 0.0
+          },
+          {
+            "step_index": 1,
+            "raw_direction_norm": 41.382789611816406,
+            "effective_control_norm": 33.106231689453125,
+            "native_velocity_norm": 180.4662322998047,
+            "active_region_effective_control_rms": 0.5172848701477051,
+            "active_region_native_velocity_rms": 1.5721925497055054,
+            "active_control_native_ratio": 0.329021321367157,
+            "global_effective_control_rms": 0.25864243507385254,
+            "global_native_velocity_rms": 1.4098924398422241,
+            "global_control_native_ratio": 0.18344834525305792,
+            "control_native_cosine": -0.036152686923742294,
+            "mask_active_fraction": 0.25,
+            "max_control_outside_mask": 0.0
+          },
+          {
+            "step_index": 2,
+            "raw_direction_norm": 41.234317779541016,
+            "effective_control_norm": 32.987457275390625,
+            "native_velocity_norm": 175.29771423339844,
+            "active_region_effective_control_rms": 0.5154290199279785,
+            "active_region_native_velocity_rms": 1.5198222398757935,
+            "active_control_native_ratio": 0.3391377007156453,
+            "global_effective_control_rms": 0.25771450996398926,
+            "global_native_velocity_rms": 1.3695133924484253,
+            "global_control_native_ratio": 0.18817962013737266,
+            "control_native_cosine": -0.05804085731506348,
+            "mask_active_fraction": 0.25,
+            "max_control_outside_mask": 0.0
+          },
+          {
+            "step_index": 3,
+            "raw_direction_norm": 43.49338150024414,
+            "effective_control_norm": 34.79470443725586,
+            "native_velocity_norm": 175.18600463867188,
+            "active_region_effective_control_rms": 0.5436672568321228,
+            "active_region_native_velocity_rms": 1.5400091409683228,
+            "active_control_native_ratio": 0.3530285907850373,
+            "global_effective_control_rms": 0.2718336284160614,
+            "global_native_velocity_rms": 1.368640661239624,
+            "global_control_native_ratio": 0.1986157770366493,
+            "control_native_cosine": -0.060207873582839966,
+            "mask_active_fraction": 0.25,
+            "max_control_outside_mask": 0.0
+          }
+        ],
+        "trajectory_distances": [
+          {
+            "state_index": 0,
+            "after_step_index": -1,
+            "latent_mad_from_native": 0.0,
+            "latent_l2_from_native": 0.0
+          },
+          {
+            "state_index": 1,
+            "after_step_index": 0,
+            "latent_mad_from_native": 0.005884058773517609,
+            "latent_l2_from_native": 1.6895734071731567
+          },
+          {
+            "state_index": 2,
+            "after_step_index": 1,
+            "latent_mad_from_native": 0.01293223351240158,
+            "latent_l2_from_native": 3.1134629249572754
+          },
+          {
+            "state_index": 3,
+            "after_step_index": 2,
+            "latent_mad_from_native": 0.01997414231300354,
+            "latent_l2_from_native": 4.740822792053223
+          },
+          {
+            "state_index": 4,
+            "after_step_index": 3,
+            "latent_mad_from_native": 0.028645865619182587,
+            "latent_l2_from_native": 6.849634647369385
+          },
+          {
+            "state_index": 5,
+            "after_step_index": 4,
+            "latent_mad_from_native": 0.030778877437114716,
+            "latent_l2_from_native": 7.283107757568359
+          },
+          {
+            "state_index": 6,
+            "after_step_index": 5,
+            "latent_mad_from_native": 0.033603839576244354,
+            "latent_l2_from_native": 7.964734077453613
+          },
+          {
+            "state_index": 7,
+            "after_step_index": 6,
+            "latent_mad_from_native": 0.0366770401597023,
+            "latent_l2_from_native": 8.872769355773926
+          },
+          {
+            "state_index": 8,
+            "after_step_index": 7,
+            "latent_mad_from_native": 0.040709976106882095,
+            "latent_l2_from_native": 10.049773216247559
+          },
+          {
+            "state_index": 9,
+            "after_step_index": 8,
+            "latent_mad_from_native": 0.0455172061920166,
+            "latent_l2_from_native": 11.480973243713379
+          },
+          {
+            "state_index": 10,
+            "after_step_index": 9,
+            "latent_mad_from_native": 0.05146607384085655,
+            "latent_l2_from_native": 13.190068244934082
+          },
+          {
+            "state_index": 11,
+            "after_step_index": 10,
+            "latent_mad_from_native": 0.05937141180038452,
+            "latent_l2_from_native": 15.283780097961426
+          },
+          {
+            "state_index": 12,
+            "after_step_index": 11,
+            "latent_mad_from_native": 0.07287177443504333,
+            "latent_l2_from_native": 18.248767852783203
+          }
+        ],
+        "endpoint_distances": {
+          "mse_to_source": 0.009491566568613052,
+          "mad_to_source": 0.039530977606773376,
+          "mse_to_full": 0.002234967425465584,
+          "mad_to_full": 0.01918821595609188,
+          "mse_to_target": 0.005014269612729549,
+          "mad_to_target": 0.028809096664190292,
+          "background_mse_to_source": 0.0027964843902736902,
+          "background_mad_to_source": 0.023640265688300133,
+          "inside_velocity_mask_mse_to_source": 0.024833206087350845,
+          "outside_velocity_mask_mse_to_source": 0.0005896270740777254
+        }
+      },
+      "final": {
+        "objective_error": 0.00501460675150156,
+        "terminal_objective_loss": 0.00501460675150156,
+        "source_blue_score": -0.14011427760124207,
+        "full_blue_score": -0.06981238722801208,
+        "target_blue_score": -0.12605389952659607,
+        "achieved_blue_score": -0.08397111296653748,
+        "controlled_steps": [
+          {
+            "step_index": 0,
+            "raw_direction_norm": 40.30031967163086,
+            "effective_control_norm": 32.240257263183594,
+            "native_velocity_norm": 260.4215087890625,
+            "active_region_effective_control_rms": 0.5037540197372437,
+            "active_region_native_velocity_rms": 2.7667975425720215,
+            "active_control_native_ratio": 0.18207115337718305,
+            "global_effective_control_rms": 0.2518770098686218,
+            "global_native_velocity_rms": 2.034543037414551,
+            "global_control_native_ratio": 0.12380028597905758,
+            "control_native_cosine": -0.08067718148231506,
+            "mask_active_fraction": 0.25,
+            "max_control_outside_mask": 0.0
+          },
+          {
+            "step_index": 1,
+            "raw_direction_norm": 41.382789611816406,
+            "effective_control_norm": 33.106231689453125,
+            "native_velocity_norm": 180.4662322998047,
+            "active_region_effective_control_rms": 0.5172848701477051,
+            "active_region_native_velocity_rms": 1.5721925497055054,
+            "active_control_native_ratio": 0.329021321367157,
+            "global_effective_control_rms": 0.25864243507385254,
+            "global_native_velocity_rms": 1.4098924398422241,
+            "global_control_native_ratio": 0.18344834525305792,
+            "control_native_cosine": -0.036152686923742294,
+            "mask_active_fraction": 0.25,
+            "max_control_outside_mask": 0.0
+          },
+          {
+            "step_index": 2,
+            "raw_direction_norm": 41.234317779541016,
+            "effective_control_norm": 32.987457275390625,
+            "native_velocity_norm": 175.29771423339844,
+            "active_region_effective_control_rms": 0.5154290199279785,
+            "active_region_native_velocity_rms": 1.5198222398757935,
+            "active_control_native_ratio": 0.3391377007156453,
+            "global_effective_control_rms": 0.25771450996398926,
+            "global_native_velocity_rms": 1.3695133924484253,
+            "global_control_native_ratio": 0.18817962013737266,
+            "control_native_cosine": -0.05804085731506348,
+            "mask_active_fraction": 0.25,
+            "max_control_outside_mask": 0.0
+          },
+          {
+            "step_index": 3,
+            "raw_direction_norm": 43.49338150024414,
+            "effective_control_norm": 34.79470443725586,
+            "native_velocity_norm": 175.18600463867188,
+            "active_region_effective_control_rms": 0.5436672568321228,
+            "active_region_native_velocity_rms": 1.5400091409683228,
+            "active_control_native_ratio": 0.3530285907850373,
+            "global_effective_control_rms": 0.2718336284160614,
+            "global_native_velocity_rms": 1.368640661239624,
+            "global_control_native_ratio": 0.1986157770366493,
+            "control_native_cosine": -0.060207873582839966,
+            "mask_active_fraction": 0.25,
+            "max_control_outside_mask": 0.0
+          }
+        ],
+        "trajectory_distances": [
+          {
+            "state_index": 0,
+            "after_step_index": -1,
+            "latent_mad_from_native": 0.0,
+            "latent_l2_from_native": 0.0
+          },
+          {
+            "state_index": 1,
+            "after_step_index": 0,
+            "latent_mad_from_native": 0.005884058773517609,
+            "latent_l2_from_native": 1.6895734071731567
+          },
+          {
+            "state_index": 2,
+            "after_step_index": 1,
+            "latent_mad_from_native": 0.01293223351240158,
+            "latent_l2_from_native": 3.1134629249572754
+          },
+          {
+            "state_index": 3,
+            "after_step_index": 2,
+            "latent_mad_from_native": 0.01997414231300354,
+            "latent_l2_from_native": 4.740822792053223
+          },
+          {
+            "state_index": 4,
+            "after_step_index": 3,
+            "latent_mad_from_native": 0.028645865619182587,
+            "latent_l2_from_native": 6.849634647369385
+          },
+          {
+            "state_index": 5,
+            "after_step_index": 4,
+            "latent_mad_from_native": 0.030778877437114716,
+            "latent_l2_from_native": 7.283107757568359
+          },
+          {
+            "state_index": 6,
+            "after_step_index": 5,
+            "latent_mad_from_native": 0.033603839576244354,
+            "latent_l2_from_native": 7.964734077453613
+          },
+          {
+            "state_index": 7,
+            "after_step_index": 6,
+            "latent_mad_from_native": 0.0366770401597023,
+            "latent_l2_from_native": 8.872769355773926
+          },
+          {
+            "state_index": 8,
+            "after_step_index": 7,
+            "latent_mad_from_native": 0.040709976106882095,
+            "latent_l2_from_native": 10.049773216247559
+          },
+          {
+            "state_index": 9,
+            "after_step_index": 8,
+            "latent_mad_from_native": 0.0455172061920166,
+            "latent_l2_from_native": 11.480973243713379
+          },
+          {
+            "state_index": 10,
+            "after_step_index": 9,
+            "latent_mad_from_native": 0.05146607384085655,
+            "latent_l2_from_native": 13.190068244934082
+          },
+          {
+            "state_index": 11,
+            "after_step_index": 10,
+            "latent_mad_from_native": 0.05937141180038452,
+            "latent_l2_from_native": 15.283780097961426
+          },
+          {
+            "state_index": 12,
+            "after_step_index": 11,
+            "latent_mad_from_native": 0.07287177443504333,
+            "latent_l2_from_native": 18.248767852783203
+          }
+        ],
+        "endpoint_distances": {
+          "mse_to_source": 0.009491566568613052,
+          "mad_to_source": 0.039530977606773376,
+          "mse_to_full": 0.002234967425465584,
+          "mad_to_full": 0.01918821595609188,
+          "mse_to_target": 0.005014269612729549,
+          "mad_to_target": 0.028809096664190292,
+          "background_mse_to_source": 0.0027964843902736902,
+          "background_mad_to_source": 0.023640265688300133,
+          "inside_velocity_mask_mse_to_source": 0.024833206087350845,
+          "outside_velocity_mask_mse_to_source": 0.0005896270740777254
+        }
+      },
+      "best_iter": 10,
+      "best_family_mean_objective_error": 0.0025390314403921366,
+      "final_objective_error": 0.00501460675150156,
+      "global_control_energy": 0.032773807644844055,
+      "active_control_energy": 0.13109523057937622,
+      "error_reduction": 0.007087952457368374,
+      "error_reduction_per_global_control_energy": 0.21626881240585558
+    },
+    "0.5": {
+      "initial": {
+        "objective_error": 0.004727561958134174,
+        "terminal_objective_loss": 0.004727561958134174,
+        "source_blue_score": -0.14011427760124207,
+        "full_blue_score": -0.06981238722801208,
+        "target_blue_score": -0.10496333241462708,
+        "achieved_blue_score": -0.06981238722801208,
+        "controlled_steps": [
+          {
+            "step_index": 0,
+            "raw_direction_norm": 0.0,
+            "effective_control_norm": 0.0,
+            "native_velocity_norm": 260.4215087890625,
+            "active_region_effective_control_rms": 0.0,
+            "active_region_native_velocity_rms": 2.7667975425720215,
+            "active_control_native_ratio": 0.0,
+            "global_effective_control_rms": 0.0,
+            "global_native_velocity_rms": 2.034543037414551,
+            "global_control_native_ratio": 0.0,
+            "control_native_cosine": null,
+            "mask_active_fraction": 0.25,
+            "max_control_outside_mask": 0.0
+          },
+          {
+            "step_index": 1,
+            "raw_direction_norm": 0.0,
+            "effective_control_norm": 0.0,
+            "native_velocity_norm": 181.4399871826172,
+            "active_region_effective_control_rms": 0.0,
+            "active_region_native_velocity_rms": 1.5735987424850464,
+            "active_control_native_ratio": 0.0,
+            "global_effective_control_rms": 0.0,
+            "global_native_velocity_rms": 1.4174998998641968,
+            "global_control_native_ratio": 0.0,
+            "control_native_cosine": null,
+            "mask_active_fraction": 0.25,
+            "max_control_outside_mask": 0.0
+          },
+          {
+            "step_index": 2,
+            "raw_direction_norm": 0.0,
+            "effective_control_norm": 0.0,
+            "native_velocity_norm": 176.74009704589844,
+            "active_region_effective_control_rms": 0.0,
+            "active_region_native_velocity_rms": 1.537780523300171,
+            "active_control_native_ratio": 0.0,
+            "global_effective_control_rms": 0.0,
+            "global_native_velocity_rms": 1.3807820081710815,
+            "global_control_native_ratio": 0.0,
+            "control_native_cosine": null,
+            "mask_active_fraction": 0.25,
+            "max_control_outside_mask": 0.0
+          },
+          {
+            "step_index": 3,
+            "raw_direction_norm": 0.0,
+            "effective_control_norm": 0.0,
+            "native_velocity_norm": 177.25193786621094,
+            "active_region_effective_control_rms": 0.0,
+            "active_region_native_velocity_rms": 1.5711815357208252,
+            "active_control_native_ratio": 0.0,
+            "global_effective_control_rms": 0.0,
+            "global_native_velocity_rms": 1.384780764579773,
+            "global_control_native_ratio": 0.0,
+            "control_native_cosine": null,
+            "mask_active_fraction": 0.25,
+            "max_control_outside_mask": 0.0
+          }
+        ],
+        "trajectory_distances": [
+          {
+            "state_index": 0,
+            "after_step_index": -1,
+            "latent_mad_from_native": 0.0,
+            "latent_l2_from_native": 0.0
+          },
+          {
+            "state_index": 1,
+            "after_step_index": 0,
+            "latent_mad_from_native": 0.0,
+            "latent_l2_from_native": 0.0
+          },
+          {
+            "state_index": 2,
+            "after_step_index": 1,
+            "latent_mad_from_native": 0.0,
+            "latent_l2_from_native": 0.0
+          },
+          {
+            "state_index": 3,
+            "after_step_index": 2,
+            "latent_mad_from_native": 0.0,
+            "latent_l2_from_native": 0.0
+          },
+          {
+            "state_index": 4,
+            "after_step_index": 3,
+            "latent_mad_from_native": 0.0,
+            "latent_l2_from_native": 0.0
+          },
+          {
+            "state_index": 5,
+            "after_step_index": 4,
+            "latent_mad_from_native": 0.0,
+            "latent_l2_from_native": 0.0
+          },
+          {
+            "state_index": 6,
+            "after_step_index": 5,
+            "latent_mad_from_native": 0.0,
+            "latent_l2_from_native": 0.0
+          },
+          {
+            "state_index": 7,
+            "after_step_index": 6,
+            "latent_mad_from_native": 0.0,
+            "latent_l2_from_native": 0.0
+          },
+          {
+            "state_index": 8,
+            "after_step_index": 7,
+            "latent_mad_from_native": 0.0,
+            "latent_l2_from_native": 0.0
+          },
+          {
+            "state_index": 9,
+            "after_step_index": 8,
+            "latent_mad_from_native": 0.0,
+            "latent_l2_from_native": 0.0
+          },
+          {
+            "state_index": 10,
+            "after_step_index": 9,
+            "latent_mad_from_native": 0.0,
+            "latent_l2_from_native": 0.0
+          },
+          {
+            "state_index": 11,
+            "after_step_index": 10,
+            "latent_mad_from_native": 0.0,
+            "latent_l2_from_native": 0.0
+          },
+          {
+            "state_index": 12,
+            "after_step_index": 11,
+            "latent_mad_from_native": 0.0,
+            "latent_l2_from_native": 0.0
+          }
+        ],
+        "endpoint_distances": {
+          "mse_to_source": 0.018910249695181847,
+          "mad_to_source": 0.05583079904317856,
+          "mse_to_full": 0.0,
+          "mad_to_full": 0.0,
+          "mse_to_target": 0.004727561958134174,
+          "mad_to_target": 0.02791539579629898,
+          "background_mse_to_source": 0.006174194160848856,
+          "background_mad_to_source": 0.03413531184196472,
+          "inside_velocity_mask_mse_to_source": 0.04966505989432335,
+          "outside_velocity_mask_mse_to_source": 0.0010648666648194194
+        }
+      },
+      "best": {
+        "objective_error": 0.002216366585344076,
+        "terminal_objective_loss": 0.002216366585344076,
+        "source_blue_score": -0.14011427760124207,
+        "full_blue_score": -0.06981238722801208,
+        "target_blue_score": -0.10496333241462708,
+        "achieved_blue_score": -0.07909297943115234,
+        "controlled_steps": [
+          {
+            "step_index": 0,
+            "raw_direction_norm": 40.30031967163086,
+            "effective_control_norm": 20.15015983581543,
+            "native_velocity_norm": 260.4215087890625,
+            "active_region_effective_control_rms": 0.3148462474346161,
+            "active_region_native_velocity_rms": 2.7667975425720215,
+            "active_control_native_ratio": 0.11379446547503229,
+            "global_effective_control_rms": 0.15742312371730804,
+            "global_native_velocity_rms": 2.034543037414551,
+            "global_control_native_ratio": 0.0773751750748697,
+            "control_native_cosine": -0.08067718148231506,
+            "mask_active_fraction": 0.25,
+            "max_control_outside_mask": 0.0
+          },
+          {
+            "step_index": 1,
+            "raw_direction_norm": 41.382789611816406,
+            "effective_control_norm": 20.691394805908203,
+            "native_velocity_norm": 181.01515197753906,
+            "active_region_effective_control_rms": 0.3233030438423157,
+            "active_region_native_velocity_rms": 1.573714017868042,
+            "active_control_native_ratio": 0.20543951453155643,
+            "global_effective_control_rms": 0.16165152192115784,
+            "global_native_velocity_rms": 1.414180874824524,
+            "global_control_native_ratio": 0.11430752939663116,
+            "control_native_cosine": -0.031425006687641144,
+            "mask_active_fraction": 0.25,
+            "max_control_outside_mask": 0.0
+          },
+          {
+            "step_index": 2,
+            "raw_direction_norm": 41.234317779541016,
+            "effective_control_norm": 20.617158889770508,
+            "native_velocity_norm": 176.225830078125,
+            "active_region_effective_control_rms": 0.3221431374549866,
+            "active_region_native_velocity_rms": 1.528387188911438,
+            "active_control_native_ratio": 0.2107732515635821,
+            "global_effective_control_rms": 0.1610715687274933,
+            "global_native_velocity_rms": 1.3767642974853516,
+            "global_control_native_ratio": 0.11699283175815056,
+            "control_native_cosine": -0.056462690234184265,
+            "mask_active_fraction": 0.25,
+            "max_control_outside_mask": 0.0
+          },
+          {
+            "step_index": 3,
+            "raw_direction_norm": 43.49338150024414,
+            "effective_control_norm": 21.74669075012207,
+            "native_velocity_norm": 176.091064453125,
+            "active_region_effective_control_rms": 0.33979204297065735,
+            "active_region_native_velocity_rms": 1.5523653030395508,
+            "active_control_native_ratio": 0.2188866514249837,
+            "global_effective_control_rms": 0.16989602148532867,
+            "global_native_velocity_rms": 1.375711441040039,
+            "global_control_native_ratio": 0.12349684419058632,
+            "control_native_cosine": -0.06657673418521881,
+            "mask_active_fraction": 0.25,
+            "max_control_outside_mask": 0.0
+          }
+        ],
+        "trajectory_distances": [
+          {
+            "state_index": 0,
+            "after_step_index": -1,
+            "latent_mad_from_native": 0.0,
+            "latent_l2_from_native": 0.0
+          },
+          {
+            "state_index": 1,
+            "after_step_index": 0,
+            "latent_mad_from_native": 0.0036967825144529343,
+            "latent_l2_from_native": 1.0665515661239624
+          },
+          {
+            "state_index": 2,
+            "after_step_index": 1,
+            "latent_mad_from_native": 0.008387772366404533,
+            "latent_l2_from_native": 1.9874643087387085
+          },
+          {
+            "state_index": 3,
+            "after_step_index": 2,
+            "latent_mad_from_native": 0.01247005257755518,
+            "latent_l2_from_native": 3.007648468017578
+          },
+          {
+            "state_index": 4,
+            "after_step_index": 3,
+            "latent_mad_from_native": 0.017547879368066788,
+            "latent_l2_from_native": 4.290870666503906
+          },
+          {
+            "state_index": 5,
+            "after_step_index": 4,
+            "latent_mad_from_native": 0.018474223092198372,
+            "latent_l2_from_native": 4.504974365234375
+          },
+          {
+            "state_index": 6,
+            "after_step_index": 5,
+            "latent_mad_from_native": 0.019734695553779602,
+            "latent_l2_from_native": 4.877306938171387
+          },
+          {
+            "state_index": 7,
+            "after_step_index": 6,
+            "latent_mad_from_native": 0.02130996622145176,
+            "latent_l2_from_native": 5.409736156463623
+          },
+          {
+            "state_index": 8,
+            "after_step_index": 7,
+            "latent_mad_from_native": 0.023582957684993744,
+            "latent_l2_from_native": 6.116498947143555
+          },
+          {
+            "state_index": 9,
+            "after_step_index": 8,
+            "latent_mad_from_native": 0.02635875903069973,
+            "latent_l2_from_native": 7.003655910491943
+          },
+          {
+            "state_index": 10,
+            "after_step_index": 9,
+            "latent_mad_from_native": 0.029649876058101654,
+            "latent_l2_from_native": 8.054943084716797
+          },
+          {
+            "state_index": 11,
+            "after_step_index": 10,
+            "latent_mad_from_native": 0.034270577132701874,
+            "latent_l2_from_native": 9.36608600616455
+          },
+          {
+            "state_index": 12,
+            "after_step_index": 11,
+            "latent_mad_from_native": 0.042953453958034515,
+            "latent_l2_from_native": 11.441481590270996
+          }
+        ],
+        "endpoint_distances": {
+          "mse_to_source": 0.013051075860857964,
+          "mad_to_source": 0.046639926731586456,
+          "mse_to_full": 0.0008367821574211121,
+          "mad_to_full": 0.010927448980510235,
+          "mse_to_target": 0.002216366585344076,
+          "mad_to_target": 0.019308259710669518,
+          "background_mse_to_source": 0.003939498215913773,
+          "background_mad_to_source": 0.028288448229432106,
+          "inside_velocity_mask_mse_to_source": 0.0341469869017601,
+          "outside_velocity_mask_mse_to_source": 0.0008102359715849161
+        }
+      },
+      "final": {
+        "objective_error": 0.002216366585344076,
+        "terminal_objective_loss": 0.002216366585344076,
+        "source_blue_score": -0.14011427760124207,
+        "full_blue_score": -0.06981238722801208,
+        "target_blue_score": -0.10496333241462708,
+        "achieved_blue_score": -0.07909297943115234,
+        "controlled_steps": [
+          {
+            "step_index": 0,
+            "raw_direction_norm": 40.30031967163086,
+            "effective_control_norm": 20.15015983581543,
+            "native_velocity_norm": 260.4215087890625,
+            "active_region_effective_control_rms": 0.3148462474346161,
+            "active_region_native_velocity_rms": 2.7667975425720215,
+            "active_control_native_ratio": 0.11379446547503229,
+            "global_effective_control_rms": 0.15742312371730804,
+            "global_native_velocity_rms": 2.034543037414551,
+            "global_control_native_ratio": 0.0773751750748697,
+            "control_native_cosine": -0.08067718148231506,
+            "mask_active_fraction": 0.25,
+            "max_control_outside_mask": 0.0
+          },
+          {
+            "step_index": 1,
+            "raw_direction_norm": 41.382789611816406,
+            "effective_control_norm": 20.691394805908203,
+            "native_velocity_norm": 181.01515197753906,
+            "active_region_effective_control_rms": 0.3233030438423157,
+            "active_region_native_velocity_rms": 1.573714017868042,
+            "active_control_native_ratio": 0.20543951453155643,
+            "global_effective_control_rms": 0.16165152192115784,
+            "global_native_velocity_rms": 1.414180874824524,
+            "global_control_native_ratio": 0.11430752939663116,
+            "control_native_cosine": -0.031425006687641144,
+            "mask_active_fraction": 0.25,
+            "max_control_outside_mask": 0.0
+          },
+          {
+            "step_index": 2,
+            "raw_direction_norm": 41.234317779541016,
+            "effective_control_norm": 20.617158889770508,
+            "native_velocity_norm": 176.225830078125,
+            "active_region_effective_control_rms": 0.3221431374549866,
+            "active_region_native_velocity_rms": 1.528387188911438,
+            "active_control_native_ratio": 0.2107732515635821,
+            "global_effective_control_rms": 0.1610715687274933,
+            "global_native_velocity_rms": 1.3767642974853516,
+            "global_control_native_ratio": 0.11699283175815056,
+            "control_native_cosine": -0.056462690234184265,
+            "mask_active_fraction": 0.25,
+            "max_control_outside_mask": 0.0
+          },
+          {
+            "step_index": 3,
+            "raw_direction_norm": 43.49338150024414,
+            "effective_control_norm": 21.74669075012207,
+            "native_velocity_norm": 176.091064453125,
+            "active_region_effective_control_rms": 0.33979204297065735,
+            "active_region_native_velocity_rms": 1.5523653030395508,
+            "active_control_native_ratio": 0.2188866514249837,
+            "global_effective_control_rms": 0.16989602148532867,
+            "global_native_velocity_rms": 1.375711441040039,
+            "global_control_native_ratio": 0.12349684419058632,
+            "control_native_cosine": -0.06657673418521881,
+            "mask_active_fraction": 0.25,
+            "max_control_outside_mask": 0.0
+          }
+        ],
+        "trajectory_distances": [
+          {
+            "state_index": 0,
+            "after_step_index": -1,
+            "latent_mad_from_native": 0.0,
+            "latent_l2_from_native": 0.0
+          },
+          {
+            "state_index": 1,
+            "after_step_index": 0,
+            "latent_mad_from_native": 0.0036967825144529343,
+            "latent_l2_from_native": 1.0665515661239624
+          },
+          {
+            "state_index": 2,
+            "after_step_index": 1,
+            "latent_mad_from_native": 0.008387772366404533,
+            "latent_l2_from_native": 1.9874643087387085
+          },
+          {
+            "state_index": 3,
+            "after_step_index": 2,
+            "latent_mad_from_native": 0.01247005257755518,
+            "latent_l2_from_native": 3.007648468017578
+          },
+          {
+            "state_index": 4,
+            "after_step_index": 3,
+            "latent_mad_from_native": 0.017547879368066788,
+            "latent_l2_from_native": 4.290870666503906
+          },
+          {
+            "state_index": 5,
+            "after_step_index": 4,
+            "latent_mad_from_native": 0.018474223092198372,
+            "latent_l2_from_native": 4.504974365234375
+          },
+          {
+            "state_index": 6,
+            "after_step_index": 5,
+            "latent_mad_from_native": 0.019734695553779602,
+            "latent_l2_from_native": 4.877306938171387
+          },
+          {
+            "state_index": 7,
+            "after_step_index": 6,
+            "latent_mad_from_native": 0.02130996622145176,
+            "latent_l2_from_native": 5.409736156463623
+          },
+          {
+            "state_index": 8,
+            "after_step_index": 7,
+            "latent_mad_from_native": 0.023582957684993744,
+            "latent_l2_from_native": 6.116498947143555
+          },
+          {
+            "state_index": 9,
+            "after_step_index": 8,
+            "latent_mad_from_native": 0.02635875903069973,
+            "latent_l2_from_native": 7.003655910491943
+          },
+          {
+            "state_index": 10,
+            "after_step_index": 9,
+            "latent_mad_from_native": 0.029649876058101654,
+            "latent_l2_from_native": 8.054943084716797
+          },
+          {
+            "state_index": 11,
+            "after_step_index": 10,
+            "latent_mad_from_native": 0.034270577132701874,
+            "latent_l2_from_native": 9.36608600616455
+          },
+          {
+            "state_index": 12,
+            "after_step_index": 11,
+            "latent_mad_from_native": 0.042953453958034515,
+            "latent_l2_from_native": 11.441481590270996
+          }
+        ],
+        "endpoint_distances": {
+          "mse_to_source": 0.013051075860857964,
+          "mad_to_source": 0.046639926731586456,
+          "mse_to_full": 0.0008367821574211121,
+          "mad_to_full": 0.010927448980510235,
+          "mse_to_target": 0.002216366585344076,
+          "mad_to_target": 0.019308259710669518,
+          "background_mse_to_source": 0.003939498215913773,
+          "background_mad_to_source": 0.028288448229432106,
+          "inside_velocity_mask_mse_to_source": 0.0341469869017601,
+          "outside_velocity_mask_mse_to_source": 0.0008102359715849161
+        }
+      },
+      "best_iter": 10,
+      "best_family_mean_objective_error": 0.0025390314403921366,
+      "final_objective_error": 0.002216366585344076,
+      "global_control_energy": 0.032773807644844055,
+      "active_control_energy": 0.13109523057937622,
+      "error_reduction": 0.002511195372790098,
+      "error_reduction_per_global_control_energy": 0.07662202085283665
+    },
+    "0.8": {
+      "initial": {
+        "objective_error": 0.0007564097177237272,
+        "terminal_objective_loss": 0.0007564097177237272,
+        "source_blue_score": -0.14011427760124207,
+        "full_blue_score": -0.06981238722801208,
+        "target_blue_score": -0.08387276530265808,
+        "achieved_blue_score": -0.06981238722801208,
+        "controlled_steps": [
+          {
+            "step_index": 0,
+            "raw_direction_norm": 0.0,
+            "effective_control_norm": 0.0,
+            "native_velocity_norm": 260.4215087890625,
+            "active_region_effective_control_rms": 0.0,
+            "active_region_native_velocity_rms": 2.7667975425720215,
+            "active_control_native_ratio": 0.0,
+            "global_effective_control_rms": 0.0,
+            "global_native_velocity_rms": 2.034543037414551,
+            "global_control_native_ratio": 0.0,
+            "control_native_cosine": null,
+            "mask_active_fraction": 0.25,
+            "max_control_outside_mask": 0.0
+          },
+          {
+            "step_index": 1,
+            "raw_direction_norm": 0.0,
+            "effective_control_norm": 0.0,
+            "native_velocity_norm": 181.4399871826172,
+            "active_region_effective_control_rms": 0.0,
+            "active_region_native_velocity_rms": 1.5735987424850464,
+            "active_control_native_ratio": 0.0,
+            "global_effective_control_rms": 0.0,
+            "global_native_velocity_rms": 1.4174998998641968,
+            "global_control_native_ratio": 0.0,
+            "control_native_cosine": null,
+            "mask_active_fraction": 0.25,
+            "max_control_outside_mask": 0.0
+          },
+          {
+            "step_index": 2,
+            "raw_direction_norm": 0.0,
+            "effective_control_norm": 0.0,
+            "native_velocity_norm": 176.74009704589844,
+            "active_region_effective_control_rms": 0.0,
+            "active_region_native_velocity_rms": 1.537780523300171,
+            "active_control_native_ratio": 0.0,
+            "global_effective_control_rms": 0.0,
+            "global_native_velocity_rms": 1.3807820081710815,
+            "global_control_native_ratio": 0.0,
+            "control_native_cosine": null,
+            "mask_active_fraction": 0.25,
+            "max_control_outside_mask": 0.0
+          },
+          {
+            "step_index": 3,
+            "raw_direction_norm": 0.0,
+            "effective_control_norm": 0.0,
+            "native_velocity_norm": 177.25193786621094,
+            "active_region_effective_control_rms": 0.0,
+            "active_region_native_velocity_rms": 1.5711815357208252,
+            "active_control_native_ratio": 0.0,
+            "global_effective_control_rms": 0.0,
+            "global_native_velocity_rms": 1.384780764579773,
+            "global_control_native_ratio": 0.0,
+            "control_native_cosine": null,
+            "mask_active_fraction": 0.25,
+            "max_control_outside_mask": 0.0
+          }
+        ],
+        "trajectory_distances": [
+          {
+            "state_index": 0,
+            "after_step_index": -1,
+            "latent_mad_from_native": 0.0,
+            "latent_l2_from_native": 0.0
+          },
+          {
+            "state_index": 1,
+            "after_step_index": 0,
+            "latent_mad_from_native": 0.0,
+            "latent_l2_from_native": 0.0
+          },
+          {
+            "state_index": 2,
+            "after_step_index": 1,
+            "latent_mad_from_native": 0.0,
+            "latent_l2_from_native": 0.0
+          },
+          {
+            "state_index": 3,
+            "after_step_index": 2,
+            "latent_mad_from_native": 0.0,
+            "latent_l2_from_native": 0.0
+          },
+          {
+            "state_index": 4,
+            "after_step_index": 3,
+            "latent_mad_from_native": 0.0,
+            "latent_l2_from_native": 0.0
+          },
+          {
+            "state_index": 5,
+            "after_step_index": 4,
+            "latent_mad_from_native": 0.0,
+            "latent_l2_from_native": 0.0
+          },
+          {
+            "state_index": 6,
+            "after_step_index": 5,
+            "latent_mad_from_native": 0.0,
+            "latent_l2_from_native": 0.0
+          },
+          {
+            "state_index": 7,
+            "after_step_index": 6,
+            "latent_mad_from_native": 0.0,
+            "latent_l2_from_native": 0.0
+          },
+          {
+            "state_index": 8,
+            "after_step_index": 7,
+            "latent_mad_from_native": 0.0,
+            "latent_l2_from_native": 0.0
+          },
+          {
+            "state_index": 9,
+            "after_step_index": 8,
+            "latent_mad_from_native": 0.0,
+            "latent_l2_from_native": 0.0
+          },
+          {
+            "state_index": 10,
+            "after_step_index": 9,
+            "latent_mad_from_native": 0.0,
+            "latent_l2_from_native": 0.0
+          },
+          {
+            "state_index": 11,
+            "after_step_index": 10,
+            "latent_mad_from_native": 0.0,
+            "latent_l2_from_native": 0.0
+          },
+          {
+            "state_index": 12,
+            "after_step_index": 11,
+            "latent_mad_from_native": 0.0,
+            "latent_l2_from_native": 0.0
+          }
+        ],
+        "endpoint_distances": {
+          "mse_to_source": 0.018910249695181847,
+          "mad_to_source": 0.05583079904317856,
+          "mse_to_full": 0.0,
+          "mad_to_full": 0.0,
+          "mse_to_target": 0.0007564084371551871,
+          "mad_to_target": 0.011190409772098064,
+          "background_mse_to_source": 0.006174194160848856,
+          "background_mad_to_source": 0.03413531184196472,
+          "inside_velocity_mask_mse_to_source": 0.04966505989432335,
+          "outside_velocity_mask_mse_to_source": 0.0010648666648194194
+        }
+      },
+      "best": {
+        "objective_error": 0.0003861207515001297,
+        "terminal_objective_loss": 0.0003861207515001297,
+        "source_blue_score": -0.14011427760124207,
+        "full_blue_score": -0.06981238722801208,
+        "target_blue_score": -0.08387276530265808,
+        "achieved_blue_score": -0.07259541749954224,
+        "controlled_steps": [
+          {
+            "step_index": 0,
+            "raw_direction_norm": 40.30031967163086,
+            "effective_control_norm": 8.060064315795898,
+            "native_velocity_norm": 260.4215087890625,
+            "active_region_effective_control_rms": 0.1259385049343109,
+            "active_region_native_velocity_rms": 2.7667975425720215,
+            "active_control_native_ratio": 0.04551778834429576,
+            "global_effective_control_rms": 0.06296925246715546,
+            "global_native_velocity_rms": 2.034543037414551,
+            "global_control_native_ratio": 0.030950071494764395,
+            "control_native_cosine": -0.08067718148231506,
+            "mask_active_fraction": 0.25,
+            "max_control_outside_mask": 0.0
+          },
+          {
+            "step_index": 1,
+            "raw_direction_norm": 41.382789611816406,
+            "effective_control_norm": 8.276557922363281,
+            "native_velocity_norm": 180.86900329589844,
+            "active_region_effective_control_rms": 0.12932121753692627,
+            "active_region_native_velocity_rms": 1.5721226930618286,
+            "active_control_native_ratio": 0.08225898532452537,
+            "global_effective_control_rms": 0.06466060876846313,
+            "global_native_velocity_rms": 1.4130390882492065,
+            "global_control_native_ratio": 0.04575995760214912,
+            "control_native_cosine": -0.027807407081127167,
+            "mask_active_fraction": 0.25,
+            "max_control_outside_mask": 0.0
+          },
+          {
+            "step_index": 2,
+            "raw_direction_norm": 41.234317779541016,
+            "effective_control_norm": 8.246864318847656,
+            "native_velocity_norm": 176.38970947265625,
+            "active_region_effective_control_rms": 0.12885725498199463,
+            "active_region_native_velocity_rms": 1.5354589223861694,
+            "active_control_native_ratio": 0.08392100440026419,
+            "global_effective_control_rms": 0.06442862749099731,
+            "global_native_velocity_rms": 1.378044605255127,
+            "global_control_native_ratio": 0.04675365894928285,
+            "control_native_cosine": -0.057729631662368774,
+            "mask_active_fraction": 0.25,
+            "max_control_outside_mask": 0.0
+          },
+          {
+            "step_index": 3,
+            "raw_direction_norm": 43.49338150024414,
+            "effective_control_norm": 8.698676109313965,
+            "native_velocity_norm": 176.5872039794922,
+            "active_region_effective_control_rms": 0.1359168142080307,
+            "active_region_native_velocity_rms": 1.5629448890686035,
+            "active_control_native_ratio": 0.08696200048936262,
+            "global_effective_control_rms": 0.06795840710401535,
+            "global_native_velocity_rms": 1.3795875310897827,
+            "global_control_native_ratio": 0.049259945869714196,
+            "control_native_cosine": -0.06892585754394531,
+            "mask_active_fraction": 0.25,
+            "max_control_outside_mask": 0.0
+          }
+        ],
+        "trajectory_distances": [
+          {
+            "state_index": 0,
+            "after_step_index": -1,
+            "latent_mad_from_native": 0.0,
+            "latent_l2_from_native": 0.0
+          },
+          {
+            "state_index": 1,
+            "after_step_index": 0,
+            "latent_mad_from_native": 0.0014862418174743652,
+            "latent_l2_from_native": 0.4502831995487213
+          },
+          {
+            "state_index": 2,
+            "after_step_index": 1,
+            "latent_mad_from_native": 0.0038968571461737156,
+            "latent_l2_from_native": 0.8823349475860596
+          },
+          {
+            "state_index": 3,
+            "after_step_index": 2,
+            "latent_mad_from_native": 0.005828115623444319,
+            "latent_l2_from_native": 1.2957133054733276
+          },
+          {
+            "state_index": 4,
+            "after_step_index": 3,
+            "latent_mad_from_native": 0.008097533136606216,
+            "latent_l2_from_native": 1.8045214414596558
+          },
+          {
+            "state_index": 5,
+            "after_step_index": 4,
+            "latent_mad_from_native": 0.008654249832034111,
+            "latent_l2_from_native": 1.9072186946868896
+          },
+          {
+            "state_index": 6,
+            "after_step_index": 5,
+            "latent_mad_from_native": 0.009524799883365631,
+            "latent_l2_from_native": 2.0704660415649414
+          },
+          {
+            "state_index": 7,
+            "after_step_index": 6,
+            "latent_mad_from_native": 0.010406620800495148,
+            "latent_l2_from_native": 2.285893678665161
+          },
+          {
+            "state_index": 8,
+            "after_step_index": 7,
+            "latent_mad_from_native": 0.01155310682952404,
+            "latent_l2_from_native": 2.5733110904693604
+          },
+          {
+            "state_index": 9,
+            "after_step_index": 8,
+            "latent_mad_from_native": 0.012959316372871399,
+            "latent_l2_from_native": 2.938185930252075
+          },
+          {
+            "state_index": 10,
+            "after_step_index": 9,
+            "latent_mad_from_native": 0.014693861827254295,
+            "latent_l2_from_native": 3.3815133571624756
+          },
+          {
+            "state_index": 11,
+            "after_step_index": 10,
+            "latent_mad_from_native": 0.01721891760826111,
+            "latent_l2_from_native": 4.02689790725708
+          },
+          {
+            "state_index": 12,
+            "after_step_index": 11,
+            "latent_mad_from_native": 0.0225972980260849,
+            "latent_l2_from_native": 5.377466201782227
+          }
+        ],
+        "endpoint_distances": {
+          "mse_to_source": 0.01644839718937874,
+          "mad_to_source": 0.05134877562522888,
+          "mse_to_full": 0.00015260171494446695,
+          "mad_to_full": 0.005797823425382376,
+          "mse_to_target": 0.00038622418651357293,
+          "mad_to_target": 0.007991967722773552,
+          "background_mse_to_source": 0.005154200829565525,
+          "background_mad_to_source": 0.030850060284137726,
+          "inside_velocity_mask_mse_to_source": 0.043256789445877075,
+          "outside_velocity_mask_mse_to_source": 0.000892908894456923
+        }
+      },
+      "final": {
+        "objective_error": 0.0003861207515001297,
+        "terminal_objective_loss": 0.0003861207515001297,
+        "source_blue_score": -0.14011427760124207,
+        "full_blue_score": -0.06981238722801208,
+        "target_blue_score": -0.08387276530265808,
+        "achieved_blue_score": -0.07259541749954224,
+        "controlled_steps": [
+          {
+            "step_index": 0,
+            "raw_direction_norm": 40.30031967163086,
+            "effective_control_norm": 8.060064315795898,
+            "native_velocity_norm": 260.4215087890625,
+            "active_region_effective_control_rms": 0.1259385049343109,
+            "active_region_native_velocity_rms": 2.7667975425720215,
+            "active_control_native_ratio": 0.04551778834429576,
+            "global_effective_control_rms": 0.06296925246715546,
+            "global_native_velocity_rms": 2.034543037414551,
+            "global_control_native_ratio": 0.030950071494764395,
+            "control_native_cosine": -0.08067718148231506,
+            "mask_active_fraction": 0.25,
+            "max_control_outside_mask": 0.0
+          },
+          {
+            "step_index": 1,
+            "raw_direction_norm": 41.382789611816406,
+            "effective_control_norm": 8.276557922363281,
+            "native_velocity_norm": 180.86900329589844,
+            "active_region_effective_control_rms": 0.12932121753692627,
+            "active_region_native_velocity_rms": 1.5721226930618286,
+            "active_control_native_ratio": 0.08225898532452537,
+            "global_effective_control_rms": 0.06466060876846313,
+            "global_native_velocity_rms": 1.4130390882492065,
+            "global_control_native_ratio": 0.04575995760214912,
+            "control_native_cosine": -0.027807407081127167,
+            "mask_active_fraction": 0.25,
+            "max_control_outside_mask": 0.0
+          },
+          {
+            "step_index": 2,
+            "raw_direction_norm": 41.234317779541016,
+            "effective_control_norm": 8.246864318847656,
+            "native_velocity_norm": 176.38970947265625,
+            "active_region_effective_control_rms": 0.12885725498199463,
+            "active_region_native_velocity_rms": 1.5354589223861694,
+            "active_control_native_ratio": 0.08392100440026419,
+            "global_effective_control_rms": 0.06442862749099731,
+            "global_native_velocity_rms": 1.378044605255127,
+            "global_control_native_ratio": 0.04675365894928285,
+            "control_native_cosine": -0.057729631662368774,
+            "mask_active_fraction": 0.25,
+            "max_control_outside_mask": 0.0
+          },
+          {
+            "step_index": 3,
+            "raw_direction_norm": 43.49338150024414,
+            "effective_control_norm": 8.698676109313965,
+            "native_velocity_norm": 176.5872039794922,
+            "active_region_effective_control_rms": 0.1359168142080307,
+            "active_region_native_velocity_rms": 1.5629448890686035,
+            "active_control_native_ratio": 0.08696200048936262,
+            "global_effective_control_rms": 0.06795840710401535,
+            "global_native_velocity_rms": 1.3795875310897827,
+            "global_control_native_ratio": 0.049259945869714196,
+            "control_native_cosine": -0.06892585754394531,
+            "mask_active_fraction": 0.25,
+            "max_control_outside_mask": 0.0
+          }
+        ],
+        "trajectory_distances": [
+          {
+            "state_index": 0,
+            "after_step_index": -1,
+            "latent_mad_from_native": 0.0,
+            "latent_l2_from_native": 0.0
+          },
+          {
+            "state_index": 1,
+            "after_step_index": 0,
+            "latent_mad_from_native": 0.0014862418174743652,
+            "latent_l2_from_native": 0.4502831995487213
+          },
+          {
+            "state_index": 2,
+            "after_step_index": 1,
+            "latent_mad_from_native": 0.0038968571461737156,
+            "latent_l2_from_native": 0.8823349475860596
+          },
+          {
+            "state_index": 3,
+            "after_step_index": 2,
+            "latent_mad_from_native": 0.005828115623444319,
+            "latent_l2_from_native": 1.2957133054733276
+          },
+          {
+            "state_index": 4,
+            "after_step_index": 3,
+            "latent_mad_from_native": 0.008097533136606216,
+            "latent_l2_from_native": 1.8045214414596558
+          },
+          {
+            "state_index": 5,
+            "after_step_index": 4,
+            "latent_mad_from_native": 0.008654249832034111,
+            "latent_l2_from_native": 1.9072186946868896
+          },
+          {
+            "state_index": 6,
+            "after_step_index": 5,
+            "latent_mad_from_native": 0.009524799883365631,
+            "latent_l2_from_native": 2.0704660415649414
+          },
+          {
+            "state_index": 7,
+            "after_step_index": 6,
+            "latent_mad_from_native": 0.010406620800495148,
+            "latent_l2_from_native": 2.285893678665161
+          },
+          {
+            "state_index": 8,
+            "after_step_index": 7,
+            "latent_mad_from_native": 0.01155310682952404,
+            "latent_l2_from_native": 2.5733110904693604
+          },
+          {
+            "state_index": 9,
+            "after_step_index": 8,
+            "latent_mad_from_native": 0.012959316372871399,
+            "latent_l2_from_native": 2.938185930252075
+          },
+          {
+            "state_index": 10,
+            "after_step_index": 9,
+            "latent_mad_from_native": 0.014693861827254295,
+            "latent_l2_from_native": 3.3815133571624756
+          },
+          {
+            "state_index": 11,
+            "after_step_index": 10,
+            "latent_mad_from_native": 0.01721891760826111,
+            "latent_l2_from_native": 4.02689790725708
+          },
+          {
+            "state_index": 12,
+            "after_step_index": 11,
+            "latent_mad_from_native": 0.0225972980260849,
+            "latent_l2_from_native": 5.377466201782227
+          }
+        ],
+        "endpoint_distances": {
+          "mse_to_source": 0.01644839718937874,
+          "mad_to_source": 0.05134877562522888,
+          "mse_to_full": 0.00015260171494446695,
+          "mad_to_full": 0.005797823425382376,
+          "mse_to_target": 0.00038622418651357293,
+          "mad_to_target": 0.007991967722773552,
+          "background_mse_to_source": 0.005154200829565525,
+          "background_mad_to_source": 0.030850060284137726,
+          "inside_velocity_mask_mse_to_source": 0.043256789445877075,
+          "outside_velocity_mask_mse_to_source": 0.000892908894456923
+        }
+      },
+      "best_iter": 10,
+      "best_family_mean_objective_error": 0.0025390314403921366,
+      "final_objective_error": 0.0003861207515001297,
+      "global_control_energy": 0.032773807644844055,
+      "active_control_energy": 0.13109523057937622,
+      "error_reduction": 0.0003702889662235975,
+      "error_reduction_per_global_control_energy": 0.011298319994925919
+    }
+  },
+  "results": {
+    "0.2": {
+      "initial": {
+        "objective_error": 0.00501460675150156,
+        "terminal_objective_loss": 0.00501460675150156,
+        "source_blue_score": -0.14011427760124207,
+        "full_blue_score": -0.06981238722801208,
+        "target_blue_score": -0.12605389952659607,
+        "achieved_blue_score": -0.08397111296653748,
+        "controlled_steps": [
+          {
+            "step_index": 0,
+            "raw_direction_norm": 40.30031967163086,
+            "effective_control_norm": 32.240257263183594,
+            "native_velocity_norm": 260.4215087890625,
+            "active_region_effective_control_rms": 0.5037540197372437,
+            "active_region_native_velocity_rms": 2.7667975425720215,
+            "active_control_native_ratio": 0.18207115337718305,
+            "global_effective_control_rms": 0.2518770098686218,
+            "global_native_velocity_rms": 2.034543037414551,
+            "global_control_native_ratio": 0.12380028597905758,
+            "control_native_cosine": -0.08067718148231506,
+            "mask_active_fraction": 0.25,
+            "max_control_outside_mask": 0.0
+          },
+          {
+            "step_index": 1,
+            "raw_direction_norm": 41.382789611816406,
+            "effective_control_norm": 33.106231689453125,
+            "native_velocity_norm": 180.4662322998047,
+            "active_region_effective_control_rms": 0.5172848701477051,
+            "active_region_native_velocity_rms": 1.5721925497055054,
+            "active_control_native_ratio": 0.329021321367157,
+            "global_effective_control_rms": 0.25864243507385254,
+            "global_native_velocity_rms": 1.4098924398422241,
+            "global_control_native_ratio": 0.18344834525305792,
+            "control_native_cosine": -0.036152686923742294,
+            "mask_active_fraction": 0.25,
+            "max_control_outside_mask": 0.0
+          },
+          {
+            "step_index": 2,
+            "raw_direction_norm": 41.234317779541016,
+            "effective_control_norm": 32.987457275390625,
+            "native_velocity_norm": 175.29771423339844,
+            "active_region_effective_control_rms": 0.5154290199279785,
+            "active_region_native_velocity_rms": 1.5198222398757935,
+            "active_control_native_ratio": 0.3391377007156453,
+            "global_effective_control_rms": 0.25771450996398926,
+            "global_native_velocity_rms": 1.3695133924484253,
+            "global_control_native_ratio": 0.18817962013737266,
+            "control_native_cosine": -0.05804085731506348,
+            "mask_active_fraction": 0.25,
+            "max_control_outside_mask": 0.0
+          },
+          {
+            "step_index": 3,
+            "raw_direction_norm": 43.49338150024414,
+            "effective_control_norm": 34.79470443725586,
+            "native_velocity_norm": 175.18600463867188,
+            "active_region_effective_control_rms": 0.5436672568321228,
+            "active_region_native_velocity_rms": 1.5400091409683228,
+            "active_control_native_ratio": 0.3530285907850373,
+            "global_effective_control_rms": 0.2718336284160614,
+            "global_native_velocity_rms": 1.368640661239624,
+            "global_control_native_ratio": 0.1986157770366493,
+            "control_native_cosine": -0.060207873582839966,
+            "mask_active_fraction": 0.25,
+            "max_control_outside_mask": 0.0
+          }
+        ],
+        "trajectory_distances": [
+          {
+            "state_index": 0,
+            "after_step_index": -1,
+            "latent_mad_from_native": 0.0,
+            "latent_l2_from_native": 0.0
+          },
+          {
+            "state_index": 1,
+            "after_step_index": 0,
+            "latent_mad_from_native": 0.005884058773517609,
+            "latent_l2_from_native": 1.6895734071731567
+          },
+          {
+            "state_index": 2,
+            "after_step_index": 1,
+            "latent_mad_from_native": 0.01293223351240158,
+            "latent_l2_from_native": 3.1134629249572754
+          },
+          {
+            "state_index": 3,
+            "after_step_index": 2,
+            "latent_mad_from_native": 0.01997414231300354,
+            "latent_l2_from_native": 4.740822792053223
+          },
+          {
+            "state_index": 4,
+            "after_step_index": 3,
+            "latent_mad_from_native": 0.028645865619182587,
+            "latent_l2_from_native": 6.849634647369385
+          },
+          {
+            "state_index": 5,
+            "after_step_index": 4,
+            "latent_mad_from_native": 0.030778877437114716,
+            "latent_l2_from_native": 7.283107757568359
+          },
+          {
+            "state_index": 6,
+            "after_step_index": 5,
+            "latent_mad_from_native": 0.033603839576244354,
+            "latent_l2_from_native": 7.964734077453613
+          },
+          {
+            "state_index": 7,
+            "after_step_index": 6,
+            "latent_mad_from_native": 0.0366770401597023,
+            "latent_l2_from_native": 8.872769355773926
+          },
+          {
+            "state_index": 8,
+            "after_step_index": 7,
+            "latent_mad_from_native": 0.040709976106882095,
+            "latent_l2_from_native": 10.049773216247559
+          },
+          {
+            "state_index": 9,
+            "after_step_index": 8,
+            "latent_mad_from_native": 0.0455172061920166,
+            "latent_l2_from_native": 11.480973243713379
+          },
+          {
+            "state_index": 10,
+            "after_step_index": 9,
+            "latent_mad_from_native": 0.05146607384085655,
+            "latent_l2_from_native": 13.190068244934082
+          },
+          {
+            "state_index": 11,
+            "after_step_index": 10,
+            "latent_mad_from_native": 0.05937141180038452,
+            "latent_l2_from_native": 15.283780097961426
+          },
+          {
+            "state_index": 12,
+            "after_step_index": 11,
+            "latent_mad_from_native": 0.07287177443504333,
+            "latent_l2_from_native": 18.248767852783203
+          }
+        ],
+        "endpoint_distances": {
+          "mse_to_source": 0.009491566568613052,
+          "mad_to_source": 0.039530977606773376,
+          "mse_to_full": 0.002234967425465584,
+          "mad_to_full": 0.01918821595609188,
+          "mse_to_target": 0.005014269612729549,
+          "mad_to_target": 0.028809096664190292,
+          "background_mse_to_source": 0.0027964843902736902,
+          "background_mad_to_source": 0.023640265688300133,
+          "inside_velocity_mask_mse_to_source": 0.024833206087350845,
+          "outside_velocity_mask_mse_to_source": 0.0005896270740777254
+        }
+      },
+      "best": {
+        "objective_error": 0.0042152064852416515,
+        "terminal_objective_loss": 0.0042152064852416515,
+        "source_blue_score": -0.14011427760124207,
+        "full_blue_score": -0.06981238722801208,
+        "target_blue_score": -0.12605389952659607,
+        "achieved_blue_score": -0.08744442462921143,
+        "controlled_steps": [
+          {
+            "step_index": 0,
+            "raw_direction_norm": 40.30031967163086,
+            "effective_control_norm": 35.85403823852539,
+            "native_velocity_norm": 260.4215087890625,
+            "active_region_effective_control_rms": 0.5602193474769592,
+            "active_region_native_velocity_rms": 2.7667975425720215,
+            "active_control_native_ratio": 0.2024793425818132,
+            "global_effective_control_rms": 0.2801096737384796,
+            "global_native_velocity_rms": 2.034543037414551,
+            "global_control_native_ratio": 0.137676946905206,
+            "control_native_cosine": -0.08067718148231506,
+            "mask_active_fraction": 0.25,
+            "max_control_outside_mask": 0.0
+          },
+          {
+            "step_index": 1,
+            "raw_direction_norm": 41.382789611816406,
+            "effective_control_norm": 36.81707763671875,
+            "native_velocity_norm": 180.39508056640625,
+            "active_region_effective_control_rms": 0.5752668380737305,
+            "active_region_native_velocity_rms": 1.569097876548767,
+            "active_control_native_ratio": 0.36662266049268427,
+            "global_effective_control_rms": 0.28763341903686523,
+            "global_native_velocity_rms": 1.4093365669250488,
+            "global_control_native_ratio": 0.20409136169966569,
+            "control_native_cosine": -0.0361090824007988,
+            "mask_active_fraction": 0.25,
+            "max_control_outside_mask": 0.0
+          },
+          {
+            "step_index": 2,
+            "raw_direction_norm": 41.234317779541016,
+            "effective_control_norm": 36.68498992919922,
+            "native_velocity_norm": 175.45962524414062,
+            "active_region_effective_control_rms": 0.5732030272483826,
+            "active_region_native_velocity_rms": 1.5146081447601318,
+            "active_control_native_ratio": 0.3784497193095186,
+            "global_effective_control_rms": 0.2866015136241913,
+            "global_native_velocity_rms": 1.3707783222198486,
+            "global_control_native_ratio": 0.20907938152811195,
+            "control_native_cosine": -0.055265024304389954,
+            "mask_active_fraction": 0.25,
+            "max_control_outside_mask": 0.0
+          },
+          {
+            "step_index": 3,
+            "raw_direction_norm": 43.49338150024414,
+            "effective_control_norm": 38.6948127746582,
+            "native_velocity_norm": 175.2894287109375,
+            "active_region_effective_control_rms": 0.6046064496040344,
+            "active_region_native_velocity_rms": 1.5384340286254883,
+            "active_control_native_ratio": 0.3930012196520505,
+            "global_effective_control_rms": 0.3023032248020172,
+            "global_native_velocity_rms": 1.3694486618041992,
+            "global_control_native_ratio": 0.22074812531033008,
+            "control_native_cosine": -0.05819240212440491,
+            "mask_active_fraction": 0.25,
+            "max_control_outside_mask": 0.0
+          }
+        ],
+        "trajectory_distances": [
+          {
+            "state_index": 0,
+            "after_step_index": -1,
+            "latent_mad_from_native": 0.0,
+            "latent_l2_from_native": 0.0
+          },
+          {
+            "state_index": 1,
+            "after_step_index": 0,
+            "latent_mad_from_native": 0.00655461847782135,
+            "latent_l2_from_native": 1.8813629150390625
+          },
+          {
+            "state_index": 2,
+            "after_step_index": 1,
+            "latent_mad_from_native": 0.014208052307367325,
+            "latent_l2_from_native": 3.4639008045196533
+          },
+          {
+            "state_index": 3,
+            "after_step_index": 2,
+            "latent_mad_from_native": 0.021737750619649887,
+            "latent_l2_from_native": 5.298087120056152
+          },
+          {
+            "state_index": 4,
+            "after_step_index": 3,
+            "latent_mad_from_native": 0.031209878623485565,
+            "latent_l2_from_native": 7.65717887878418
+          },
+          {
+            "state_index": 5,
+            "after_step_index": 4,
+            "latent_mad_from_native": 0.03375375643372536,
+            "latent_l2_from_native": 8.188576698303223
+          },
+          {
+            "state_index": 6,
+            "after_step_index": 5,
+            "latent_mad_from_native": 0.036817021667957306,
+            "latent_l2_from_native": 8.98983383178711
+          },
+          {
+            "state_index": 7,
+            "after_step_index": 6,
+            "latent_mad_from_native": 0.04020583629608154,
+            "latent_l2_from_native": 10.047266960144043
+          },
+          {
+            "state_index": 8,
+            "after_step_index": 7,
+            "latent_mad_from_native": 0.044755466282367706,
+            "latent_l2_from_native": 11.42290210723877
+          },
+          {
+            "state_index": 9,
+            "after_step_index": 8,
+            "latent_mad_from_native": 0.05016641318798065,
+            "latent_l2_from_native": 13.076949119567871
+          },
+          {
+            "state_index": 10,
+            "after_step_index": 9,
+            "latent_mad_from_native": 0.05670614540576935,
+            "latent_l2_from_native": 15.026851654052734
+          },
+          {
+            "state_index": 11,
+            "after_step_index": 10,
+            "latent_mad_from_native": 0.06530849635601044,
+            "latent_l2_from_native": 17.393817901611328
+          },
+          {
+            "state_index": 12,
+            "after_step_index": 11,
+            "latent_mad_from_native": 0.07992249727249146,
+            "latent_l2_from_native": 20.67293357849121
+          }
+        ],
+        "endpoint_distances": {
+          "mse_to_source": 0.008325125090777874,
+          "mad_to_source": 0.037969931960105896,
+          "mse_to_full": 0.0029037350323051214,
+          "mad_to_full": 0.021071702241897583,
+          "mse_to_target": 0.004214903339743614,
+          "mad_to_target": 0.027346547693014145,
+          "background_mse_to_source": 0.0024964301846921444,
+          "background_mad_to_source": 0.023207101970911026,
+          "inside_velocity_mask_mse_to_source": 0.021646978333592415,
+          "outside_velocity_mask_mse_to_source": 0.0005951604689471424
+        }
+      },
+      "final": {
+        "objective_error": 0.0042152064852416515,
+        "terminal_objective_loss": 0.0042152064852416515,
+        "source_blue_score": -0.14011427760124207,
+        "full_blue_score": -0.06981238722801208,
+        "target_blue_score": -0.12605389952659607,
+        "achieved_blue_score": -0.08744442462921143,
+        "controlled_steps": [
+          {
+            "step_index": 0,
+            "raw_direction_norm": 40.30031967163086,
+            "effective_control_norm": 35.85403823852539,
+            "native_velocity_norm": 260.4215087890625,
+            "active_region_effective_control_rms": 0.5602193474769592,
+            "active_region_native_velocity_rms": 2.7667975425720215,
+            "active_control_native_ratio": 0.2024793425818132,
+            "global_effective_control_rms": 0.2801096737384796,
+            "global_native_velocity_rms": 2.034543037414551,
+            "global_control_native_ratio": 0.137676946905206,
+            "control_native_cosine": -0.08067718148231506,
+            "mask_active_fraction": 0.25,
+            "max_control_outside_mask": 0.0
+          },
+          {
+            "step_index": 1,
+            "raw_direction_norm": 41.382789611816406,
+            "effective_control_norm": 36.81707763671875,
+            "native_velocity_norm": 180.39508056640625,
+            "active_region_effective_control_rms": 0.5752668380737305,
+            "active_region_native_velocity_rms": 1.569097876548767,
+            "active_control_native_ratio": 0.36662266049268427,
+            "global_effective_control_rms": 0.28763341903686523,
+            "global_native_velocity_rms": 1.4093365669250488,
+            "global_control_native_ratio": 0.20409136169966569,
+            "control_native_cosine": -0.0361090824007988,
+            "mask_active_fraction": 0.25,
+            "max_control_outside_mask": 0.0
+          },
+          {
+            "step_index": 2,
+            "raw_direction_norm": 41.234317779541016,
+            "effective_control_norm": 36.68498992919922,
+            "native_velocity_norm": 175.45962524414062,
+            "active_region_effective_control_rms": 0.5732030272483826,
+            "active_region_native_velocity_rms": 1.5146081447601318,
+            "active_control_native_ratio": 0.3784497193095186,
+            "global_effective_control_rms": 0.2866015136241913,
+            "global_native_velocity_rms": 1.3707783222198486,
+            "global_control_native_ratio": 0.20907938152811195,
+            "control_native_cosine": -0.055265024304389954,
+            "mask_active_fraction": 0.25,
+            "max_control_outside_mask": 0.0
+          },
+          {
+            "step_index": 3,
+            "raw_direction_norm": 43.49338150024414,
+            "effective_control_norm": 38.6948127746582,
+            "native_velocity_norm": 175.2894287109375,
+            "active_region_effective_control_rms": 0.6046064496040344,
+            "active_region_native_velocity_rms": 1.5384340286254883,
+            "active_control_native_ratio": 0.3930012196520505,
+            "global_effective_control_rms": 0.3023032248020172,
+            "global_native_velocity_rms": 1.3694486618041992,
+            "global_control_native_ratio": 0.22074812531033008,
+            "control_native_cosine": -0.05819240212440491,
+            "mask_active_fraction": 0.25,
+            "max_control_outside_mask": 0.0
+          }
+        ],
+        "trajectory_distances": [
+          {
+            "state_index": 0,
+            "after_step_index": -1,
+            "latent_mad_from_native": 0.0,
+            "latent_l2_from_native": 0.0
+          },
+          {
+            "state_index": 1,
+            "after_step_index": 0,
+            "latent_mad_from_native": 0.00655461847782135,
+            "latent_l2_from_native": 1.8813629150390625
+          },
+          {
+            "state_index": 2,
+            "after_step_index": 1,
+            "latent_mad_from_native": 0.014208052307367325,
+            "latent_l2_from_native": 3.4639008045196533
+          },
+          {
+            "state_index": 3,
+            "after_step_index": 2,
+            "latent_mad_from_native": 0.021737750619649887,
+            "latent_l2_from_native": 5.298087120056152
+          },
+          {
+            "state_index": 4,
+            "after_step_index": 3,
+            "latent_mad_from_native": 0.031209878623485565,
+            "latent_l2_from_native": 7.65717887878418
+          },
+          {
+            "state_index": 5,
+            "after_step_index": 4,
+            "latent_mad_from_native": 0.03375375643372536,
+            "latent_l2_from_native": 8.188576698303223
+          },
+          {
+            "state_index": 6,
+            "after_step_index": 5,
+            "latent_mad_from_native": 0.036817021667957306,
+            "latent_l2_from_native": 8.98983383178711
+          },
+          {
+            "state_index": 7,
+            "after_step_index": 6,
+            "latent_mad_from_native": 0.04020583629608154,
+            "latent_l2_from_native": 10.047266960144043
+          },
+          {
+            "state_index": 8,
+            "after_step_index": 7,
+            "latent_mad_from_native": 0.044755466282367706,
+            "latent_l2_from_native": 11.42290210723877
+          },
+          {
+            "state_index": 9,
+            "after_step_index": 8,
+            "latent_mad_from_native": 0.05016641318798065,
+            "latent_l2_from_native": 13.076949119567871
+          },
+          {
+            "state_index": 10,
+            "after_step_index": 9,
+            "latent_mad_from_native": 0.05670614540576935,
+            "latent_l2_from_native": 15.026851654052734
+          },
+          {
+            "state_index": 11,
+            "after_step_index": 10,
+            "latent_mad_from_native": 0.06530849635601044,
+            "latent_l2_from_native": 17.393817901611328
+          },
+          {
+            "state_index": 12,
+            "after_step_index": 11,
+            "latent_mad_from_native": 0.07992249727249146,
+            "latent_l2_from_native": 20.67293357849121
+          }
+        ],
+        "endpoint_distances": {
+          "mse_to_source": 0.008325125090777874,
+          "mad_to_source": 0.037969931960105896,
+          "mse_to_full": 0.0029037350323051214,
+          "mad_to_full": 0.021071702241897583,
+          "mse_to_target": 0.004214903339743614,
+          "mad_to_target": 0.027346547693014145,
+          "background_mse_to_source": 0.0024964301846921444,
+          "background_mad_to_source": 0.023207101970911026,
+          "inside_velocity_mask_mse_to_source": 0.021646978333592415,
+          "outside_velocity_mask_mse_to_source": 0.0005951604689471424
+        }
+      },
+      "best_iter": 10,
+      "best_family_mean_objective_error": 0.001992354247098168,
+      "final_objective_error": 0.0042152064852416515,
+      "global_control_energy": 0.08368051797151566,
+      "active_control_energy": 0.3347220718860626,
+      "error_reduction": 0.0007994002662599087,
+      "error_reduction_per_global_control_energy": 0.00955300332309152
+    },
+    "0.5": {
+      "initial": {
+        "objective_error": 0.002216366585344076,
+        "terminal_objective_loss": 0.002216366585344076,
+        "source_blue_score": -0.14011427760124207,
+        "full_blue_score": -0.06981238722801208,
+        "target_blue_score": -0.10496333241462708,
+        "achieved_blue_score": -0.07909297943115234,
+        "controlled_steps": [
+          {
+            "step_index": 0,
+            "raw_direction_norm": 40.30031967163086,
+            "effective_control_norm": 20.15015983581543,
+            "native_velocity_norm": 260.4215087890625,
+            "active_region_effective_control_rms": 0.3148462474346161,
+            "active_region_native_velocity_rms": 2.7667975425720215,
+            "active_control_native_ratio": 0.11379446547503229,
+            "global_effective_control_rms": 0.15742312371730804,
+            "global_native_velocity_rms": 2.034543037414551,
+            "global_control_native_ratio": 0.0773751750748697,
+            "control_native_cosine": -0.08067718148231506,
+            "mask_active_fraction": 0.25,
+            "max_control_outside_mask": 0.0
+          },
+          {
+            "step_index": 1,
+            "raw_direction_norm": 41.382789611816406,
+            "effective_control_norm": 20.691394805908203,
+            "native_velocity_norm": 181.01515197753906,
+            "active_region_effective_control_rms": 0.3233030438423157,
+            "active_region_native_velocity_rms": 1.573714017868042,
+            "active_control_native_ratio": 0.20543951453155643,
+            "global_effective_control_rms": 0.16165152192115784,
+            "global_native_velocity_rms": 1.414180874824524,
+            "global_control_native_ratio": 0.11430752939663116,
+            "control_native_cosine": -0.031425006687641144,
+            "mask_active_fraction": 0.25,
+            "max_control_outside_mask": 0.0
+          },
+          {
+            "step_index": 2,
+            "raw_direction_norm": 41.234317779541016,
+            "effective_control_norm": 20.617158889770508,
+            "native_velocity_norm": 176.225830078125,
+            "active_region_effective_control_rms": 0.3221431374549866,
+            "active_region_native_velocity_rms": 1.528387188911438,
+            "active_control_native_ratio": 0.2107732515635821,
+            "global_effective_control_rms": 0.1610715687274933,
+            "global_native_velocity_rms": 1.3767642974853516,
+            "global_control_native_ratio": 0.11699283175815056,
+            "control_native_cosine": -0.056462690234184265,
+            "mask_active_fraction": 0.25,
+            "max_control_outside_mask": 0.0
+          },
+          {
+            "step_index": 3,
+            "raw_direction_norm": 43.49338150024414,
+            "effective_control_norm": 21.74669075012207,
+            "native_velocity_norm": 176.091064453125,
+            "active_region_effective_control_rms": 0.33979204297065735,
+            "active_region_native_velocity_rms": 1.5523653030395508,
+            "active_control_native_ratio": 0.2188866514249837,
+            "global_effective_control_rms": 0.16989602148532867,
+            "global_native_velocity_rms": 1.375711441040039,
+            "global_control_native_ratio": 0.12349684419058632,
+            "control_native_cosine": -0.06657673418521881,
+            "mask_active_fraction": 0.25,
+            "max_control_outside_mask": 0.0
+          }
+        ],
+        "trajectory_distances": [
+          {
+            "state_index": 0,
+            "after_step_index": -1,
+            "latent_mad_from_native": 0.0,
+            "latent_l2_from_native": 0.0
+          },
+          {
+            "state_index": 1,
+            "after_step_index": 0,
+            "latent_mad_from_native": 0.0036967825144529343,
+            "latent_l2_from_native": 1.0665515661239624
+          },
+          {
+            "state_index": 2,
+            "after_step_index": 1,
+            "latent_mad_from_native": 0.008387772366404533,
+            "latent_l2_from_native": 1.9874643087387085
+          },
+          {
+            "state_index": 3,
+            "after_step_index": 2,
+            "latent_mad_from_native": 0.01247005257755518,
+            "latent_l2_from_native": 3.007648468017578
+          },
+          {
+            "state_index": 4,
+            "after_step_index": 3,
+            "latent_mad_from_native": 0.017547879368066788,
+            "latent_l2_from_native": 4.290870666503906
+          },
+          {
+            "state_index": 5,
+            "after_step_index": 4,
+            "latent_mad_from_native": 0.018474223092198372,
+            "latent_l2_from_native": 4.504974365234375
+          },
+          {
+            "state_index": 6,
+            "after_step_index": 5,
+            "latent_mad_from_native": 0.019734695553779602,
+            "latent_l2_from_native": 4.877306938171387
+          },
+          {
+            "state_index": 7,
+            "after_step_index": 6,
+            "latent_mad_from_native": 0.02130996622145176,
+            "latent_l2_from_native": 5.409736156463623
+          },
+          {
+            "state_index": 8,
+            "after_step_index": 7,
+            "latent_mad_from_native": 0.023582957684993744,
+            "latent_l2_from_native": 6.116498947143555
+          },
+          {
+            "state_index": 9,
+            "after_step_index": 8,
+            "latent_mad_from_native": 0.02635875903069973,
+            "latent_l2_from_native": 7.003655910491943
+          },
+          {
+            "state_index": 10,
+            "after_step_index": 9,
+            "latent_mad_from_native": 0.029649876058101654,
+            "latent_l2_from_native": 8.054943084716797
+          },
+          {
+            "state_index": 11,
+            "after_step_index": 10,
+            "latent_mad_from_native": 0.034270577132701874,
+            "latent_l2_from_native": 9.36608600616455
+          },
+          {
+            "state_index": 12,
+            "after_step_index": 11,
+            "latent_mad_from_native": 0.042953453958034515,
+            "latent_l2_from_native": 11.441481590270996
+          }
+        ],
+        "endpoint_distances": {
+          "mse_to_source": 0.013051075860857964,
+          "mad_to_source": 0.046639926731586456,
+          "mse_to_full": 0.0008367821574211121,
+          "mad_to_full": 0.010927448980510235,
+          "mse_to_target": 0.002216366585344076,
+          "mad_to_target": 0.019308259710669518,
+          "background_mse_to_source": 0.003939498215913773,
+          "background_mad_to_source": 0.028288448229432106,
+          "inside_velocity_mask_mse_to_source": 0.0341469869017601,
+          "outside_velocity_mask_mse_to_source": 0.0008102359715849161
+        }
+      },
+      "best": {
+        "objective_error": 0.0014708562521263957,
+        "terminal_objective_loss": 0.0014708562521263957,
+        "source_blue_score": -0.14011427760124207,
+        "full_blue_score": -0.06981238722801208,
+        "target_blue_score": -0.10496333241462708,
+        "achieved_blue_score": -0.08407261967658997,
+        "controlled_steps": [
+          {
+            "step_index": 0,
+            "raw_direction_norm": 40.30031967163086,
+            "effective_control_norm": 29.133506774902344,
+            "native_velocity_norm": 260.4215087890625,
+            "active_region_effective_control_rms": 0.45521101355552673,
+            "active_region_native_velocity_rms": 2.7667975425720215,
+            "active_control_native_ratio": 0.1645263184426431,
+            "global_effective_control_rms": 0.22760550677776337,
+            "global_native_velocity_rms": 2.034543037414551,
+            "global_control_native_ratio": 0.11187058592191801,
+            "control_native_cosine": -0.08067718148231506,
+            "mask_active_fraction": 0.25,
+            "max_control_outside_mask": 0.0
+          },
+          {
+            "step_index": 1,
+            "raw_direction_norm": 41.382789611816406,
+            "effective_control_norm": 29.916032791137695,
+            "native_velocity_norm": 180.38648986816406,
+            "active_region_effective_control_rms": 0.4674380421638489,
+            "active_region_native_velocity_rms": 1.5689349174499512,
+            "active_control_native_ratio": 0.29793335400017323,
+            "global_effective_control_rms": 0.23371902108192444,
+            "global_native_velocity_rms": 1.4092694520950317,
+            "global_control_native_ratio": 0.16584408739813,
+            "control_native_cosine": -0.035112038254737854,
+            "mask_active_fraction": 0.25,
+            "max_control_outside_mask": 0.0
+          },
+          {
+            "step_index": 2,
+            "raw_direction_norm": 41.234317779541016,
+            "effective_control_norm": 29.808704376220703,
+            "native_velocity_norm": 175.9737091064453,
+            "active_region_effective_control_rms": 0.4657610058784485,
+            "active_region_native_velocity_rms": 1.524141550064087,
+            "active_control_native_ratio": 0.30558907462293394,
+            "global_effective_control_rms": 0.23288050293922424,
+            "global_native_velocity_rms": 1.374794602394104,
+            "global_control_native_ratio": 0.16939294243204034,
+            "control_native_cosine": -0.05820958688855171,
+            "mask_active_fraction": 0.25,
+            "max_control_outside_mask": 0.0
+          },
+          {
+            "step_index": 3,
+            "raw_direction_norm": 43.49338150024414,
+            "effective_control_norm": 31.441801071166992,
+            "native_velocity_norm": 176.1854248046875,
+            "active_region_effective_control_rms": 0.49127814173698425,
+            "active_region_native_velocity_rms": 1.5479034185409546,
+            "active_control_native_ratio": 0.3173829425353039,
+            "global_effective_control_rms": 0.24563907086849213,
+            "global_native_velocity_rms": 1.376448631286621,
+            "global_control_native_ratio": 0.17845858195149902,
+            "control_native_cosine": -0.06517210602760315,
+            "mask_active_fraction": 0.25,
+            "max_control_outside_mask": 0.0
+          }
+        ],
+        "trajectory_distances": [
+          {
+            "state_index": 0,
+            "after_step_index": -1,
+            "latent_mad_from_native": 0.0,
+            "latent_l2_from_native": 0.0
+          },
+          {
+            "state_index": 1,
+            "after_step_index": 0,
+            "latent_mad_from_native": 0.005323002114892006,
+            "latent_l2_from_native": 1.5295382738113403
+          },
+          {
+            "state_index": 2,
+            "after_step_index": 1,
+            "latent_mad_from_native": 0.011649558320641518,
+            "latent_l2_from_native": 2.8203704357147217
+          },
+          {
+            "state_index": 3,
+            "after_step_index": 2,
+            "latent_mad_from_native": 0.017618194222450256,
+            "latent_l2_from_native": 4.276198387145996
+          },
+          {
+            "state_index": 4,
+            "after_step_index": 3,
+            "latent_mad_from_native": 0.02466319501399994,
+            "latent_l2_from_native": 6.116556167602539
+          },
+          {
+            "state_index": 5,
+            "after_step_index": 4,
+            "latent_mad_from_native": 0.026134898886084557,
+            "latent_l2_from_native": 6.450942039489746
+          },
+          {
+            "state_index": 6,
+            "after_step_index": 5,
+            "latent_mad_from_native": 0.028138402849435806,
+            "latent_l2_from_native": 6.999225616455078
+          },
+          {
+            "state_index": 7,
+            "after_step_index": 6,
+            "latent_mad_from_native": 0.030471818521618843,
+            "latent_l2_from_native": 7.765228748321533
+          },
+          {
+            "state_index": 8,
+            "after_step_index": 7,
+            "latent_mad_from_native": 0.03353375196456909,
+            "latent_l2_from_native": 8.771766662597656
+          },
+          {
+            "state_index": 9,
+            "after_step_index": 8,
+            "latent_mad_from_native": 0.03735470026731491,
+            "latent_l2_from_native": 10.009130477905273
+          },
+          {
+            "state_index": 10,
+            "after_step_index": 9,
+            "latent_mad_from_native": 0.04193878546357155,
+            "latent_l2_from_native": 11.480962753295898
+          },
+          {
+            "state_index": 11,
+            "after_step_index": 10,
+            "latent_mad_from_native": 0.04830816388130188,
+            "latent_l2_from_native": 13.2990083694458
+          },
+          {
+            "state_index": 12,
+            "after_step_index": 11,
+            "latent_mad_from_native": 0.05971872806549072,
+            "latent_l2_from_native": 15.9381742477417
+          }
+        ],
+        "endpoint_distances": {
+          "mse_to_source": 0.010711699724197388,
+          "mad_to_source": 0.04271840304136276,
+          "mse_to_full": 0.0016851368127390742,
+          "mad_to_full": 0.015365740284323692,
+          "mse_to_target": 0.0014708562521263957,
+          "mad_to_target": 0.016101904213428497,
+          "background_mse_to_source": 0.0031917060259729624,
+          "background_mad_to_source": 0.02602475881576538,
+          "inside_velocity_mask_mse_to_source": 0.027934594079852104,
+          "outside_velocity_mask_mse_to_source": 0.0007181692635640502
+        }
+      },
+      "final": {
+        "objective_error": 0.0014708562521263957,
+        "terminal_objective_loss": 0.0014708562521263957,
+        "source_blue_score": -0.14011427760124207,
+        "full_blue_score": -0.06981238722801208,
+        "target_blue_score": -0.10496333241462708,
+        "achieved_blue_score": -0.08407261967658997,
+        "controlled_steps": [
+          {
+            "step_index": 0,
+            "raw_direction_norm": 40.30031967163086,
+            "effective_control_norm": 29.133506774902344,
+            "native_velocity_norm": 260.4215087890625,
+            "active_region_effective_control_rms": 0.45521101355552673,
+            "active_region_native_velocity_rms": 2.7667975425720215,
+            "active_control_native_ratio": 0.1645263184426431,
+            "global_effective_control_rms": 0.22760550677776337,
+            "global_native_velocity_rms": 2.034543037414551,
+            "global_control_native_ratio": 0.11187058592191801,
+            "control_native_cosine": -0.08067718148231506,
+            "mask_active_fraction": 0.25,
+            "max_control_outside_mask": 0.0
+          },
+          {
+            "step_index": 1,
+            "raw_direction_norm": 41.382789611816406,
+            "effective_control_norm": 29.916032791137695,
+            "native_velocity_norm": 180.38648986816406,
+            "active_region_effective_control_rms": 0.4674380421638489,
+            "active_region_native_velocity_rms": 1.5689349174499512,
+            "active_control_native_ratio": 0.29793335400017323,
+            "global_effective_control_rms": 0.23371902108192444,
+            "global_native_velocity_rms": 1.4092694520950317,
+            "global_control_native_ratio": 0.16584408739813,
+            "control_native_cosine": -0.035112038254737854,
+            "mask_active_fraction": 0.25,
+            "max_control_outside_mask": 0.0
+          },
+          {
+            "step_index": 2,
+            "raw_direction_norm": 41.234317779541016,
+            "effective_control_norm": 29.808704376220703,
+            "native_velocity_norm": 175.9737091064453,
+            "active_region_effective_control_rms": 0.4657610058784485,
+            "active_region_native_velocity_rms": 1.524141550064087,
+            "active_control_native_ratio": 0.30558907462293394,
+            "global_effective_control_rms": 0.23288050293922424,
+            "global_native_velocity_rms": 1.374794602394104,
+            "global_control_native_ratio": 0.16939294243204034,
+            "control_native_cosine": -0.05820958688855171,
+            "mask_active_fraction": 0.25,
+            "max_control_outside_mask": 0.0
+          },
+          {
+            "step_index": 3,
+            "raw_direction_norm": 43.49338150024414,
+            "effective_control_norm": 31.441801071166992,
+            "native_velocity_norm": 176.1854248046875,
+            "active_region_effective_control_rms": 0.49127814173698425,
+            "active_region_native_velocity_rms": 1.5479034185409546,
+            "active_control_native_ratio": 0.3173829425353039,
+            "global_effective_control_rms": 0.24563907086849213,
+            "global_native_velocity_rms": 1.376448631286621,
+            "global_control_native_ratio": 0.17845858195149902,
+            "control_native_cosine": -0.06517210602760315,
+            "mask_active_fraction": 0.25,
+            "max_control_outside_mask": 0.0
+          }
+        ],
+        "trajectory_distances": [
+          {
+            "state_index": 0,
+            "after_step_index": -1,
+            "latent_mad_from_native": 0.0,
+            "latent_l2_from_native": 0.0
+          },
+          {
+            "state_index": 1,
+            "after_step_index": 0,
+            "latent_mad_from_native": 0.005323002114892006,
+            "latent_l2_from_native": 1.5295382738113403
+          },
+          {
+            "state_index": 2,
+            "after_step_index": 1,
+            "latent_mad_from_native": 0.011649558320641518,
+            "latent_l2_from_native": 2.8203704357147217
+          },
+          {
+            "state_index": 3,
+            "after_step_index": 2,
+            "latent_mad_from_native": 0.017618194222450256,
+            "latent_l2_from_native": 4.276198387145996
+          },
+          {
+            "state_index": 4,
+            "after_step_index": 3,
+            "latent_mad_from_native": 0.02466319501399994,
+            "latent_l2_from_native": 6.116556167602539
+          },
+          {
+            "state_index": 5,
+            "after_step_index": 4,
+            "latent_mad_from_native": 0.026134898886084557,
+            "latent_l2_from_native": 6.450942039489746
+          },
+          {
+            "state_index": 6,
+            "after_step_index": 5,
+            "latent_mad_from_native": 0.028138402849435806,
+            "latent_l2_from_native": 6.999225616455078
+          },
+          {
+            "state_index": 7,
+            "after_step_index": 6,
+            "latent_mad_from_native": 0.030471818521618843,
+            "latent_l2_from_native": 7.765228748321533
+          },
+          {
+            "state_index": 8,
+            "after_step_index": 7,
+            "latent_mad_from_native": 0.03353375196456909,
+            "latent_l2_from_native": 8.771766662597656
+          },
+          {
+            "state_index": 9,
+            "after_step_index": 8,
+            "latent_mad_from_native": 0.03735470026731491,
+            "latent_l2_from_native": 10.009130477905273
+          },
+          {
+            "state_index": 10,
+            "after_step_index": 9,
+            "latent_mad_from_native": 0.04193878546357155,
+            "latent_l2_from_native": 11.480962753295898
+          },
+          {
+            "state_index": 11,
+            "after_step_index": 10,
+            "latent_mad_from_native": 0.04830816388130188,
+            "latent_l2_from_native": 13.2990083694458
+          },
+          {
+            "state_index": 12,
+            "after_step_index": 11,
+            "latent_mad_from_native": 0.05971872806549072,
+            "latent_l2_from_native": 15.9381742477417
+          }
+        ],
+        "endpoint_distances": {
+          "mse_to_source": 0.010711699724197388,
+          "mad_to_source": 0.04271840304136276,
+          "mse_to_full": 0.0016851368127390742,
+          "mad_to_full": 0.015365740284323692,
+          "mse_to_target": 0.0014708562521263957,
+          "mad_to_target": 0.016101904213428497,
+          "background_mse_to_source": 0.0031917060259729624,
+          "background_mad_to_source": 0.02602475881576538,
+          "inside_velocity_mask_mse_to_source": 0.027934594079852104,
+          "outside_velocity_mask_mse_to_source": 0.0007181692635640502
+        }
+      },
+      "best_iter": 10,
+      "best_family_mean_objective_error": 0.001992354247098168,
+      "final_objective_error": 0.0014708562521263957,
+      "global_control_energy": 0.05525018274784088,
+      "active_control_energy": 0.22100073099136353,
+      "error_reduction": 0.0007455103332176805,
+      "error_reduction_per_global_control_energy": 0.013493355064908164
+    },
+    "0.8": {
+      "initial": {
+        "objective_error": 0.0003861207515001297,
+        "terminal_objective_loss": 0.0003861207515001297,
+        "source_blue_score": -0.14011427760124207,
+        "full_blue_score": -0.06981238722801208,
+        "target_blue_score": -0.08387276530265808,
+        "achieved_blue_score": -0.07259541749954224,
+        "controlled_steps": [
+          {
+            "step_index": 0,
+            "raw_direction_norm": 40.30031967163086,
+            "effective_control_norm": 8.060063362121582,
+            "native_velocity_norm": 260.4215087890625,
+            "active_region_effective_control_rms": 0.12593849003314972,
+            "active_region_native_velocity_rms": 2.7667975425720215,
+            "active_control_native_ratio": 0.04551778295858865,
+            "global_effective_control_rms": 0.06296924501657486,
+            "global_native_velocity_rms": 2.034543037414551,
+            "global_control_native_ratio": 0.03095006783272311,
+            "control_native_cosine": -0.08067718148231506,
+            "mask_active_fraction": 0.25,
+            "max_control_outside_mask": 0.0
+          },
+          {
+            "step_index": 1,
+            "raw_direction_norm": 41.382789611816406,
+            "effective_control_norm": 8.276557922363281,
+            "native_velocity_norm": 180.86900329589844,
+            "active_region_effective_control_rms": 0.12932120263576508,
+            "active_region_native_velocity_rms": 1.5721226930618286,
+            "active_control_native_ratio": 0.08225897584615498,
+            "global_effective_control_rms": 0.06466060131788254,
+            "global_native_velocity_rms": 1.4130390882492065,
+            "global_control_native_ratio": 0.04575995760214912,
+            "control_native_cosine": -0.027807405218482018,
+            "mask_active_fraction": 0.25,
+            "max_control_outside_mask": 0.0
+          },
+          {
+            "step_index": 2,
+            "raw_direction_norm": 41.234317779541016,
+            "effective_control_norm": 8.24686336517334,
+            "native_velocity_norm": 176.38970947265625,
+            "active_region_effective_control_rms": 0.12885724008083344,
+            "active_region_native_velocity_rms": 1.5354589223861694,
+            "active_control_native_ratio": 0.08392099469556875,
+            "global_effective_control_rms": 0.06442862004041672,
+            "global_native_velocity_rms": 1.378044605255127,
+            "global_control_native_ratio": 0.04675365354265046,
+            "control_native_cosine": -0.057729631662368774,
+            "mask_active_fraction": 0.25,
+            "max_control_outside_mask": 0.0
+          },
+          {
+            "step_index": 3,
+            "raw_direction_norm": 43.49338150024414,
+            "effective_control_norm": 8.698676109313965,
+            "native_velocity_norm": 176.5872039794922,
+            "active_region_effective_control_rms": 0.1359168142080307,
+            "active_region_native_velocity_rms": 1.5629448890686035,
+            "active_control_native_ratio": 0.08696200048936262,
+            "global_effective_control_rms": 0.06795840710401535,
+            "global_native_velocity_rms": 1.3795875310897827,
+            "global_control_native_ratio": 0.049259945869714196,
+            "control_native_cosine": -0.06892584264278412,
+            "mask_active_fraction": 0.25,
+            "max_control_outside_mask": 0.0
+          }
+        ],
+        "trajectory_distances": [
+          {
+            "state_index": 0,
+            "after_step_index": -1,
+            "latent_mad_from_native": 0.0,
+            "latent_l2_from_native": 0.0
+          },
+          {
+            "state_index": 1,
+            "after_step_index": 0,
+            "latent_mad_from_native": 0.0014862418174743652,
+            "latent_l2_from_native": 0.4502831995487213
+          },
+          {
+            "state_index": 2,
+            "after_step_index": 1,
+            "latent_mad_from_native": 0.0038968571461737156,
+            "latent_l2_from_native": 0.8823349475860596
+          },
+          {
+            "state_index": 3,
+            "after_step_index": 2,
+            "latent_mad_from_native": 0.005828115623444319,
+            "latent_l2_from_native": 1.2957133054733276
+          },
+          {
+            "state_index": 4,
+            "after_step_index": 3,
+            "latent_mad_from_native": 0.008097533136606216,
+            "latent_l2_from_native": 1.8045214414596558
+          },
+          {
+            "state_index": 5,
+            "after_step_index": 4,
+            "latent_mad_from_native": 0.008654249832034111,
+            "latent_l2_from_native": 1.9072186946868896
+          },
+          {
+            "state_index": 6,
+            "after_step_index": 5,
+            "latent_mad_from_native": 0.009524799883365631,
+            "latent_l2_from_native": 2.0704660415649414
+          },
+          {
+            "state_index": 7,
+            "after_step_index": 6,
+            "latent_mad_from_native": 0.010406620800495148,
+            "latent_l2_from_native": 2.285893678665161
+          },
+          {
+            "state_index": 8,
+            "after_step_index": 7,
+            "latent_mad_from_native": 0.01155310682952404,
+            "latent_l2_from_native": 2.5733110904693604
+          },
+          {
+            "state_index": 9,
+            "after_step_index": 8,
+            "latent_mad_from_native": 0.012959316372871399,
+            "latent_l2_from_native": 2.938185930252075
+          },
+          {
+            "state_index": 10,
+            "after_step_index": 9,
+            "latent_mad_from_native": 0.014693861827254295,
+            "latent_l2_from_native": 3.3815133571624756
+          },
+          {
+            "state_index": 11,
+            "after_step_index": 10,
+            "latent_mad_from_native": 0.01721891760826111,
+            "latent_l2_from_native": 4.02689790725708
+          },
+          {
+            "state_index": 12,
+            "after_step_index": 11,
+            "latent_mad_from_native": 0.0225972980260849,
+            "latent_l2_from_native": 5.377466201782227
+          }
+        ],
+        "endpoint_distances": {
+          "mse_to_source": 0.01644839718937874,
+          "mad_to_source": 0.05134877562522888,
+          "mse_to_full": 0.00015260171494446695,
+          "mad_to_full": 0.005797823425382376,
+          "mse_to_target": 0.00038622418651357293,
+          "mad_to_target": 0.007991967722773552,
+          "background_mse_to_source": 0.005154200829565525,
+          "background_mad_to_source": 0.030850060284137726,
+          "inside_velocity_mask_mse_to_source": 0.043256789445877075,
+          "outside_velocity_mask_mse_to_source": 0.000892908894456923
+        }
+      },
+      "best": {
+        "objective_error": 0.000291000003926456,
+        "terminal_objective_loss": 0.000291000003926456,
+        "source_blue_score": -0.14011427760124207,
+        "full_blue_score": -0.06981238722801208,
+        "target_blue_score": -0.08387276530265808,
+        "achieved_blue_score": -0.0740334689617157,
+        "controlled_steps": [
+          {
+            "step_index": 0,
+            "raw_direction_norm": 40.30031967163086,
+            "effective_control_norm": 11.649590492248535,
+            "native_velocity_norm": 260.4215087890625,
+            "active_region_effective_control_rms": 0.18202485144138336,
+            "active_region_native_velocity_rms": 2.7667975425720215,
+            "active_control_native_ratio": 0.0657890028600259,
+            "global_effective_control_rms": 0.09101242572069168,
+            "global_native_velocity_rms": 2.034543037414551,
+            "global_control_native_ratio": 0.04473359572493887,
+            "control_native_cosine": -0.08067717403173447,
+            "mask_active_fraction": 0.25,
+            "max_control_outside_mask": 0.0
+          },
+          {
+            "step_index": 1,
+            "raw_direction_norm": 41.382789611816406,
+            "effective_control_norm": 11.962498664855957,
+            "native_velocity_norm": 180.98863220214844,
+            "active_region_effective_control_rms": 0.18691404163837433,
+            "active_region_native_velocity_rms": 1.5765730142593384,
+            "active_control_native_ratio": 0.11855717429375454,
+            "global_effective_control_rms": 0.09345702081918716,
+            "global_native_velocity_rms": 1.4139736890792847,
+            "global_control_native_ratio": 0.06609530399398175,
+            "control_native_cosine": -0.03032335266470909,
+            "mask_active_fraction": 0.25,
+            "max_control_outside_mask": 0.0
+          },
+          {
+            "step_index": 2,
+            "raw_direction_norm": 41.234317779541016,
+            "effective_control_norm": 11.919580459594727,
+            "native_velocity_norm": 176.1803436279297,
+            "active_region_effective_control_rms": 0.1862434446811676,
+            "active_region_native_velocity_rms": 1.5296454429626465,
+            "active_control_native_ratio": 0.12175595693630005,
+            "global_effective_control_rms": 0.0931217223405838,
+            "global_native_velocity_rms": 1.3764089345932007,
+            "global_control_native_ratio": 0.0676555636919823,
+            "control_native_cosine": -0.056911926716566086,
+            "mask_active_fraction": 0.25,
+            "max_control_outside_mask": 0.0
+          },
+          {
+            "step_index": 3,
+            "raw_direction_norm": 43.49338150024414,
+            "effective_control_norm": 12.572606086730957,
+            "native_velocity_norm": 176.3692169189453,
+            "active_region_effective_control_rms": 0.1964469701051712,
+            "active_region_native_velocity_rms": 1.556188941001892,
+            "active_control_native_ratio": 0.1262359376353725,
+            "global_effective_control_rms": 0.0982234850525856,
+            "global_native_velocity_rms": 1.3778845071792603,
+            "global_control_native_ratio": 0.07128571701097362,
+            "control_native_cosine": -0.06766880303621292,
+            "mask_active_fraction": 0.25,
+            "max_control_outside_mask": 0.0
+          }
+        ],
+        "trajectory_distances": [
+          {
+            "state_index": 0,
+            "after_step_index": -1,
+            "latent_mad_from_native": 0.0,
+            "latent_l2_from_native": 0.0
+          },
+          {
+            "state_index": 1,
+            "after_step_index": 0,
+            "latent_mad_from_native": 0.0021346453577280045,
+            "latent_l2_from_native": 0.6277552247047424
+          },
+          {
+            "state_index": 2,
+            "after_step_index": 1,
+            "latent_mad_from_native": 0.005297800060361624,
+            "latent_l2_from_native": 1.1923936605453491
+          },
+          {
+            "state_index": 3,
+            "after_step_index": 2,
+            "latent_mad_from_native": 0.007775638252496719,
+            "latent_l2_from_native": 1.7798082828521729
+          },
+          {
+            "state_index": 4,
+            "after_step_index": 3,
+            "latent_mad_from_native": 0.010874491184949875,
+            "latent_l2_from_native": 2.521488904953003
+          },
+          {
+            "state_index": 5,
+            "after_step_index": 4,
+            "latent_mad_from_native": 0.011675940826535225,
+            "latent_l2_from_native": 2.6535446643829346
+          },
+          {
+            "state_index": 6,
+            "after_step_index": 5,
+            "latent_mad_from_native": 0.012477673590183258,
+            "latent_l2_from_native": 2.8600058555603027
+          },
+          {
+            "state_index": 7,
+            "after_step_index": 6,
+            "latent_mad_from_native": 0.013398081995546818,
+            "latent_l2_from_native": 3.14339017868042
+          },
+          {
+            "state_index": 8,
+            "after_step_index": 7,
+            "latent_mad_from_native": 0.014783013612031937,
+            "latent_l2_from_native": 3.54868745803833
+          },
+          {
+            "state_index": 9,
+            "after_step_index": 8,
+            "latent_mad_from_native": 0.016479814425110817,
+            "latent_l2_from_native": 4.049278736114502
+          },
+          {
+            "state_index": 10,
+            "after_step_index": 9,
+            "latent_mad_from_native": 0.018546277657151222,
+            "latent_l2_from_native": 4.643898963928223
+          },
+          {
+            "state_index": 11,
+            "after_step_index": 10,
+            "latent_mad_from_native": 0.021667174994945526,
+            "latent_l2_from_native": 5.477583408355713
+          },
+          {
+            "state_index": 12,
+            "after_step_index": 11,
+            "latent_mad_from_native": 0.028321940451860428,
+            "latent_l2_from_native": 7.198358535766602
+          }
+        ],
+        "endpoint_distances": {
+          "mse_to_source": 0.015446646139025688,
+          "mad_to_source": 0.05009649321436882,
+          "mse_to_full": 0.00028413801919668913,
+          "mad_to_full": 0.007060687057673931,
+          "mse_to_target": 0.00029112835181877017,
+          "mad_to_target": 0.007103174924850464,
+          "background_mse_to_source": 0.004783748183399439,
+          "background_mad_to_source": 0.030162986367940903,
+          "inside_velocity_mask_mse_to_source": 0.04056403040885925,
+          "outside_velocity_mask_mse_to_source": 0.0008723618229851127
+        }
+      },
+      "final": {
+        "objective_error": 0.000291000003926456,
+        "terminal_objective_loss": 0.000291000003926456,
+        "source_blue_score": -0.14011427760124207,
+        "full_blue_score": -0.06981238722801208,
+        "target_blue_score": -0.08387276530265808,
+        "achieved_blue_score": -0.0740334689617157,
+        "controlled_steps": [
+          {
+            "step_index": 0,
+            "raw_direction_norm": 40.30031967163086,
+            "effective_control_norm": 11.649590492248535,
+            "native_velocity_norm": 260.4215087890625,
+            "active_region_effective_control_rms": 0.18202485144138336,
+            "active_region_native_velocity_rms": 2.7667975425720215,
+            "active_control_native_ratio": 0.0657890028600259,
+            "global_effective_control_rms": 0.09101242572069168,
+            "global_native_velocity_rms": 2.034543037414551,
+            "global_control_native_ratio": 0.04473359572493887,
+            "control_native_cosine": -0.08067717403173447,
+            "mask_active_fraction": 0.25,
+            "max_control_outside_mask": 0.0
+          },
+          {
+            "step_index": 1,
+            "raw_direction_norm": 41.382789611816406,
+            "effective_control_norm": 11.962498664855957,
+            "native_velocity_norm": 180.98863220214844,
+            "active_region_effective_control_rms": 0.18691404163837433,
+            "active_region_native_velocity_rms": 1.5765730142593384,
+            "active_control_native_ratio": 0.11855717429375454,
+            "global_effective_control_rms": 0.09345702081918716,
+            "global_native_velocity_rms": 1.4139736890792847,
+            "global_control_native_ratio": 0.06609530399398175,
+            "control_native_cosine": -0.03032335266470909,
+            "mask_active_fraction": 0.25,
+            "max_control_outside_mask": 0.0
+          },
+          {
+            "step_index": 2,
+            "raw_direction_norm": 41.234317779541016,
+            "effective_control_norm": 11.919580459594727,
+            "native_velocity_norm": 176.1803436279297,
+            "active_region_effective_control_rms": 0.1862434446811676,
+            "active_region_native_velocity_rms": 1.5296454429626465,
+            "active_control_native_ratio": 0.12175595693630005,
+            "global_effective_control_rms": 0.0931217223405838,
+            "global_native_velocity_rms": 1.3764089345932007,
+            "global_control_native_ratio": 0.0676555636919823,
+            "control_native_cosine": -0.056911926716566086,
+            "mask_active_fraction": 0.25,
+            "max_control_outside_mask": 0.0
+          },
+          {
+            "step_index": 3,
+            "raw_direction_norm": 43.49338150024414,
+            "effective_control_norm": 12.572606086730957,
+            "native_velocity_norm": 176.3692169189453,
+            "active_region_effective_control_rms": 0.1964469701051712,
+            "active_region_native_velocity_rms": 1.556188941001892,
+            "active_control_native_ratio": 0.1262359376353725,
+            "global_effective_control_rms": 0.0982234850525856,
+            "global_native_velocity_rms": 1.3778845071792603,
+            "global_control_native_ratio": 0.07128571701097362,
+            "control_native_cosine": -0.06766880303621292,
+            "mask_active_fraction": 0.25,
+            "max_control_outside_mask": 0.0
+          }
+        ],
+        "trajectory_distances": [
+          {
+            "state_index": 0,
+            "after_step_index": -1,
+            "latent_mad_from_native": 0.0,
+            "latent_l2_from_native": 0.0
+          },
+          {
+            "state_index": 1,
+            "after_step_index": 0,
+            "latent_mad_from_native": 0.0021346453577280045,
+            "latent_l2_from_native": 0.6277552247047424
+          },
+          {
+            "state_index": 2,
+            "after_step_index": 1,
+            "latent_mad_from_native": 0.005297800060361624,
+            "latent_l2_from_native": 1.1923936605453491
+          },
+          {
+            "state_index": 3,
+            "after_step_index": 2,
+            "latent_mad_from_native": 0.007775638252496719,
+            "latent_l2_from_native": 1.7798082828521729
+          },
+          {
+            "state_index": 4,
+            "after_step_index": 3,
+            "latent_mad_from_native": 0.010874491184949875,
+            "latent_l2_from_native": 2.521488904953003
+          },
+          {
+            "state_index": 5,
+            "after_step_index": 4,
+            "latent_mad_from_native": 0.011675940826535225,
+            "latent_l2_from_native": 2.6535446643829346
+          },
+          {
+            "state_index": 6,
+            "after_step_index": 5,
+            "latent_mad_from_native": 0.012477673590183258,
+            "latent_l2_from_native": 2.8600058555603027
+          },
+          {
+            "state_index": 7,
+            "after_step_index": 6,
+            "latent_mad_from_native": 0.013398081995546818,
+            "latent_l2_from_native": 3.14339017868042
+          },
+          {
+            "state_index": 8,
+            "after_step_index": 7,
+            "latent_mad_from_native": 0.014783013612031937,
+            "latent_l2_from_native": 3.54868745803833
+          },
+          {
+            "state_index": 9,
+            "after_step_index": 8,
+            "latent_mad_from_native": 0.016479814425110817,
+            "latent_l2_from_native": 4.049278736114502
+          },
+          {
+            "state_index": 10,
+            "after_step_index": 9,
+            "latent_mad_from_native": 0.018546277657151222,
+            "latent_l2_from_native": 4.643898963928223
+          },
+          {
+            "state_index": 11,
+            "after_step_index": 10,
+            "latent_mad_from_native": 0.021667174994945526,
+            "latent_l2_from_native": 5.477583408355713
+          },
+          {
+            "state_index": 12,
+            "after_step_index": 11,
+            "latent_mad_from_native": 0.028321940451860428,
+            "latent_l2_from_native": 7.198358535766602
+          }
+        ],
+        "endpoint_distances": {
+          "mse_to_source": 0.015446646139025688,
+          "mad_to_source": 0.05009649321436882,
+          "mse_to_full": 0.00028413801919668913,
+          "mad_to_full": 0.007060687057673931,
+          "mse_to_target": 0.00029112835181877017,
+          "mad_to_target": 0.007103174924850464,
+          "background_mse_to_source": 0.004783748183399439,
+          "background_mad_to_source": 0.030162986367940903,
+          "inside_velocity_mask_mse_to_source": 0.04056403040885925,
+          "outside_velocity_mask_mse_to_source": 0.0008723618229851127
+        }
+      },
+      "best_iter": 10,
+      "best_family_mean_objective_error": 0.001992354247098168,
+      "final_objective_error": 0.000291000003926456,
+      "global_control_energy": 0.008834246546030045,
+      "active_control_energy": 0.03533698618412018,
+      "error_reduction": 9.512074757367373e-05,
+      "error_reduction_per_global_control_energy": 0.010767273369387605
+    }
+  }
+}
