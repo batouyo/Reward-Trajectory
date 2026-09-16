@@ -1,5 +1,11 @@
 # Coupled Strength Trajectory Research Paths
 
+## Kontext Text Suppression Diagnostic v1
+
+The referenced text-steering paper uses negative text steering from the unsteered/full-edit side for image-editing models. **Our hypothesis** is that FLUX.1-Kontext's T5 conditioning space supports a similar suppression mechanism. We test it by adding a negative, generator-native T5 direction to only the instruction token rows. **Our implementation** uses one manually matched semantic pair, not the paper's contrastive Difference-of-Means direction. There is no contrastive dataset, token-selection model, reward, velocity controller, elastic band, or DreamSim calibration. Factor values are steering coefficients, not semantic percentages.
+
+On the formal black-to-blue ball case, the captured native denoising path and the zero-factor path were exactly equal in both latent and decoded pixels (`max_abs_error=0`). The negative factors responded, but not smoothly: the ball remained blue at `-2`, became black around `-4`, and stayed black at `-8` and `-16`. Background and object appearance also moved; no unambiguous new-color overshoot or complete generation collapse was visible. Pixel mean absolute distance to Native Full was `0` at factor `0`, `0.02646` at `-2`, `0.06337` at `-4`, then fell to `0.05777` at `-8` and `0.05200` at `-16`. The pixel-distance trend therefore reverses beyond `-4`; it cannot define a calibrated reversion curve. The `-4` image is visually closer to the source ball color, but this single example does not establish reliable edit reversal or continuous editing. These are assistant visual observations, not an independent human evaluation.
+
 The repository now keeps three roles separate:
 
 1. `FluxRewardFlowPipeline` retains the RewardFlow reproduction (legacy and paper-faithful paths).
