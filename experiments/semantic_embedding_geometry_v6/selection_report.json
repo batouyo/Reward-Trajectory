@@ -1,0 +1,40 @@
+{
+  "selection_rule_frozen_before_results": true,
+  "candidate_gates": {
+    "qwen_hidden": {
+      "formal_ball_all_gates": false,
+      "all_cases_endpoint_semantic_valid": true,
+      "strict_order_rate_at_least_0p80": true,
+      "gradient_both_pass_rate_at_least_0p80": false,
+      "median_probe_span_at_least_0p10": false,
+      "median_p_0p2_at_most_0p90": false,
+      "all_endpoint_axes_finite_nondegenerate": true,
+      "status": "FAIL"
+    },
+    "clip": {
+      "formal_ball_all_gates": false,
+      "all_cases_endpoint_semantic_valid": true,
+      "strict_order_rate_at_least_0p80": true,
+      "gradient_both_pass_rate_at_least_0p80": true,
+      "median_probe_span_at_least_0p10": true,
+      "median_p_0p2_at_most_0p90": true,
+      "all_endpoint_axes_finite_nondegenerate": true,
+      "status": "FAIL"
+    },
+    "siglip": {
+      "formal_ball_all_gates": true,
+      "all_cases_endpoint_semantic_valid": true,
+      "strict_order_rate_at_least_0p80": false,
+      "gradient_both_pass_rate_at_least_0p80": true,
+      "median_probe_span_at_least_0p10": true,
+      "median_p_0p2_at_most_0p90": true,
+      "all_endpoint_axes_finite_nondegenerate": true,
+      "status": "FAIL"
+    }
+  },
+  "winner": null,
+  "no_winner": true,
+  "controller_run": false,
+  "controller_integrated_or_optimized_in_v6": false,
+  "perceptual_percentage_calibration_established": false
+}

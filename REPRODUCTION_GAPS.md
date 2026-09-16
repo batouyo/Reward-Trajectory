@@ -98,6 +98,19 @@ The legacy `reward_guidance=True` path remains separate.
 - The brief does not numerically define when pairwise and feature gaps are "close". The bake-off records the explicit
   selection assumption that pairwise is close when its minimum adjacent oracle gap is at least 90% of the feature
   baseline's gap; this affects recommendation only, never comparator scores or gates.
+- Semantic embedding geometry v6 is an independent measurement bake-off, not a RewardFlow paper component. Its
+  Source-to-NativeFull chord projection, off-axis ratio, formal/generalization gates, exact CLIP/SigLIP checkpoints,
+  and the five-case suite are preregistered engineering choices.
+- The slow official CLIP and SigLIP processors quantize through an 8-bit PIL image. The torch-native differentiable
+  preprocessing adapter reproduces that forward quantization with a straight-through estimator, including the
+  separable bicubic intermediate, so the forward embedding can meet the `.999` fidelity gate while candidate-image
+  gradients remain available. The straight-through backward is an explicit research assumption, not an official
+  processor derivative.
+- V6 treats Qwen endpoint answers as an endpoint-validity audit only. Its hidden representation enters the same
+  geometric bake-off as a candidate encoder, but neither Qwen answer likelihood nor a language-model judgment is used
+  as the continuous coordinate.
+- V6 model-generated pixel-oracle probes are fixed data preparation only. They are not produced by the evaluated
+  feature method, are not semantic ground truth, and cannot establish human-perceptual percentage calibration.
 
 ## NOT-YET-IMPLEMENTED
 
@@ -148,3 +161,19 @@ The legacy `reward_guidance=True` path remains separate.
   remained `0.94277/0.95465/0.96098`, mean error improved by only 9.44%, and the dense curve contained ten descending
   pairs. This does not identify whether the limiting factor is long-horizon optimization, reward geometry off the
   native manifold, or the shared `(1-s)D` parameterization; v5 deliberately does not change any of them.
+- The v6 formal ball case is not sufficient for encoder selection. SigLIP passed that case, while CLIP failed gap/span
+  gates and Qwen hidden failed a low-probe and toward-Source-gradient gate; the preregistered five-case generalization
+  suite must finish before any winner is accepted.
+- The initially selected v6 texture case failed the Qwen Source/Full endpoint audit and was rejected before any suite
+  CLIP/SigLIP geometry was computed. The next fixed real-data case, a scene reimagination, replaced it; this rejection
+  and replacement are recorded in the suite manifest rather than hidden.
+- V6 deliberately does not integrate, tune, or rerun the terminal controller. Even a winning encoder would establish
+  only better endpoint-axis geometry on the tested probes, not controller success or exact perceived edit strength.
+- The completed v6 five-case suite selected no winner. CLIP failed the formal ball gap/span gates despite 4/5 strict
+  ordering and 5/5 bidirectional-gradient passes. SigLIP passed the formal ball but reached only 3/5 strict ordering,
+  below the 80% gate. Qwen hidden reached 4/5 strict ordering but only 2/5 bidirectional-gradient passes and remained
+  compressed near Full. These failures block controller integration.
+- V6 does not determine whether a text-conditioned image direction will fix the remaining cross-case ambiguity. It is
+  the next recommended isolated test because failures include global environment edits; localization alone would not
+  explain or solve all observed inversions. Crop/region localization remains untested and may still be needed for
+  small local attributes after the text-direction question is isolated.

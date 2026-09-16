@@ -1,0 +1,53 @@
+{
+  "qwen_hidden": {
+    "case_count": 5,
+    "endpoint_valid_case_count": 5,
+    "strict_order_case_count": 4,
+    "strict_order_rate": 0.8,
+    "gradient_both_pass_count": 2,
+    "gradient_both_pass_rate": 0.4,
+    "median_min_adjacent_gap": 0.030262351036071777,
+    "median_probe_span": 0.06801283359527588,
+    "median_p_0.2": 0.9126986861228943,
+    "median_off_axis": 0.2932969133059184,
+    "extrapolation_case_count": 0,
+    "all_endpoint_axes_finite_nondegenerate": true,
+    "runtime_seconds": 9.422948682215065,
+    "peak_allocated_gib": 15.725653171539307,
+    "peak_reserved_gib": 16.025390625
+  },
+  "clip": {
+    "case_count": 5,
+    "endpoint_valid_case_count": 5,
+    "strict_order_case_count": 4,
+    "strict_order_rate": 0.8,
+    "gradient_both_pass_count": 5,
+    "gradient_both_pass_rate": 1.0,
+    "median_min_adjacent_gap": 0.030055224895477295,
+    "median_probe_span": 0.10565608739852905,
+    "median_p_0.2": 0.8164423704147339,
+    "median_off_axis": 0.34457793831825256,
+    "extrapolation_case_count": 0,
+    "all_endpoint_axes_finite_nondegenerate": true,
+    "runtime_seconds": 2.084807140287012,
+    "peak_allocated_gib": 2.0395545959472656,
+    "peak_reserved_gib": 2.052734375
+  },
+  "siglip": {
+    "case_count": 5,
+    "endpoint_valid_case_count": 5,
+    "strict_order_case_count": 3,
+    "strict_order_rate": 0.6,
+    "gradient_both_pass_count": 5,
+    "gradient_both_pass_rate": 1.0,
+    "median_min_adjacent_gap": 0.034299373626708984,
+    "median_probe_span": 0.11452430486679077,
+    "median_p_0.2": 0.819403350353241,
+    "median_off_axis": 0.4748407204945882,
+    "extrapolation_case_count": 0,
+    "all_endpoint_axes_finite_nondegenerate": true,
+    "runtime_seconds": 4.88037122040987,
+    "peak_allocated_gib": 4.201563835144043,
+    "peak_reserved_gib": 4.525390625
+  }
+}

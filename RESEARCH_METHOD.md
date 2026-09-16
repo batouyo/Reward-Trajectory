@@ -305,3 +305,51 @@ and native-latent parity. Low-level edit-region projections for Best `.2/.5/.8` 
 `0.98696`, so all three outputs remained close to NativeFull rather than spanning the endpoint interval. This is a
 controller/reward-coupling or shared-parameterization failure under the frozen configuration, not evidence for or
 against perceptual percentage calibration.
+
+## Semantic embedding geometry bake-off v6
+
+V6 does not optimize or integrate a controller. It isolates the measurement question by applying one identical,
+unclamped Source-to-NativeFull axis projection to three frozen FP32 image representations: CLIP ViT-L/14, SigLIP
+SO400M/14 at 384 pixels, and the existing focus-conditioned Qwen2.5-VL hidden feature. For normalized encoder output
+`f`, the coordinate is `dot(f_candidate - f_source, f_full - f_source) / (||f_full - f_source||^2 + eps)`. The
+reported off-axis ratio is the norm of the projection residual divided by the endpoint-axis norm. No score is called
+a human perceptual percentage.
+
+The formal case reuses the already generated seed-`20260914` ball probes. Four additional cases are selected before
+inspecting their encoder results: ball seeds `20260915` and `20260916`, one scene-reimagination edit, and one
+environment edit. The initially preregistered texture case was rejected because its Source/Full Qwen endpoint audit
+failed; it was replaced by the fixed next eligible real-data case before any CLIP/SigLIP suite geometry was run.
+Their `.2/.5/.8` probes are produced by the frozen pixel-oracle diagnostic solely as model-generated evaluation data;
+they are not method output, semantic ground truth, or evidence that the controller works. Source and NativeFull image
+hashes, prompts, seeds, probe paths, and provenance are stored in the suite manifest.
+
+Each encoder must first match its official processor at embedding cosine at least `.999`, preserve nonzero finite
+candidate-image gradients, and keep every model parameter frozen with no parameter gradients. The Qwen endpoint audit
+is run before CLIP/SigLIP geometry and is used only to validate the edit endpoints; Qwen answers never become the
+continuous score. Formal ordering, gap, span, non-collapse, and bidirectional-gradient gates are evaluated before the
+five-case strict-order rate, gradient-pass rate, worst adjacent gap, endpoint-axis stability, and off-axis summaries.
+Only a method passing both stages can be selected.
+
+On the formal ball case, SigLIP passed every gate with `.2/.5/.8` progress
+`.75996/.82779/.92330`, minimum adjacent gap `.06783`, span `.16333`, and both gradient directions passing. CLIP was
+strictly increasing but failed the minimum-gap and span gates (`.84947/.88265/.89466`, minimum gap `.01201`, span
+`.04518`). Qwen hidden failed the low-probe range and toward-Source gradient gates
+(`.91270/.99858/1.03916`). These are preliminary formal-case findings only; the final recommendation remains gated on
+the preregistered five-case suite.
+
+The final five-case suite produced no eligible winner. CLIP was strictly ordered in four of five cases and passed
+both gradient directions in all five; its median span was `.10566` and median `.2` progress was `.81644`. It still
+failed because the formal ball span/minimum-gap gates did not pass, and its environment case inverted `.2` and `.5`.
+SigLIP retained the strongest formal ball geometry and passed every gradient audit, with median span `.11452` and
+median `.2` progress `.81940`, but only three of five cases were strictly ordered: ball seed `20260915` and the
+environment case both inverted `.2`/`.5`. Qwen hidden ordered four of five cases but passed both gradient directions
+in only two, had median span `.06801`, and median `.2` progress `.91270`, confirming the earlier Full-side compression.
+
+The cross-seed evidence is therefore mixed: CLIP ordered all three ball seeds, SigLIP ordered two, and Qwen ordered
+all three but had unstable toward-Source gradients. Across the two non-color primitives, CLIP and SigLIP ordered the
+scene-reimagination probes but both failed the environment ordering; Qwen failed scene ordering and its environment
+toward-Full gradient. Off-axis deviation was also large for the contrastive encoders on the non-color cases. V6 thus
+supports that CLIP/SigLIP improve spread and gradient stability over Qwen in important respects, but not that either
+is a sufficiently stable continuous semantic ruler. No encoder is approved for terminal-controller integration. The
+next isolated experiment should test a text-conditioned direction before localization: failures occur even for
+global scene/environment edits, so an object crop alone cannot address the observed ambiguity.

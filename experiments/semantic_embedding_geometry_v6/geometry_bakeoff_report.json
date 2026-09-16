@@ -1,0 +1,673 @@
+{
+  "scope": "CLIP/SigLIP/Qwen-hidden endpoint-axis geometry bake-off",
+  "primary_coordinate": "unclamped normalized Source-to-Full axis projection",
+  "controller_run": false,
+  "probe_provenance": "MODEL-GENERATED PIXEL-ORACLE DIAGNOSTIC; not semantic ground truth or method output",
+  "endpoint_semantic_validity": {
+    "ball_color_seed_20260914": true,
+    "ball_color_seed_20260915": true,
+    "ball_color_seed_20260916": true,
+    "scene_reimagination_seed_20260914": true,
+    "environment_night_seed_20260914": true
+  },
+  "formal_ball_case_metrics": {
+    "qwen_hidden": {
+      "endpoint_semantic_valid": true,
+      "axis_nondegenerate": true,
+      "p_0.2": 0.9126986861228943,
+      "p_0.5": 0.9985816478729248,
+      "p_0.8": 1.0391591787338257,
+      "strict_order_pass": true,
+      "adjacent_gaps": [
+        0.08588296175003052,
+        0.04057753086090088
+      ],
+      "descending_inversions": [],
+      "descending_inversion_count": 0,
+      "ties": [],
+      "tie_count": 0,
+      "non_strict_violations": [],
+      "non_strict_violation_count": 0,
+      "minimum_adjacent_gap": 0.04057753086090088,
+      "probe_span": 0.1264604926109314,
+      "low_probe_distance_from_full": 0.08730131387710571,
+      "mean_probe_progress": 0.9834798375765482,
+      "all_probes_in_wide_range": true,
+      "mean_probe_off_axis": 0.29757174849510193,
+      "toward_source_gradient_pass": false,
+      "toward_full_gradient_pass": true
+    },
+    "clip": {
+      "endpoint_semantic_valid": true,
+      "axis_nondegenerate": true,
+      "p_0.2": 0.8494728207588196,
+      "p_0.5": 0.8826477527618408,
+      "p_0.8": 0.8946577310562134,
+      "strict_order_pass": true,
+      "adjacent_gaps": [
+        0.03317493200302124,
+        0.012009978294372559
+      ],
+      "descending_inversions": [],
+      "descending_inversion_count": 0,
+      "ties": [],
+      "tie_count": 0,
+      "non_strict_violations": [],
+      "non_strict_violation_count": 0,
+      "minimum_adjacent_gap": 0.012009978294372559,
+      "probe_span": 0.0451849102973938,
+      "low_probe_distance_from_full": 0.15052717924118042,
+      "mean_probe_progress": 0.8755927681922913,
+      "all_probes_in_wide_range": true,
+      "mean_probe_off_axis": 0.3105597992738088,
+      "toward_source_gradient_pass": true,
+      "toward_full_gradient_pass": true
+    },
+    "siglip": {
+      "endpoint_semantic_valid": true,
+      "axis_nondegenerate": true,
+      "p_0.2": 0.7599626779556274,
+      "p_0.5": 0.8277897834777832,
+      "p_0.8": 0.9232953190803528,
+      "strict_order_pass": true,
+      "adjacent_gaps": [
+        0.06782710552215576,
+        0.09550553560256958
+      ],
+      "descending_inversions": [],
+      "descending_inversion_count": 0,
+      "ties": [],
+      "tie_count": 0,
+      "non_strict_violations": [],
+      "non_strict_violation_count": 0,
+      "minimum_adjacent_gap": 0.06782710552215576,
+      "probe_span": 0.16333264112472534,
+      "low_probe_distance_from_full": 0.24003732204437256,
+      "mean_probe_progress": 0.8370159268379211,
+      "all_probes_in_wide_range": true,
+      "mean_probe_off_axis": 0.3540493945280711,
+      "toward_source_gradient_pass": true,
+      "toward_full_gradient_pass": true
+    }
+  },
+  "suite_case_metrics": {
+    "qwen_hidden": {
+      "ball_color_seed_20260914": {
+        "endpoint_semantic_valid": true,
+        "axis_nondegenerate": true,
+        "p_0.2": 0.9126986861228943,
+        "p_0.5": 0.9985816478729248,
+        "p_0.8": 1.0391591787338257,
+        "strict_order_pass": true,
+        "adjacent_gaps": [
+          0.08588296175003052,
+          0.04057753086090088
+        ],
+        "descending_inversions": [],
+        "descending_inversion_count": 0,
+        "ties": [],
+        "tie_count": 0,
+        "non_strict_violations": [],
+        "non_strict_violation_count": 0,
+        "minimum_adjacent_gap": 0.04057753086090088,
+        "probe_span": 0.1264604926109314,
+        "low_probe_distance_from_full": 0.08730131387710571,
+        "mean_probe_progress": 0.9834798375765482,
+        "all_probes_in_wide_range": true,
+        "mean_probe_off_axis": 0.29757174849510193,
+        "toward_source_gradient_pass": false,
+        "toward_full_gradient_pass": true
+      },
+      "ball_color_seed_20260915": {
+        "endpoint_semantic_valid": true,
+        "axis_nondegenerate": true,
+        "p_0.2": 0.8514113426208496,
+        "p_0.5": 0.8891618251800537,
+        "p_0.8": 0.9194241762161255,
+        "strict_order_pass": true,
+        "adjacent_gaps": [
+          0.0377504825592041,
+          0.030262351036071777
+        ],
+        "descending_inversions": [],
+        "descending_inversion_count": 0,
+        "ties": [],
+        "tie_count": 0,
+        "non_strict_violations": [],
+        "non_strict_violation_count": 0,
+        "minimum_adjacent_gap": 0.030262351036071777,
+        "probe_span": 0.06801283359527588,
+        "low_probe_distance_from_full": 0.1485886573791504,
+        "mean_probe_progress": 0.8866657813390096,
+        "all_probes_in_wide_range": true,
+        "mean_probe_off_axis": 0.25869083901246387,
+        "toward_source_gradient_pass": false,
+        "toward_full_gradient_pass": true
+      },
+      "ball_color_seed_20260916": {
+        "endpoint_semantic_valid": true,
+        "axis_nondegenerate": true,
+        "p_0.2": 0.7644744515419006,
+        "p_0.5": 0.7966749668121338,
+        "p_0.8": 0.9272619485855103,
+        "strict_order_pass": true,
+        "adjacent_gaps": [
+          0.032200515270233154,
+          0.13058698177337646
+        ],
+        "descending_inversions": [],
+        "descending_inversion_count": 0,
+        "ties": [],
+        "tie_count": 0,
+        "non_strict_violations": [],
+        "non_strict_violation_count": 0,
+        "minimum_adjacent_gap": 0.032200515270233154,
+        "probe_span": 0.16278749704360962,
+        "low_probe_distance_from_full": 0.23552554845809937,
+        "mean_probe_progress": 0.8294704556465149,
+        "all_probes_in_wide_range": true,
+        "mean_probe_off_axis": 0.3088581959406535,
+        "toward_source_gradient_pass": true,
+        "toward_full_gradient_pass": true
+      },
+      "scene_reimagination_seed_20260914": {
+        "endpoint_semantic_valid": true,
+        "axis_nondegenerate": true,
+        "p_0.2": 0.9471851587295532,
+        "p_0.5": 0.8602920174598694,
+        "p_0.8": 0.9058102369308472,
+        "strict_order_pass": false,
+        "adjacent_gaps": [
+          -0.08689314126968384,
+          0.04551821947097778
+        ],
+        "descending_inversions": [
+          [
+            0,
+            1
+          ],
+          [
+            0,
+            2
+          ]
+        ],
+        "descending_inversion_count": 2,
+        "ties": [],
+        "tie_count": 0,
+        "non_strict_violations": [
+          [
+            0,
+            1
+          ],
+          [
+            0,
+            2
+          ]
+        ],
+        "non_strict_violation_count": 2,
+        "minimum_adjacent_gap": -0.08689314126968384,
+        "probe_span": -0.041374921798706055,
+        "low_probe_distance_from_full": 0.05281484127044678,
+        "mean_probe_progress": 0.9044291377067566,
+        "all_probes_in_wide_range": true,
+        "mean_probe_off_axis": 0.2932969133059184,
+        "toward_source_gradient_pass": true,
+        "toward_full_gradient_pass": true
+      },
+      "environment_night_seed_20260914": {
+        "endpoint_semantic_valid": true,
+        "axis_nondegenerate": true,
+        "p_0.2": 1.0000637769699097,
+        "p_0.5": 1.0196062326431274,
+        "p_0.8": 1.030238151550293,
+        "strict_order_pass": true,
+        "adjacent_gaps": [
+          0.019542455673217773,
+          0.010631918907165527
+        ],
+        "descending_inversions": [],
+        "descending_inversion_count": 0,
+        "ties": [],
+        "tie_count": 0,
+        "non_strict_violations": [],
+        "non_strict_violation_count": 0,
+        "minimum_adjacent_gap": 0.010631918907165527,
+        "probe_span": 0.0301743745803833,
+        "low_probe_distance_from_full": -6.377696990966797e-05,
+        "mean_probe_progress": 1.01663605372111,
+        "all_probes_in_wide_range": true,
+        "mean_probe_off_axis": 0.2632431189219157,
+        "toward_source_gradient_pass": true,
+        "toward_full_gradient_pass": false
+      }
+    },
+    "clip": {
+      "ball_color_seed_20260914": {
+        "endpoint_semantic_valid": true,
+        "axis_nondegenerate": true,
+        "p_0.2": 0.8494728207588196,
+        "p_0.5": 0.8826477527618408,
+        "p_0.8": 0.8946577310562134,
+        "strict_order_pass": true,
+        "adjacent_gaps": [
+          0.03317493200302124,
+          0.012009978294372559
+        ],
+        "descending_inversions": [],
+        "descending_inversion_count": 0,
+        "ties": [],
+        "tie_count": 0,
+        "non_strict_violations": [],
+        "non_strict_violation_count": 0,
+        "minimum_adjacent_gap": 0.012009978294372559,
+        "probe_span": 0.0451849102973938,
+        "low_probe_distance_from_full": 0.15052717924118042,
+        "mean_probe_progress": 0.8755927681922913,
+        "all_probes_in_wide_range": true,
+        "mean_probe_off_axis": 0.3105597992738088,
+        "toward_source_gradient_pass": true,
+        "toward_full_gradient_pass": true
+      },
+      "ball_color_seed_20260915": {
+        "endpoint_semantic_valid": true,
+        "axis_nondegenerate": true,
+        "p_0.2": 0.8692381978034973,
+        "p_0.5": 0.8992934226989746,
+        "p_0.8": 0.932720422744751,
+        "strict_order_pass": true,
+        "adjacent_gaps": [
+          0.030055224895477295,
+          0.03342700004577637
+        ],
+        "descending_inversions": [],
+        "descending_inversion_count": 0,
+        "ties": [],
+        "tie_count": 0,
+        "non_strict_violations": [],
+        "non_strict_violation_count": 0,
+        "minimum_adjacent_gap": 0.030055224895477295,
+        "probe_span": 0.06348222494125366,
+        "low_probe_distance_from_full": 0.13076180219650269,
+        "mean_probe_progress": 0.9004173477490743,
+        "all_probes_in_wide_range": true,
+        "mean_probe_off_axis": 0.25814129908879596,
+        "toward_source_gradient_pass": true,
+        "toward_full_gradient_pass": true
+      },
+      "ball_color_seed_20260916": {
+        "endpoint_semantic_valid": true,
+        "axis_nondegenerate": true,
+        "p_0.2": 0.7286977171897888,
+        "p_0.5": 0.7947335243225098,
+        "p_0.8": 0.9593793153762817,
+        "strict_order_pass": true,
+        "adjacent_gaps": [
+          0.06603580713272095,
+          0.16464579105377197
+        ],
+        "descending_inversions": [],
+        "descending_inversion_count": 0,
+        "ties": [],
+        "tie_count": 0,
+        "non_strict_violations": [],
+        "non_strict_violation_count": 0,
+        "minimum_adjacent_gap": 0.06603580713272095,
+        "probe_span": 0.23068159818649292,
+        "low_probe_distance_from_full": 0.2713022828102112,
+        "mean_probe_progress": 0.8276035189628601,
+        "all_probes_in_wide_range": true,
+        "mean_probe_off_axis": 0.34457793831825256,
+        "toward_source_gradient_pass": true,
+        "toward_full_gradient_pass": true
+      },
+      "scene_reimagination_seed_20260914": {
+        "endpoint_semantic_valid": true,
+        "axis_nondegenerate": true,
+        "p_0.2": 0.8164423704147339,
+        "p_0.5": 0.8608222007751465,
+        "p_0.8": 0.9220984578132629,
+        "strict_order_pass": true,
+        "adjacent_gaps": [
+          0.0443798303604126,
+          0.061276257038116455
+        ],
+        "descending_inversions": [],
+        "descending_inversion_count": 0,
+        "ties": [],
+        "tie_count": 0,
+        "non_strict_violations": [],
+        "non_strict_violation_count": 0,
+        "minimum_adjacent_gap": 0.0443798303604126,
+        "probe_span": 0.10565608739852905,
+        "low_probe_distance_from_full": 0.1835576295852661,
+        "mean_probe_progress": 0.8664543430010477,
+        "all_probes_in_wide_range": true,
+        "mean_probe_off_axis": 0.487330824136734,
+        "toward_source_gradient_pass": true,
+        "toward_full_gradient_pass": true
+      },
+      "environment_night_seed_20260914": {
+        "endpoint_semantic_valid": true,
+        "axis_nondegenerate": true,
+        "p_0.2": 0.5905179381370544,
+        "p_0.5": 0.5764395594596863,
+        "p_0.8": 0.7327679991722107,
+        "strict_order_pass": false,
+        "adjacent_gaps": [
+          -0.014078378677368164,
+          0.15632843971252441
+        ],
+        "descending_inversions": [
+          [
+            0,
+            1
+          ]
+        ],
+        "descending_inversion_count": 1,
+        "ties": [],
+        "tie_count": 0,
+        "non_strict_violations": [
+          [
+            0,
+            1
+          ]
+        ],
+        "non_strict_violation_count": 1,
+        "minimum_adjacent_gap": -0.014078378677368164,
+        "probe_span": 0.14225006103515625,
+        "low_probe_distance_from_full": 0.40948206186294556,
+        "mean_probe_progress": 0.6332418322563171,
+        "all_probes_in_wide_range": true,
+        "mean_probe_off_axis": 0.5170367062091827,
+        "toward_source_gradient_pass": true,
+        "toward_full_gradient_pass": true
+      }
+    },
+    "siglip": {
+      "ball_color_seed_20260914": {
+        "endpoint_semantic_valid": true,
+        "axis_nondegenerate": true,
+        "p_0.2": 0.7599626779556274,
+        "p_0.5": 0.8277897834777832,
+        "p_0.8": 0.9232953190803528,
+        "strict_order_pass": true,
+        "adjacent_gaps": [
+          0.06782710552215576,
+          0.09550553560256958
+        ],
+        "descending_inversions": [],
+        "descending_inversion_count": 0,
+        "ties": [],
+        "tie_count": 0,
+        "non_strict_violations": [],
+        "non_strict_violation_count": 0,
+        "minimum_adjacent_gap": 0.06782710552215576,
+        "probe_span": 0.16333264112472534,
+        "low_probe_distance_from_full": 0.24003732204437256,
+        "mean_probe_progress": 0.8370159268379211,
+        "all_probes_in_wide_range": true,
+        "mean_probe_off_axis": 0.3540493945280711,
+        "toward_source_gradient_pass": true,
+        "toward_full_gradient_pass": true
+      },
+      "ball_color_seed_20260915": {
+        "endpoint_semantic_valid": true,
+        "axis_nondegenerate": true,
+        "p_0.2": 0.8632460832595825,
+        "p_0.5": 0.8524072170257568,
+        "p_0.8": 0.9681588411331177,
+        "strict_order_pass": false,
+        "adjacent_gaps": [
+          -0.010838866233825684,
+          0.11575162410736084
+        ],
+        "descending_inversions": [
+          [
+            0,
+            1
+          ]
+        ],
+        "descending_inversion_count": 1,
+        "ties": [],
+        "tie_count": 0,
+        "non_strict_violations": [
+          [
+            0,
+            1
+          ]
+        ],
+        "non_strict_violation_count": 1,
+        "minimum_adjacent_gap": -0.010838866233825684,
+        "probe_span": 0.10491275787353516,
+        "low_probe_distance_from_full": 0.13675391674041748,
+        "mean_probe_progress": 0.8946040471394857,
+        "all_probes_in_wide_range": true,
+        "mean_probe_off_axis": 0.4802866081396739,
+        "toward_source_gradient_pass": true,
+        "toward_full_gradient_pass": true
+      },
+      "ball_color_seed_20260916": {
+        "endpoint_semantic_valid": true,
+        "axis_nondegenerate": true,
+        "p_0.2": 0.6976996064186096,
+        "p_0.5": 0.7319989800453186,
+        "p_0.8": 0.8748298287391663,
+        "strict_order_pass": true,
+        "adjacent_gaps": [
+          0.034299373626708984,
+          0.14283084869384766
+        ],
+        "descending_inversions": [],
+        "descending_inversion_count": 0,
+        "ties": [],
+        "tie_count": 0,
+        "non_strict_violations": [],
+        "non_strict_violation_count": 0,
+        "minimum_adjacent_gap": 0.034299373626708984,
+        "probe_span": 0.17713022232055664,
+        "low_probe_distance_from_full": 0.3023003935813904,
+        "mean_probe_progress": 0.7681761384010315,
+        "all_probes_in_wide_range": true,
+        "mean_probe_off_axis": 0.47768649458885193,
+        "toward_source_gradient_pass": true,
+        "toward_full_gradient_pass": true
+      },
+      "scene_reimagination_seed_20260914": {
+        "endpoint_semantic_valid": true,
+        "axis_nondegenerate": true,
+        "p_0.2": 0.819403350353241,
+        "p_0.5": 0.8931644558906555,
+        "p_0.8": 0.9339276552200317,
+        "strict_order_pass": true,
+        "adjacent_gaps": [
+          0.07376110553741455,
+          0.04076319932937622
+        ],
+        "descending_inversions": [],
+        "descending_inversion_count": 0,
+        "ties": [],
+        "tie_count": 0,
+        "non_strict_violations": [],
+        "non_strict_violation_count": 0,
+        "minimum_adjacent_gap": 0.04076319932937622,
+        "probe_span": 0.11452430486679077,
+        "low_probe_distance_from_full": 0.18059664964675903,
+        "mean_probe_progress": 0.8821651538213094,
+        "all_probes_in_wide_range": true,
+        "mean_probe_off_axis": 0.4748407204945882,
+        "toward_source_gradient_pass": true,
+        "toward_full_gradient_pass": true
+      },
+      "environment_night_seed_20260914": {
+        "endpoint_semantic_valid": true,
+        "axis_nondegenerate": true,
+        "p_0.2": 0.9160636067390442,
+        "p_0.5": 0.9109155535697937,
+        "p_0.8": 0.9605305194854736,
+        "strict_order_pass": false,
+        "adjacent_gaps": [
+          -0.005148053169250488,
+          0.04961496591567993
+        ],
+        "descending_inversions": [
+          [
+            0,
+            1
+          ]
+        ],
+        "descending_inversion_count": 1,
+        "ties": [],
+        "tie_count": 0,
+        "non_strict_violations": [
+          [
+            0,
+            1
+          ]
+        ],
+        "non_strict_violation_count": 1,
+        "minimum_adjacent_gap": -0.005148053169250488,
+        "probe_span": 0.04446691274642944,
+        "low_probe_distance_from_full": 0.08393639326095581,
+        "mean_probe_progress": 0.9291698932647705,
+        "all_probes_in_wide_range": true,
+        "mean_probe_off_axis": 0.3817548453807831,
+        "toward_source_gradient_pass": true,
+        "toward_full_gradient_pass": true
+      }
+    }
+  },
+  "formal_gates": {
+    "qwen_hidden": {
+      "endpoint_semantic_valid": true,
+      "axis_norm_finite_above_1e-4": true,
+      "strict_order": true,
+      "no_ties": true,
+      "minimum_adjacent_gap_above_0p02": true,
+      "probe_span_at_least_0p10": true,
+      "p_0p2_at_most_0p90": false,
+      "all_probes_in_minus_0p25_to_1p25": true,
+      "gradient_toward_source": false,
+      "gradient_toward_full": true,
+      "passed": false
+    },
+    "clip": {
+      "endpoint_semantic_valid": true,
+      "axis_norm_finite_above_1e-4": true,
+      "strict_order": true,
+      "no_ties": true,
+      "minimum_adjacent_gap_above_0p02": false,
+      "probe_span_at_least_0p10": false,
+      "p_0p2_at_most_0p90": true,
+      "all_probes_in_minus_0p25_to_1p25": true,
+      "gradient_toward_source": true,
+      "gradient_toward_full": true,
+      "passed": false
+    },
+    "siglip": {
+      "endpoint_semantic_valid": true,
+      "axis_norm_finite_above_1e-4": true,
+      "strict_order": true,
+      "no_ties": true,
+      "minimum_adjacent_gap_above_0p02": true,
+      "probe_span_at_least_0p10": true,
+      "p_0p2_at_most_0p90": true,
+      "all_probes_in_minus_0p25_to_1p25": true,
+      "gradient_toward_source": true,
+      "gradient_toward_full": true,
+      "passed": true
+    }
+  },
+  "aggregate_metrics": {
+    "qwen_hidden": {
+      "case_count": 5,
+      "endpoint_valid_case_count": 5,
+      "strict_order_case_count": 4,
+      "strict_order_rate": 0.8,
+      "gradient_both_pass_count": 2,
+      "gradient_both_pass_rate": 0.4,
+      "median_min_adjacent_gap": 0.030262351036071777,
+      "median_probe_span": 0.06801283359527588,
+      "median_p_0.2": 0.9126986861228943,
+      "median_off_axis": 0.2932969133059184,
+      "extrapolation_case_count": 0,
+      "all_endpoint_axes_finite_nondegenerate": true,
+      "runtime_seconds": 9.422948682215065,
+      "peak_allocated_gib": 15.725653171539307,
+      "peak_reserved_gib": 16.025390625
+    },
+    "clip": {
+      "case_count": 5,
+      "endpoint_valid_case_count": 5,
+      "strict_order_case_count": 4,
+      "strict_order_rate": 0.8,
+      "gradient_both_pass_count": 5,
+      "gradient_both_pass_rate": 1.0,
+      "median_min_adjacent_gap": 0.030055224895477295,
+      "median_probe_span": 0.10565608739852905,
+      "median_p_0.2": 0.8164423704147339,
+      "median_off_axis": 0.34457793831825256,
+      "extrapolation_case_count": 0,
+      "all_endpoint_axes_finite_nondegenerate": true,
+      "runtime_seconds": 2.084807140287012,
+      "peak_allocated_gib": 2.0395545959472656,
+      "peak_reserved_gib": 2.052734375
+    },
+    "siglip": {
+      "case_count": 5,
+      "endpoint_valid_case_count": 5,
+      "strict_order_case_count": 3,
+      "strict_order_rate": 0.6,
+      "gradient_both_pass_count": 5,
+      "gradient_both_pass_rate": 1.0,
+      "median_min_adjacent_gap": 0.034299373626708984,
+      "median_probe_span": 0.11452430486679077,
+      "median_p_0.2": 0.819403350353241,
+      "median_off_axis": 0.4748407204945882,
+      "extrapolation_case_count": 0,
+      "all_endpoint_axes_finite_nondegenerate": true,
+      "runtime_seconds": 4.88037122040987,
+      "peak_allocated_gib": 4.201563835144043,
+      "peak_reserved_gib": 4.525390625
+    }
+  },
+  "selection": {
+    "selection_rule_frozen_before_results": true,
+    "candidate_gates": {
+      "qwen_hidden": {
+        "formal_ball_all_gates": false,
+        "all_cases_endpoint_semantic_valid": true,
+        "strict_order_rate_at_least_0p80": true,
+        "gradient_both_pass_rate_at_least_0p80": false,
+        "median_probe_span_at_least_0p10": false,
+        "median_p_0p2_at_most_0p90": false,
+        "all_endpoint_axes_finite_nondegenerate": true,
+        "status": "FAIL"
+      },
+      "clip": {
+        "formal_ball_all_gates": false,
+        "all_cases_endpoint_semantic_valid": true,
+        "strict_order_rate_at_least_0p80": true,
+        "gradient_both_pass_rate_at_least_0p80": true,
+        "median_probe_span_at_least_0p10": true,
+        "median_p_0p2_at_most_0p90": true,
+        "all_endpoint_axes_finite_nondegenerate": true,
+        "status": "FAIL"
+      },
+      "siglip": {
+        "formal_ball_all_gates": true,
+        "all_cases_endpoint_semantic_valid": true,
+        "strict_order_rate_at_least_0p80": false,
+        "gradient_both_pass_rate_at_least_0p80": true,
+        "median_probe_span_at_least_0p10": true,
+        "median_p_0p2_at_most_0p90": true,
+        "all_endpoint_axes_finite_nondegenerate": true,
+        "status": "FAIL"
+      }
+    },
+    "winner": null,
+    "no_winner": true,
+    "controller_run": false,
+    "controller_integrated_or_optimized_in_v6": false,
+    "perceptual_percentage_calibration_established": false
+  }
+}

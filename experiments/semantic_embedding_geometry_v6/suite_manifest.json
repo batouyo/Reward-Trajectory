@@ -1,0 +1,181 @@
+{
+  "suite_version": "semantic_embedding_geometry_v6_preregistered",
+  "case_selection_frozen_before_encoder_scores": true,
+  "controller_run": false,
+  "controller_integrated_or_optimized_in_v6": false,
+  "pixel_oracle_controller_used_for_probe_data_preparation_only": true,
+  "pre_geometry_rejections": [
+    {
+      "case_id": "object_texture_seed_20260914",
+      "reason": "Qwen Source/Full endpoint semantic audit failed before CLIP/SigLIP suite geometry.",
+      "replacement_case_id": "scene_reimagination_seed_20260914",
+      "encoder_geometry_inspected_before_replacement": false
+    }
+  ],
+  "probe_generator_config": {
+    "steps": 12,
+    "strengths": [
+      0.2,
+      0.5,
+      0.8
+    ],
+    "control_steps": 4,
+    "control_mode": "shared-linear",
+    "control_mask_mode": "velocity-topk",
+    "control_mask_topk_fraction": 0.25,
+    "outer_iters": 20,
+    "control_lr": 0.1,
+    "lambda_control": 0.0001,
+    "guidance_scale": 2.5,
+    "dtype": "bfloat16"
+  },
+  "cases": [
+    {
+      "case_id": "ball_color_seed_20260914",
+      "source": "/data15/hyp/dataset/kontinuous_kontext/raw/source_images/source_000000.png",
+      "instruction": "Make the weighted training ball blue while preserving its shape, texture, lighting, and background.",
+      "seed": 20260914,
+      "primitive": "color",
+      "comparison_focus": "the visible surface color of the foreground weighted training ball",
+      "endpoint_question": "What is the visible surface color of the foreground weighted training ball?",
+      "source_answer": "The ball is black.",
+      "target_answer": "The ball is blue.",
+      "semantic_spec_provenance": "validated historical formal ball spec",
+      "source_path": "experiments/semantic_embedding_geometry_v6/suite_inputs/ball_color_seed_20260914/source_INPUT.png",
+      "full_path": "experiments/semantic_embedding_geometry_v6/suite_inputs/ball_color_seed_20260914/native_full_MODEL_GENERATED.png",
+      "probe_paths": {
+        "0.2": "experiments/semantic_embedding_geometry_v6/suite_inputs/ball_color_seed_20260914/probe_0p2_PIXEL_ORACLE_MODEL_GENERATED.png",
+        "0.5": "experiments/semantic_embedding_geometry_v6/suite_inputs/ball_color_seed_20260914/probe_0p5_PIXEL_ORACLE_MODEL_GENERATED.png",
+        "0.8": "experiments/semantic_embedding_geometry_v6/suite_inputs/ball_color_seed_20260914/probe_0p8_PIXEL_ORACLE_MODEL_GENERATED.png"
+      },
+      "source_fingerprint_sha256": "b406f99da00489b01035d33be3dfd68ecdd1ca7a7bf591972fa9722e772621fe",
+      "full_fingerprint_sha256": "c812a4b7e20cc5b580ae8f3faf20a43b8f0134319156c4665607599a0ad29da7",
+      "probe_fingerprints_sha256": {
+        "0.2": "8aaf3f4ee5ae114d9c73e1512da4348aa6a899251bddf027b1204d4c89f963cc",
+        "0.5": "3099647d2358334fa1e36acbc3ae5ac55f233a1068c478b2cdc5b4b8f48b22cd",
+        "0.8": "fc075337ed4634ebd67d63f3377144664d10e39378eb943e001f2a0af5cc47ce"
+      },
+      "source_provenance": "SOURCE INPUT",
+      "full_provenance": "MODEL-GENERATED NATIVE FULL",
+      "probe_provenance": "MODEL-GENERATED PIXEL-ORACLE DIAGNOSTIC"
+    },
+    {
+      "case_id": "ball_color_seed_20260915",
+      "source": "/data15/hyp/dataset/kontinuous_kontext/raw/source_images/source_000000.png",
+      "instruction": "Make the weighted training ball blue while preserving its shape, texture, lighting, and background.",
+      "seed": 20260915,
+      "primitive": "color",
+      "comparison_focus": "the visible surface color of the foreground weighted training ball",
+      "endpoint_question": "What is the visible surface color of the foreground weighted training ball?",
+      "source_answer": "The ball is black.",
+      "target_answer": "The ball is blue.",
+      "semantic_spec_provenance": "reused validated historical formal ball spec",
+      "source_path": "experiments/semantic_embedding_geometry_v6/suite_inputs/ball_color_seed_20260915/source_INPUT.png",
+      "full_path": "experiments/semantic_embedding_geometry_v6/suite_inputs/ball_color_seed_20260915/native_full_MODEL_GENERATED.png",
+      "probe_paths": {
+        "0.2": "experiments/semantic_embedding_geometry_v6/suite_inputs/ball_color_seed_20260915/probe_0p2_PIXEL_ORACLE_MODEL_GENERATED.png",
+        "0.5": "experiments/semantic_embedding_geometry_v6/suite_inputs/ball_color_seed_20260915/probe_0p5_PIXEL_ORACLE_MODEL_GENERATED.png",
+        "0.8": "experiments/semantic_embedding_geometry_v6/suite_inputs/ball_color_seed_20260915/probe_0p8_PIXEL_ORACLE_MODEL_GENERATED.png"
+      },
+      "source_fingerprint_sha256": "b406f99da00489b01035d33be3dfd68ecdd1ca7a7bf591972fa9722e772621fe",
+      "full_fingerprint_sha256": "d737640ccf0f593eaca3db02a95befd9e70cccadce95d82e5943fbf13ff6ffc9",
+      "probe_fingerprints_sha256": {
+        "0.2": "d3d7e29156e7cf285de638f30e340493986741d4ce099ba510e6d1faae486add",
+        "0.5": "8f3d362a62ed6e9b9c1a66ca9a3bd3ea91f0e42f9b7fe2616cdb7b2e382b36fa",
+        "0.8": "3c889e0f84f27cbd7e59f85700e4596ab3b3d5eea034a4bcaec6fd4f761d921f"
+      },
+      "source_provenance": "SOURCE INPUT",
+      "full_provenance": "MODEL-GENERATED NATIVE FULL",
+      "probe_provenance": "MODEL-GENERATED PIXEL-ORACLE DIAGNOSTIC"
+    },
+    {
+      "case_id": "ball_color_seed_20260916",
+      "source": "/data15/hyp/dataset/kontinuous_kontext/raw/source_images/source_000000.png",
+      "instruction": "Make the weighted training ball blue while preserving its shape, texture, lighting, and background.",
+      "seed": 20260916,
+      "primitive": "color",
+      "comparison_focus": "the visible surface color of the foreground weighted training ball",
+      "endpoint_question": "What is the visible surface color of the foreground weighted training ball?",
+      "source_answer": "The ball is black.",
+      "target_answer": "The ball is blue.",
+      "semantic_spec_provenance": "reused validated historical formal ball spec",
+      "source_path": "experiments/semantic_embedding_geometry_v6/suite_inputs/ball_color_seed_20260916/source_INPUT.png",
+      "full_path": "experiments/semantic_embedding_geometry_v6/suite_inputs/ball_color_seed_20260916/native_full_MODEL_GENERATED.png",
+      "probe_paths": {
+        "0.2": "experiments/semantic_embedding_geometry_v6/suite_inputs/ball_color_seed_20260916/probe_0p2_PIXEL_ORACLE_MODEL_GENERATED.png",
+        "0.5": "experiments/semantic_embedding_geometry_v6/suite_inputs/ball_color_seed_20260916/probe_0p5_PIXEL_ORACLE_MODEL_GENERATED.png",
+        "0.8": "experiments/semantic_embedding_geometry_v6/suite_inputs/ball_color_seed_20260916/probe_0p8_PIXEL_ORACLE_MODEL_GENERATED.png"
+      },
+      "source_fingerprint_sha256": "b406f99da00489b01035d33be3dfd68ecdd1ca7a7bf591972fa9722e772621fe",
+      "full_fingerprint_sha256": "fd7459aab039b4e126275efeece7886b52e743f9c5f865b81881c8433067df7a",
+      "probe_fingerprints_sha256": {
+        "0.2": "bb7d8b9a05ce5e41c98fd76059c21e8f4b91469b23c68ecd22a1472c8a4738af",
+        "0.5": "77e6e8b09f9d3e2c3617a01327b7cf21816ecb1c989b476b0e27a7c3b03a98e8",
+        "0.8": "dd706de4626f04c00003acf9f86ddfaf36659d115890210eb49bdb98689c3240"
+      },
+      "source_provenance": "SOURCE INPUT",
+      "full_provenance": "MODEL-GENERATED NATIVE FULL",
+      "probe_provenance": "MODEL-GENERATED PIXEL-ORACLE DIAGNOSTIC"
+    },
+    {
+      "case_id": "scene_reimagination_seed_20260914",
+      "source": "/data15/hyp/dataset/kontinuous_kontext/raw/source_images/source_000004.png",
+      "instruction": "Reimagine the entire scene as a serene, minimalist room with a modern, sleek desk setup, maintaining the ergonomic object's design and placement.",
+      "seed": 20260914,
+      "primitive": "scene reimagination",
+      "comparison_focus": "the type of setting surrounding the main ergonomic fitness object",
+      "endpoint_question": "What kind of setting surrounds the main ergonomic fitness object?",
+      "source_answer": "A beach at sunrise.",
+      "target_answer": "A serene minimalist room with a modern desk setup.",
+      "semantic_spec_provenance": "human-audited spec from existing dataset instruction",
+      "dataset_instruction_metadata": "/data15/hyp/dataset/kontinuous_kontext_runs/small_batch_qwen_v2_20260626_042947/metadata/edit_pairs.jsonl",
+      "source_path": "experiments/semantic_embedding_geometry_v6/suite_inputs/scene_reimagination_seed_20260914/source_INPUT.png",
+      "full_path": "experiments/semantic_embedding_geometry_v6/suite_inputs/scene_reimagination_seed_20260914/native_full_MODEL_GENERATED.png",
+      "probe_paths": {
+        "0.2": "experiments/semantic_embedding_geometry_v6/suite_inputs/scene_reimagination_seed_20260914/probe_0p2_PIXEL_ORACLE_MODEL_GENERATED.png",
+        "0.5": "experiments/semantic_embedding_geometry_v6/suite_inputs/scene_reimagination_seed_20260914/probe_0p5_PIXEL_ORACLE_MODEL_GENERATED.png",
+        "0.8": "experiments/semantic_embedding_geometry_v6/suite_inputs/scene_reimagination_seed_20260914/probe_0p8_PIXEL_ORACLE_MODEL_GENERATED.png"
+      },
+      "source_fingerprint_sha256": "1b5a4979631d7f9a8f5c0921c223225a871cb42a96726c6252fc78738601f52a",
+      "full_fingerprint_sha256": "76ade66c6d834f86b49740f2042baaf4add8d2db8e2291ffddde5b36e47804b4",
+      "probe_fingerprints_sha256": {
+        "0.2": "44f7ff9f11c5aeff110699980a85861ce01051c1bf6540b8c5df4bff5508696e",
+        "0.5": "9bb9a2f3a246a424a3a071680925fa7c90a80b140545afda6e68c487f994fee4",
+        "0.8": "4f0bc499390994a5189e8b0d240029cd135fe5c3a5b1c36e69f3df9494cf10f0"
+      },
+      "source_provenance": "SOURCE INPUT",
+      "full_provenance": "MODEL-GENERATED NATIVE FULL",
+      "probe_provenance": "MODEL-GENERATED PIXEL-ORACLE DIAGNOSTIC"
+    },
+    {
+      "case_id": "environment_night_seed_20260914",
+      "source": "/data15/hyp/dataset/kontinuous_kontext/raw/source_images/source_000005.png",
+      "instruction": "Replace the sunny park setting with a stormy night sky, preserving the fitness tool's position and framing.",
+      "seed": 20260914,
+      "primitive": "environment",
+      "comparison_focus": "the weather and time-of-day of the background environment",
+      "endpoint_question": "What environment surrounds the foreground fitness tool?",
+      "source_answer": "A sunny daytime park.",
+      "target_answer": "A stormy night sky.",
+      "semantic_spec_provenance": "human-audited spec from existing dataset instruction",
+      "dataset_instruction_metadata": "/data15/hyp/dataset/kontinuous_kontext_runs/small_batch_qwen_v2_20260626_042947/metadata/edit_pairs.jsonl",
+      "source_path": "experiments/semantic_embedding_geometry_v6/suite_inputs/environment_night_seed_20260914/source_INPUT.png",
+      "full_path": "experiments/semantic_embedding_geometry_v6/suite_inputs/environment_night_seed_20260914/native_full_MODEL_GENERATED.png",
+      "probe_paths": {
+        "0.2": "experiments/semantic_embedding_geometry_v6/suite_inputs/environment_night_seed_20260914/probe_0p2_PIXEL_ORACLE_MODEL_GENERATED.png",
+        "0.5": "experiments/semantic_embedding_geometry_v6/suite_inputs/environment_night_seed_20260914/probe_0p5_PIXEL_ORACLE_MODEL_GENERATED.png",
+        "0.8": "experiments/semantic_embedding_geometry_v6/suite_inputs/environment_night_seed_20260914/probe_0p8_PIXEL_ORACLE_MODEL_GENERATED.png"
+      },
+      "source_fingerprint_sha256": "17ce86e0760ccde524b66bd60fb79ba83bb1e4e66c2afeac2a4d9159cc3301aa",
+      "full_fingerprint_sha256": "b0b4601efb0dd24d7861d44d5402ae9f1fbc59e75201d3c01814fd24fcd61686",
+      "probe_fingerprints_sha256": {
+        "0.2": "dbf3bcb08d89562e5e1db9cca3c2a9164fd6d5b1883b7eabf112a1593c7a611a",
+        "0.5": "fcd701ab78c499ac3a2bb21be7906b7dbce2de1c6a35124648fa7f5feaa6695b",
+        "0.8": "0ff74e2e1be7a625c1ee2c7504deb2b4a2a97e2c40efb2d3b27b011ad5ec9bf0"
+      },
+      "source_provenance": "SOURCE INPUT",
+      "full_provenance": "MODEL-GENERATED NATIVE FULL",
+      "probe_provenance": "MODEL-GENERATED PIXEL-ORACLE DIAGNOSTIC"
+    }
+  ]
+}

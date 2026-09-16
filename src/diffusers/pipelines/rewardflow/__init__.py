@@ -55,6 +55,11 @@ except OptionalDependencyNotAvailable:
 
     _dummy_objects.update(get_objects_from_module(dummy_torch_and_transformers_objects))
 else:
+    _import_structure["endpoint_embedding_geometry"] = [
+        "CachedEndpointEmbeddingGeometry",
+        "EndpointGeometryOutput",
+        "endpoint_axis_geometry",
+    ]
     _import_structure["endpoint_comparator_metrics"] = [
         "SMALL_GRADIENT_STEPS",
         "average_ranks",
@@ -178,6 +183,12 @@ else:
         "parse_semantic_progress_json",
         "save_cached_semantic_progress_spec",
     ]
+    _import_structure["semantic_feature_scorers"] = [
+        "CLIPImageFeatureScorer",
+        "ImageFeatureScorer",
+        "QwenHiddenFeatureScorer",
+        "SigLIPImageFeatureScorer",
+    ]
     _import_structure["terminal_control"] = [
         "BestTerminalControlCheckpoint",
         "BlueEndpointTargetLoss",
@@ -212,6 +223,11 @@ if TYPE_CHECKING or DIFFUSERS_SLOW_IMPORT:
             gradient_direction_gate,
             ordering_diagnostics,
             spearman_correlation,
+        )
+        from .endpoint_embedding_geometry import (
+            CachedEndpointEmbeddingGeometry,
+            EndpointGeometryOutput,
+            endpoint_axis_geometry,
         )
         from .endpoint_feature_distance import (
             FeatureEndpointDistanceReward,
@@ -292,6 +308,12 @@ if TYPE_CHECKING or DIFFUSERS_SLOW_IMPORT:
             ResearchStaticRewardGuidance,
             StaticRewardGuidance,
             qwen_vqa_token_reward,
+        )
+        from .semantic_feature_scorers import (
+            CLIPImageFeatureScorer,
+            ImageFeatureScorer,
+            QwenHiddenFeatureScorer,
+            SigLIPImageFeatureScorer,
         )
         from .semantic_progress import (
             SEMANTIC_PROGRESS_CACHE_SCHEMA_VERSION,

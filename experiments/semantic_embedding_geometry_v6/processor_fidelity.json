@@ -1,0 +1,42 @@
+{
+  "clip": {
+    "official_pixel_shape": [
+      1,
+      3,
+      224,
+      224
+    ],
+    "differentiable_pixel_shape": [
+      1,
+      3,
+      224,
+      224
+    ],
+    "pixel_cosine": 0.9999986886978149,
+    "pixel_mse": 1.7194709016621346e-06,
+    "pixel_max_abs_difference": 0.03001558780670166,
+    "embedding_cosine": 0.9998669624328613,
+    "embedding_mse": 3.463559039573738e-07,
+    "engineering_gate_embedding_cosine_at_least_0p999": true
+  },
+  "siglip": {
+    "official_pixel_shape": [
+      1,
+      3,
+      384,
+      384
+    ],
+    "differentiable_pixel_shape": [
+      1,
+      3,
+      384,
+      384
+    ],
+    "pixel_cosine": 1.000008225440979,
+    "pixel_mse": 7.993044164322782e-07,
+    "pixel_max_abs_difference": 0.015686392784118652,
+    "embedding_cosine": 0.9998360276222229,
+    "embedding_mse": 2.847274345185724e-07,
+    "engineering_gate_embedding_cosine_at_least_0p999": true
+  }
+}

@@ -1,0 +1,2078 @@
+{
+  "qwen_hidden": {
+    "ball_color_seed_20260914": {
+      "gradient_l2": 4.115176200866699,
+      "gradient_rms": 0.009280852042138577,
+      "gradient_finite": true,
+      "gradient_nonzero": true,
+      "directions": {
+        "toward_full": {
+          "trials": [
+            {
+              "step_rms": 1e-05,
+              "old_progress": 0.9985816478729248,
+              "new_progress": 1.0077526569366455,
+              "progress_change": 0.009171009063720703,
+              "old_off_axis": 0.3198833167552948,
+              "new_off_axis": 0.3195585012435913,
+              "off_axis_change": -0.0003248155117034912,
+              "direction_correct": true
+            },
+            {
+              "step_rms": 3e-05,
+              "old_progress": 0.9985816478729248,
+              "new_progress": 1.0126307010650635,
+              "progress_change": 0.014049053192138672,
+              "old_off_axis": 0.3198833167552948,
+              "new_off_axis": 0.3078109622001648,
+              "off_axis_change": -0.012072354555130005,
+              "direction_correct": true
+            },
+            {
+              "step_rms": 0.0001,
+              "old_progress": 0.9985816478729248,
+              "new_progress": 1.0264288187026978,
+              "progress_change": 0.02784717082977295,
+              "old_off_axis": 0.3198833167552948,
+              "new_off_axis": 0.300977885723114,
+              "off_axis_change": -0.018905431032180786,
+              "direction_correct": true
+            },
+            {
+              "step_rms": 0.0003,
+              "old_progress": 0.9985816478729248,
+              "new_progress": 1.0302937030792236,
+              "progress_change": 0.03171205520629883,
+              "old_off_axis": 0.3198833167552948,
+              "new_off_axis": 0.28064197301864624,
+              "off_axis_change": -0.03924134373664856,
+              "direction_correct": true
+            }
+          ],
+          "small_steps": [
+            1e-05,
+            3e-05,
+            0.0001
+          ],
+          "correct_small_step_count": 3,
+          "required_correct_count": 2,
+          "passed": true,
+          "larger_steps_diagnostic_only": [
+            {
+              "step_rms": 0.0003,
+              "old_progress": 0.9985816478729248,
+              "new_progress": 1.0302937030792236,
+              "progress_change": 0.03171205520629883,
+              "old_off_axis": 0.3198833167552948,
+              "new_off_axis": 0.28064197301864624,
+              "off_axis_change": -0.03924134373664856,
+              "direction_correct": true
+            }
+          ]
+        },
+        "toward_source": {
+          "trials": [
+            {
+              "step_rms": 1e-05,
+              "old_progress": 0.9985816478729248,
+              "new_progress": 1.0031529664993286,
+              "progress_change": 0.004571318626403809,
+              "old_off_axis": 0.3198833167552948,
+              "new_off_axis": 0.3417489230632782,
+              "off_axis_change": 0.0218656063079834,
+              "direction_correct": false
+            },
+            {
+              "step_rms": 3e-05,
+              "old_progress": 0.9985816478729248,
+              "new_progress": 1.0101032257080078,
+              "progress_change": 0.011521577835083008,
+              "old_off_axis": 0.3198833167552948,
+              "new_off_axis": 0.33606019616127014,
+              "off_axis_change": 0.016176879405975342,
+              "direction_correct": false
+            },
+            {
+              "step_rms": 0.0001,
+              "old_progress": 0.9985816478729248,
+              "new_progress": 1.0122497081756592,
+              "progress_change": 0.013668060302734375,
+              "old_off_axis": 0.3198833167552948,
+              "new_off_axis": 0.34686851501464844,
+              "off_axis_change": 0.026985198259353638,
+              "direction_correct": false
+            },
+            {
+              "step_rms": 0.0003,
+              "old_progress": 0.9985816478729248,
+              "new_progress": 0.9487326145172119,
+              "progress_change": -0.04984903335571289,
+              "old_off_axis": 0.3198833167552948,
+              "new_off_axis": 0.2804599106311798,
+              "off_axis_change": -0.03942340612411499,
+              "direction_correct": true
+            }
+          ],
+          "small_steps": [
+            1e-05,
+            3e-05,
+            0.0001
+          ],
+          "correct_small_step_count": 0,
+          "required_correct_count": 2,
+          "passed": false,
+          "larger_steps_diagnostic_only": [
+            {
+              "step_rms": 0.0003,
+              "old_progress": 0.9985816478729248,
+              "new_progress": 0.9487326145172119,
+              "progress_change": -0.04984903335571289,
+              "old_off_axis": 0.3198833167552948,
+              "new_off_axis": 0.2804599106311798,
+              "off_axis_change": -0.03942340612411499,
+              "direction_correct": true
+            }
+          ]
+        }
+      },
+      "toward_source_pass": false,
+      "toward_full_pass": true
+    },
+    "ball_color_seed_20260915": {
+      "gradient_l2": 198.36917114257812,
+      "gradient_rms": 0.44737693667411804,
+      "gradient_finite": true,
+      "gradient_nonzero": true,
+      "directions": {
+        "toward_full": {
+          "trials": [
+            {
+              "step_rms": 1e-05,
+              "old_progress": 0.8891618251800537,
+              "new_progress": 0.8962510824203491,
+              "progress_change": 0.00708925724029541,
+              "old_off_axis": 0.2289951890707016,
+              "new_off_axis": 0.23013298213481903,
+              "off_axis_change": 0.0011377930641174316,
+              "direction_correct": true
+            },
+            {
+              "step_rms": 3e-05,
+              "old_progress": 0.8891618251800537,
+              "new_progress": 0.9066044092178345,
+              "progress_change": 0.01744258403778076,
+              "old_off_axis": 0.2289951890707016,
+              "new_off_axis": 0.23369461297988892,
+              "off_axis_change": 0.004699423909187317,
+              "direction_correct": true
+            },
+            {
+              "step_rms": 0.0001,
+              "old_progress": 0.8891618251800537,
+              "new_progress": 0.921935498714447,
+              "progress_change": 0.03277367353439331,
+              "old_off_axis": 0.2289951890707016,
+              "new_off_axis": 0.2579576075077057,
+              "off_axis_change": 0.02896241843700409,
+              "direction_correct": true
+            },
+            {
+              "step_rms": 0.0003,
+              "old_progress": 0.8891618251800537,
+              "new_progress": 0.9485637545585632,
+              "progress_change": 0.05940192937850952,
+              "old_off_axis": 0.2289951890707016,
+              "new_off_axis": 0.32825061678886414,
+              "off_axis_change": 0.09925542771816254,
+              "direction_correct": true
+            }
+          ],
+          "small_steps": [
+            1e-05,
+            3e-05,
+            0.0001
+          ],
+          "correct_small_step_count": 3,
+          "required_correct_count": 2,
+          "passed": true,
+          "larger_steps_diagnostic_only": [
+            {
+              "step_rms": 0.0003,
+              "old_progress": 0.8891618251800537,
+              "new_progress": 0.9485637545585632,
+              "progress_change": 0.05940192937850952,
+              "old_off_axis": 0.2289951890707016,
+              "new_off_axis": 0.32825061678886414,
+              "off_axis_change": 0.09925542771816254,
+              "direction_correct": true
+            }
+          ]
+        },
+        "toward_source": {
+          "trials": [
+            {
+              "step_rms": 1e-05,
+              "old_progress": 0.8891618251800537,
+              "new_progress": 0.8905524611473083,
+              "progress_change": 0.0013906359672546387,
+              "old_off_axis": 0.2289951890707016,
+              "new_off_axis": 0.22853581607341766,
+              "off_axis_change": -0.00045937299728393555,
+              "direction_correct": false
+            },
+            {
+              "step_rms": 3e-05,
+              "old_progress": 0.8891618251800537,
+              "new_progress": 0.8897029757499695,
+              "progress_change": 0.0005411505699157715,
+              "old_off_axis": 0.2289951890707016,
+              "new_off_axis": 0.2318979799747467,
+              "off_axis_change": 0.002902790904045105,
+              "direction_correct": false
+            },
+            {
+              "step_rms": 0.0001,
+              "old_progress": 0.8891618251800537,
+              "new_progress": 0.8479103446006775,
+              "progress_change": -0.04125148057937622,
+              "old_off_axis": 0.2289951890707016,
+              "new_off_axis": 0.2473147213459015,
+              "off_axis_change": 0.01831953227519989,
+              "direction_correct": true
+            },
+            {
+              "step_rms": 0.0003,
+              "old_progress": 0.8891618251800537,
+              "new_progress": 0.8356015086174011,
+              "progress_change": -0.05356031656265259,
+              "old_off_axis": 0.2289951890707016,
+              "new_off_axis": 0.2781526446342468,
+              "off_axis_change": 0.04915745556354523,
+              "direction_correct": true
+            }
+          ],
+          "small_steps": [
+            1e-05,
+            3e-05,
+            0.0001
+          ],
+          "correct_small_step_count": 1,
+          "required_correct_count": 2,
+          "passed": false,
+          "larger_steps_diagnostic_only": [
+            {
+              "step_rms": 0.0003,
+              "old_progress": 0.8891618251800537,
+              "new_progress": 0.8356015086174011,
+              "progress_change": -0.05356031656265259,
+              "old_off_axis": 0.2289951890707016,
+              "new_off_axis": 0.2781526446342468,
+              "off_axis_change": 0.04915745556354523,
+              "direction_correct": true
+            }
+          ]
+        }
+      },
+      "toward_source_pass": false,
+      "toward_full_pass": true
+    },
+    "ball_color_seed_20260916": {
+      "gradient_l2": 169.67845153808594,
+      "gradient_rms": 0.3826714754104614,
+      "gradient_finite": true,
+      "gradient_nonzero": true,
+      "directions": {
+        "toward_full": {
+          "trials": [
+            {
+              "step_rms": 1e-05,
+              "old_progress": 0.7966749668121338,
+              "new_progress": 0.8083747625350952,
+              "progress_change": 0.011699795722961426,
+              "old_off_axis": 0.29032430052757263,
+              "new_off_axis": 0.29349613189697266,
+              "off_axis_change": 0.0031718313694000244,
+              "direction_correct": true
+            },
+            {
+              "step_rms": 3e-05,
+              "old_progress": 0.7966749668121338,
+              "new_progress": 0.8131559491157532,
+              "progress_change": 0.016480982303619385,
+              "old_off_axis": 0.29032430052757263,
+              "new_off_axis": 0.29227709770202637,
+              "off_axis_change": 0.0019527971744537354,
+              "direction_correct": true
+            },
+            {
+              "step_rms": 0.0001,
+              "old_progress": 0.7966749668121338,
+              "new_progress": 0.8290622234344482,
+              "progress_change": 0.03238725662231445,
+              "old_off_axis": 0.29032430052757263,
+              "new_off_axis": 0.28163978457450867,
+              "off_axis_change": -0.008684515953063965,
+              "direction_correct": true
+            },
+            {
+              "step_rms": 0.0003,
+              "old_progress": 0.7966749668121338,
+              "new_progress": 0.8624911308288574,
+              "progress_change": 0.06581616401672363,
+              "old_off_axis": 0.29032430052757263,
+              "new_off_axis": 0.2771638333797455,
+              "off_axis_change": -0.013160467147827148,
+              "direction_correct": true
+            }
+          ],
+          "small_steps": [
+            1e-05,
+            3e-05,
+            0.0001
+          ],
+          "correct_small_step_count": 3,
+          "required_correct_count": 2,
+          "passed": true,
+          "larger_steps_diagnostic_only": [
+            {
+              "step_rms": 0.0003,
+              "old_progress": 0.7966749668121338,
+              "new_progress": 0.8624911308288574,
+              "progress_change": 0.06581616401672363,
+              "old_off_axis": 0.29032430052757263,
+              "new_off_axis": 0.2771638333797455,
+              "off_axis_change": -0.013160467147827148,
+              "direction_correct": true
+            }
+          ]
+        },
+        "toward_source": {
+          "trials": [
+            {
+              "step_rms": 1e-05,
+              "old_progress": 0.7966749668121338,
+              "new_progress": 0.795380711555481,
+              "progress_change": -0.001294255256652832,
+              "old_off_axis": 0.29032430052757263,
+              "new_off_axis": 0.2951107621192932,
+              "off_axis_change": 0.004786461591720581,
+              "direction_correct": true
+            },
+            {
+              "step_rms": 3e-05,
+              "old_progress": 0.7966749668121338,
+              "new_progress": 0.789888322353363,
+              "progress_change": -0.006786644458770752,
+              "old_off_axis": 0.29032430052757263,
+              "new_off_axis": 0.3049517869949341,
+              "off_axis_change": 0.01462748646736145,
+              "direction_correct": true
+            },
+            {
+              "step_rms": 0.0001,
+              "old_progress": 0.7966749668121338,
+              "new_progress": 0.794868528842926,
+              "progress_change": -0.0018064379692077637,
+              "old_off_axis": 0.29032430052757263,
+              "new_off_axis": 0.29032403230667114,
+              "off_axis_change": -2.682209014892578e-07,
+              "direction_correct": true
+            },
+            {
+              "step_rms": 0.0003,
+              "old_progress": 0.7966749668121338,
+              "new_progress": 0.8001965880393982,
+              "progress_change": 0.0035216212272644043,
+              "old_off_axis": 0.29032430052757263,
+              "new_off_axis": 0.31208881735801697,
+              "off_axis_change": 0.021764516830444336,
+              "direction_correct": false
+            }
+          ],
+          "small_steps": [
+            1e-05,
+            3e-05,
+            0.0001
+          ],
+          "correct_small_step_count": 3,
+          "required_correct_count": 2,
+          "passed": true,
+          "larger_steps_diagnostic_only": [
+            {
+              "step_rms": 0.0003,
+              "old_progress": 0.7966749668121338,
+              "new_progress": 0.8001965880393982,
+              "progress_change": 0.0035216212272644043,
+              "old_off_axis": 0.29032430052757263,
+              "new_off_axis": 0.31208881735801697,
+              "off_axis_change": 0.021764516830444336,
+              "direction_correct": false
+            }
+          ]
+        }
+      },
+      "toward_source_pass": true,
+      "toward_full_pass": true
+    },
+    "scene_reimagination_seed_20260914": {
+      "gradient_l2": 16.453994750976562,
+      "gradient_rms": 0.037108276039361954,
+      "gradient_finite": true,
+      "gradient_nonzero": true,
+      "directions": {
+        "toward_full": {
+          "trials": [
+            {
+              "step_rms": 1e-05,
+              "old_progress": 0.8602920174598694,
+              "new_progress": 0.904704213142395,
+              "progress_change": 0.044412195682525635,
+              "old_off_axis": 0.32116493582725525,
+              "new_off_axis": 0.34634795784950256,
+              "off_axis_change": 0.025183022022247314,
+              "direction_correct": true
+            },
+            {
+              "step_rms": 3e-05,
+              "old_progress": 0.8602920174598694,
+              "new_progress": 0.9209111332893372,
+              "progress_change": 0.06061911582946777,
+              "old_off_axis": 0.32116493582725525,
+              "new_off_axis": 0.3324795067310333,
+              "off_axis_change": 0.011314570903778076,
+              "direction_correct": true
+            },
+            {
+              "step_rms": 0.0001,
+              "old_progress": 0.8602920174598694,
+              "new_progress": 0.8756245374679565,
+              "progress_change": 0.015332520008087158,
+              "old_off_axis": 0.32116493582725525,
+              "new_off_axis": 0.31826406717300415,
+              "off_axis_change": -0.0029008686542510986,
+              "direction_correct": true
+            },
+            {
+              "step_rms": 0.0003,
+              "old_progress": 0.8602920174598694,
+              "new_progress": 0.8624135255813599,
+              "progress_change": 0.0021215081214904785,
+              "old_off_axis": 0.32116493582725525,
+              "new_off_axis": 0.30409568548202515,
+              "off_axis_change": -0.017069250345230103,
+              "direction_correct": true
+            }
+          ],
+          "small_steps": [
+            1e-05,
+            3e-05,
+            0.0001
+          ],
+          "correct_small_step_count": 3,
+          "required_correct_count": 2,
+          "passed": true,
+          "larger_steps_diagnostic_only": [
+            {
+              "step_rms": 0.0003,
+              "old_progress": 0.8602920174598694,
+              "new_progress": 0.8624135255813599,
+              "progress_change": 0.0021215081214904785,
+              "old_off_axis": 0.32116493582725525,
+              "new_off_axis": 0.30409568548202515,
+              "off_axis_change": -0.017069250345230103,
+              "direction_correct": true
+            }
+          ]
+        },
+        "toward_source": {
+          "trials": [
+            {
+              "step_rms": 1e-05,
+              "old_progress": 0.8602920174598694,
+              "new_progress": 0.8018568754196167,
+              "progress_change": -0.058435142040252686,
+              "old_off_axis": 0.32116493582725525,
+              "new_off_axis": 0.3035266101360321,
+              "off_axis_change": -0.017638325691223145,
+              "direction_correct": true
+            },
+            {
+              "step_rms": 3e-05,
+              "old_progress": 0.8602920174598694,
+              "new_progress": 0.839093029499054,
+              "progress_change": -0.02119898796081543,
+              "old_off_axis": 0.32116493582725525,
+              "new_off_axis": 0.290681928396225,
+              "off_axis_change": -0.030483007431030273,
+              "direction_correct": true
+            },
+            {
+              "step_rms": 0.0001,
+              "old_progress": 0.8602920174598694,
+              "new_progress": 0.8042328357696533,
+              "progress_change": -0.056059181690216064,
+              "old_off_axis": 0.32116493582725525,
+              "new_off_axis": 0.2938123047351837,
+              "off_axis_change": -0.027352631092071533,
+              "direction_correct": true
+            },
+            {
+              "step_rms": 0.0003,
+              "old_progress": 0.8602920174598694,
+              "new_progress": 0.7734454274177551,
+              "progress_change": -0.08684659004211426,
+              "old_off_axis": 0.32116493582725525,
+              "new_off_axis": 0.33601078391075134,
+              "off_axis_change": 0.014845848083496094,
+              "direction_correct": true
+            }
+          ],
+          "small_steps": [
+            1e-05,
+            3e-05,
+            0.0001
+          ],
+          "correct_small_step_count": 3,
+          "required_correct_count": 2,
+          "passed": true,
+          "larger_steps_diagnostic_only": [
+            {
+              "step_rms": 0.0003,
+              "old_progress": 0.8602920174598694,
+              "new_progress": 0.7734454274177551,
+              "progress_change": -0.08684659004211426,
+              "old_off_axis": 0.32116493582725525,
+              "new_off_axis": 0.33601078391075134,
+              "off_axis_change": 0.014845848083496094,
+              "direction_correct": true
+            }
+          ]
+        }
+      },
+      "toward_source_pass": true,
+      "toward_full_pass": true
+    },
+    "environment_night_seed_20260914": {
+      "gradient_l2": 415.615478515625,
+      "gradient_rms": 0.9373270273208618,
+      "gradient_finite": true,
+      "gradient_nonzero": true,
+      "directions": {
+        "toward_full": {
+          "trials": [
+            {
+              "step_rms": 1e-05,
+              "old_progress": 1.0196062326431274,
+              "new_progress": 1.0209006071090698,
+              "progress_change": 0.0012943744659423828,
+              "old_off_axis": 0.30022066831588745,
+              "new_off_axis": 0.3158220052719116,
+              "off_axis_change": 0.01560133695602417,
+              "direction_correct": true
+            },
+            {
+              "step_rms": 3e-05,
+              "old_progress": 1.0196062326431274,
+              "new_progress": 1.007197380065918,
+              "progress_change": -0.012408852577209473,
+              "old_off_axis": 0.30022066831588745,
+              "new_off_axis": 0.31409919261932373,
+              "off_axis_change": 0.01387852430343628,
+              "direction_correct": false
+            },
+            {
+              "step_rms": 0.0001,
+              "old_progress": 1.0196062326431274,
+              "new_progress": 0.9952717423439026,
+              "progress_change": -0.024334490299224854,
+              "old_off_axis": 0.30022066831588745,
+              "new_off_axis": 0.3093551695346832,
+              "off_axis_change": 0.009134501218795776,
+              "direction_correct": false
+            },
+            {
+              "step_rms": 0.0003,
+              "old_progress": 1.0196062326431274,
+              "new_progress": 0.9901368618011475,
+              "progress_change": -0.02946937084197998,
+              "old_off_axis": 0.30022066831588745,
+              "new_off_axis": 0.2957233488559723,
+              "off_axis_change": -0.004497319459915161,
+              "direction_correct": false
+            }
+          ],
+          "small_steps": [
+            1e-05,
+            3e-05,
+            0.0001
+          ],
+          "correct_small_step_count": 1,
+          "required_correct_count": 2,
+          "passed": false,
+          "larger_steps_diagnostic_only": [
+            {
+              "step_rms": 0.0003,
+              "old_progress": 1.0196062326431274,
+              "new_progress": 0.9901368618011475,
+              "progress_change": -0.02946937084197998,
+              "old_off_axis": 0.30022066831588745,
+              "new_off_axis": 0.2957233488559723,
+              "off_axis_change": -0.004497319459915161,
+              "direction_correct": false
+            }
+          ]
+        },
+        "toward_source": {
+          "trials": [
+            {
+              "step_rms": 1e-05,
+              "old_progress": 1.0196062326431274,
+              "new_progress": 1.0112594366073608,
+              "progress_change": -0.008346796035766602,
+              "old_off_axis": 0.30022066831588745,
+              "new_off_axis": 0.3082945942878723,
+              "off_axis_change": 0.008073925971984863,
+              "direction_correct": true
+            },
+            {
+              "step_rms": 3e-05,
+              "old_progress": 1.0196062326431274,
+              "new_progress": 0.996829092502594,
+              "progress_change": -0.022777140140533447,
+              "old_off_axis": 0.30022066831588745,
+              "new_off_axis": 0.29403242468833923,
+              "off_axis_change": -0.006188243627548218,
+              "direction_correct": true
+            },
+            {
+              "step_rms": 0.0001,
+              "old_progress": 1.0196062326431274,
+              "new_progress": 0.9550715088844299,
+              "progress_change": -0.06453472375869751,
+              "old_off_axis": 0.30022066831588745,
+              "new_off_axis": 0.2507133483886719,
+              "off_axis_change": -0.049507319927215576,
+              "direction_correct": true
+            },
+            {
+              "step_rms": 0.0003,
+              "old_progress": 1.0196062326431274,
+              "new_progress": 0.9329981803894043,
+              "progress_change": -0.08660805225372314,
+              "old_off_axis": 0.30022066831588745,
+              "new_off_axis": 0.24479401111602783,
+              "off_axis_change": -0.05542665719985962,
+              "direction_correct": true
+            }
+          ],
+          "small_steps": [
+            1e-05,
+            3e-05,
+            0.0001
+          ],
+          "correct_small_step_count": 3,
+          "required_correct_count": 2,
+          "passed": true,
+          "larger_steps_diagnostic_only": [
+            {
+              "step_rms": 0.0003,
+              "old_progress": 1.0196062326431274,
+              "new_progress": 0.9329981803894043,
+              "progress_change": -0.08660805225372314,
+              "old_off_axis": 0.30022066831588745,
+              "new_off_axis": 0.24479401111602783,
+              "off_axis_change": -0.05542665719985962,
+              "direction_correct": true
+            }
+          ]
+        }
+      },
+      "toward_source_pass": true,
+      "toward_full_pass": false
+    }
+  },
+  "clip": {
+    "ball_color_seed_20260914": {
+      "gradient_l2": 8.370147705078125,
+      "gradient_rms": 0.018876980990171432,
+      "gradient_finite": true,
+      "gradient_nonzero": true,
+      "directions": {
+        "toward_full": {
+          "trials": [
+            {
+              "step_rms": 1e-05,
+              "old_progress": 0.8826477527618408,
+              "new_progress": 0.8975639939308167,
+              "progress_change": 0.01491624116897583,
+              "old_off_axis": 0.29200729727745056,
+              "new_off_axis": 0.27883249521255493,
+              "off_axis_change": -0.01317480206489563,
+              "direction_correct": true
+            },
+            {
+              "step_rms": 3e-05,
+              "old_progress": 0.8826477527618408,
+              "new_progress": 0.907413125038147,
+              "progress_change": 0.024765372276306152,
+              "old_off_axis": 0.29200729727745056,
+              "new_off_axis": 0.2678254246711731,
+              "off_axis_change": -0.024181872606277466,
+              "direction_correct": true
+            },
+            {
+              "step_rms": 0.0001,
+              "old_progress": 0.8826477527618408,
+              "new_progress": 0.9428195357322693,
+              "progress_change": 0.06017178297042847,
+              "old_off_axis": 0.29200729727745056,
+              "new_off_axis": 0.22679923474788666,
+              "off_axis_change": -0.0652080625295639,
+              "direction_correct": true
+            },
+            {
+              "step_rms": 0.0003,
+              "old_progress": 0.8826477527618408,
+              "new_progress": 1.005337119102478,
+              "progress_change": 0.12268936634063721,
+              "old_off_axis": 0.29200729727745056,
+              "new_off_axis": 0.27887216210365295,
+              "off_axis_change": -0.013135135173797607,
+              "direction_correct": true
+            }
+          ],
+          "small_steps": [
+            1e-05,
+            3e-05,
+            0.0001
+          ],
+          "correct_small_step_count": 3,
+          "required_correct_count": 2,
+          "passed": true,
+          "larger_steps_diagnostic_only": [
+            {
+              "step_rms": 0.0003,
+              "old_progress": 0.8826477527618408,
+              "new_progress": 1.005337119102478,
+              "progress_change": 0.12268936634063721,
+              "old_off_axis": 0.29200729727745056,
+              "new_off_axis": 0.27887216210365295,
+              "off_axis_change": -0.013135135173797607,
+              "direction_correct": true
+            }
+          ]
+        },
+        "toward_source": {
+          "trials": [
+            {
+              "step_rms": 1e-05,
+              "old_progress": 0.8826477527618408,
+              "new_progress": 0.873079240322113,
+              "progress_change": -0.009568512439727783,
+              "old_off_axis": 0.29200729727745056,
+              "new_off_axis": 0.3084356486797333,
+              "off_axis_change": 0.016428351402282715,
+              "direction_correct": true
+            },
+            {
+              "step_rms": 3e-05,
+              "old_progress": 0.8826477527618408,
+              "new_progress": 0.8590678572654724,
+              "progress_change": -0.023579895496368408,
+              "old_off_axis": 0.29200729727745056,
+              "new_off_axis": 0.3388645350933075,
+              "off_axis_change": 0.046857237815856934,
+              "direction_correct": true
+            },
+            {
+              "step_rms": 0.0001,
+              "old_progress": 0.8826477527618408,
+              "new_progress": 0.8343036770820618,
+              "progress_change": -0.04834407567977905,
+              "old_off_axis": 0.29200729727745056,
+              "new_off_axis": 0.35462379455566406,
+              "off_axis_change": 0.0626164972782135,
+              "direction_correct": true
+            },
+            {
+              "step_rms": 0.0003,
+              "old_progress": 0.8826477527618408,
+              "new_progress": 0.7801627516746521,
+              "progress_change": -0.10248500108718872,
+              "old_off_axis": 0.29200729727745056,
+              "new_off_axis": 0.3903634250164032,
+              "off_axis_change": 0.09835612773895264,
+              "direction_correct": true
+            }
+          ],
+          "small_steps": [
+            1e-05,
+            3e-05,
+            0.0001
+          ],
+          "correct_small_step_count": 3,
+          "required_correct_count": 2,
+          "passed": true,
+          "larger_steps_diagnostic_only": [
+            {
+              "step_rms": 0.0003,
+              "old_progress": 0.8826477527618408,
+              "new_progress": 0.7801627516746521,
+              "progress_change": -0.10248500108718872,
+              "old_off_axis": 0.29200729727745056,
+              "new_off_axis": 0.3903634250164032,
+              "off_axis_change": 0.09835612773895264,
+              "direction_correct": true
+            }
+          ]
+        }
+      },
+      "toward_source_pass": true,
+      "toward_full_pass": true
+    },
+    "ball_color_seed_20260915": {
+      "gradient_l2": 4.508249282836914,
+      "gradient_rms": 0.010167339816689491,
+      "gradient_finite": true,
+      "gradient_nonzero": true,
+      "directions": {
+        "toward_full": {
+          "trials": [
+            {
+              "step_rms": 1e-05,
+              "old_progress": 0.8992934226989746,
+              "new_progress": 0.9068759083747864,
+              "progress_change": 0.007582485675811768,
+              "old_off_axis": 0.31276217103004456,
+              "new_off_axis": 0.29932332038879395,
+              "off_axis_change": -0.01343885064125061,
+              "direction_correct": true
+            },
+            {
+              "step_rms": 3e-05,
+              "old_progress": 0.8992934226989746,
+              "new_progress": 0.9162304997444153,
+              "progress_change": 0.016937077045440674,
+              "old_off_axis": 0.31276217103004456,
+              "new_off_axis": 0.2895808815956116,
+              "off_axis_change": -0.023181289434432983,
+              "direction_correct": true
+            },
+            {
+              "step_rms": 0.0001,
+              "old_progress": 0.8992934226989746,
+              "new_progress": 0.9537613391876221,
+              "progress_change": 0.05446791648864746,
+              "old_off_axis": 0.31276217103004456,
+              "new_off_axis": 0.27463075518608093,
+              "off_axis_change": -0.03813141584396362,
+              "direction_correct": true
+            },
+            {
+              "step_rms": 0.0003,
+              "old_progress": 0.8992934226989746,
+              "new_progress": 0.9875808954238892,
+              "progress_change": 0.08828747272491455,
+              "old_off_axis": 0.31276217103004456,
+              "new_off_axis": 0.29222947359085083,
+              "off_axis_change": -0.020532697439193726,
+              "direction_correct": true
+            }
+          ],
+          "small_steps": [
+            1e-05,
+            3e-05,
+            0.0001
+          ],
+          "correct_small_step_count": 3,
+          "required_correct_count": 2,
+          "passed": true,
+          "larger_steps_diagnostic_only": [
+            {
+              "step_rms": 0.0003,
+              "old_progress": 0.8992934226989746,
+              "new_progress": 0.9875808954238892,
+              "progress_change": 0.08828747272491455,
+              "old_off_axis": 0.31276217103004456,
+              "new_off_axis": 0.29222947359085083,
+              "off_axis_change": -0.020532697439193726,
+              "direction_correct": true
+            }
+          ]
+        },
+        "toward_source": {
+          "trials": [
+            {
+              "step_rms": 1e-05,
+              "old_progress": 0.8992934226989746,
+              "new_progress": 0.8859261274337769,
+              "progress_change": -0.013367295265197754,
+              "old_off_axis": 0.31276217103004456,
+              "new_off_axis": 0.31702715158462524,
+              "off_axis_change": 0.0042649805545806885,
+              "direction_correct": true
+            },
+            {
+              "step_rms": 3e-05,
+              "old_progress": 0.8992934226989746,
+              "new_progress": 0.875094473361969,
+              "progress_change": -0.024198949337005615,
+              "old_off_axis": 0.31276217103004456,
+              "new_off_axis": 0.3298743963241577,
+              "off_axis_change": 0.01711222529411316,
+              "direction_correct": true
+            },
+            {
+              "step_rms": 0.0001,
+              "old_progress": 0.8992934226989746,
+              "new_progress": 0.8226743936538696,
+              "progress_change": -0.07661902904510498,
+              "old_off_axis": 0.31276217103004456,
+              "new_off_axis": 0.38181808590888977,
+              "off_axis_change": 0.06905591487884521,
+              "direction_correct": true
+            },
+            {
+              "step_rms": 0.0003,
+              "old_progress": 0.8992934226989746,
+              "new_progress": 0.6905553340911865,
+              "progress_change": -0.20873808860778809,
+              "old_off_axis": 0.31276217103004456,
+              "new_off_axis": 0.5485178232192993,
+              "off_axis_change": 0.23575565218925476,
+              "direction_correct": true
+            }
+          ],
+          "small_steps": [
+            1e-05,
+            3e-05,
+            0.0001
+          ],
+          "correct_small_step_count": 3,
+          "required_correct_count": 2,
+          "passed": true,
+          "larger_steps_diagnostic_only": [
+            {
+              "step_rms": 0.0003,
+              "old_progress": 0.8992934226989746,
+              "new_progress": 0.6905553340911865,
+              "progress_change": -0.20873808860778809,
+              "old_off_axis": 0.31276217103004456,
+              "new_off_axis": 0.5485178232192993,
+              "off_axis_change": 0.23575565218925476,
+              "direction_correct": true
+            }
+          ]
+        }
+      },
+      "toward_source_pass": true,
+      "toward_full_pass": true
+    },
+    "ball_color_seed_20260916": {
+      "gradient_l2": 5.788735866546631,
+      "gradient_rms": 0.013055188581347466,
+      "gradient_finite": true,
+      "gradient_nonzero": true,
+      "directions": {
+        "toward_full": {
+          "trials": [
+            {
+              "step_rms": 1e-05,
+              "old_progress": 0.7947335243225098,
+              "new_progress": 0.807464599609375,
+              "progress_change": 0.012731075286865234,
+              "old_off_axis": 0.3852684497833252,
+              "new_off_axis": 0.3812609612941742,
+              "off_axis_change": -0.004007488489151001,
+              "direction_correct": true
+            },
+            {
+              "step_rms": 3e-05,
+              "old_progress": 0.7947335243225098,
+              "new_progress": 0.8198466300964355,
+              "progress_change": 0.02511310577392578,
+              "old_off_axis": 0.3852684497833252,
+              "new_off_axis": 0.37352997064590454,
+              "off_axis_change": -0.011738479137420654,
+              "direction_correct": true
+            },
+            {
+              "step_rms": 0.0001,
+              "old_progress": 0.7947335243225098,
+              "new_progress": 0.8557856678962708,
+              "progress_change": 0.061052143573760986,
+              "old_off_axis": 0.3852684497833252,
+              "new_off_axis": 0.35683518648147583,
+              "off_axis_change": -0.028433263301849365,
+              "direction_correct": true
+            },
+            {
+              "step_rms": 0.0003,
+              "old_progress": 0.7947335243225098,
+              "new_progress": 0.9140231609344482,
+              "progress_change": 0.11928963661193848,
+              "old_off_axis": 0.3852684497833252,
+              "new_off_axis": 0.3504970967769623,
+              "off_axis_change": -0.034771353006362915,
+              "direction_correct": true
+            }
+          ],
+          "small_steps": [
+            1e-05,
+            3e-05,
+            0.0001
+          ],
+          "correct_small_step_count": 3,
+          "required_correct_count": 2,
+          "passed": true,
+          "larger_steps_diagnostic_only": [
+            {
+              "step_rms": 0.0003,
+              "old_progress": 0.7947335243225098,
+              "new_progress": 0.9140231609344482,
+              "progress_change": 0.11928963661193848,
+              "old_off_axis": 0.3852684497833252,
+              "new_off_axis": 0.3504970967769623,
+              "off_axis_change": -0.034771353006362915,
+              "direction_correct": true
+            }
+          ]
+        },
+        "toward_source": {
+          "trials": [
+            {
+              "step_rms": 1e-05,
+              "old_progress": 0.7947335243225098,
+              "new_progress": 0.7818491458892822,
+              "progress_change": -0.012884378433227539,
+              "old_off_axis": 0.3852684497833252,
+              "new_off_axis": 0.3874107599258423,
+              "off_axis_change": 0.00214231014251709,
+              "direction_correct": true
+            },
+            {
+              "step_rms": 3e-05,
+              "old_progress": 0.7947335243225098,
+              "new_progress": 0.769709050655365,
+              "progress_change": -0.025024473667144775,
+              "old_off_axis": 0.3852684497833252,
+              "new_off_axis": 0.3917115032672882,
+              "off_axis_change": 0.006443053483963013,
+              "direction_correct": true
+            },
+            {
+              "step_rms": 0.0001,
+              "old_progress": 0.7947335243225098,
+              "new_progress": 0.7103152275085449,
+              "progress_change": -0.08441829681396484,
+              "old_off_axis": 0.3852684497833252,
+              "new_off_axis": 0.4281572699546814,
+              "off_axis_change": 0.0428888201713562,
+              "direction_correct": true
+            },
+            {
+              "step_rms": 0.0003,
+              "old_progress": 0.7947335243225098,
+              "new_progress": 0.5963994860649109,
+              "progress_change": -0.19833403825759888,
+              "old_off_axis": 0.3852684497833252,
+              "new_off_axis": 0.5440170764923096,
+              "off_axis_change": 0.15874862670898438,
+              "direction_correct": true
+            }
+          ],
+          "small_steps": [
+            1e-05,
+            3e-05,
+            0.0001
+          ],
+          "correct_small_step_count": 3,
+          "required_correct_count": 2,
+          "passed": true,
+          "larger_steps_diagnostic_only": [
+            {
+              "step_rms": 0.0003,
+              "old_progress": 0.7947335243225098,
+              "new_progress": 0.5963994860649109,
+              "progress_change": -0.19833403825759888,
+              "old_off_axis": 0.3852684497833252,
+              "new_off_axis": 0.5440170764923096,
+              "off_axis_change": 0.15874862670898438,
+              "direction_correct": true
+            }
+          ]
+        }
+      },
+      "toward_source_pass": true,
+      "toward_full_pass": true
+    },
+    "scene_reimagination_seed_20260914": {
+      "gradient_l2": 4.078988552093506,
+      "gradient_rms": 0.009199239313602448,
+      "gradient_finite": true,
+      "gradient_nonzero": true,
+      "directions": {
+        "toward_full": {
+          "trials": [
+            {
+              "step_rms": 1e-05,
+              "old_progress": 0.8608222007751465,
+              "new_progress": 0.8734186291694641,
+              "progress_change": 0.012596428394317627,
+              "old_off_axis": 0.4775296151638031,
+              "new_off_axis": 0.49491047859191895,
+              "off_axis_change": 0.017380863428115845,
+              "direction_correct": true
+            },
+            {
+              "step_rms": 3e-05,
+              "old_progress": 0.8608222007751465,
+              "new_progress": 0.8769908547401428,
+              "progress_change": 0.016168653964996338,
+              "old_off_axis": 0.4775296151638031,
+              "new_off_axis": 0.49845820665359497,
+              "off_axis_change": 0.02092859148979187,
+              "direction_correct": true
+            },
+            {
+              "step_rms": 0.0001,
+              "old_progress": 0.8608222007751465,
+              "new_progress": 0.8872311115264893,
+              "progress_change": 0.026408910751342773,
+              "old_off_axis": 0.4775296151638031,
+              "new_off_axis": 0.515028715133667,
+              "off_axis_change": 0.03749909996986389,
+              "direction_correct": true
+            },
+            {
+              "step_rms": 0.0003,
+              "old_progress": 0.8608222007751465,
+              "new_progress": 0.9242003560066223,
+              "progress_change": 0.06337815523147583,
+              "old_off_axis": 0.4775296151638031,
+              "new_off_axis": 0.5592049360275269,
+              "off_axis_change": 0.08167532086372375,
+              "direction_correct": true
+            }
+          ],
+          "small_steps": [
+            1e-05,
+            3e-05,
+            0.0001
+          ],
+          "correct_small_step_count": 3,
+          "required_correct_count": 2,
+          "passed": true,
+          "larger_steps_diagnostic_only": [
+            {
+              "step_rms": 0.0003,
+              "old_progress": 0.8608222007751465,
+              "new_progress": 0.9242003560066223,
+              "progress_change": 0.06337815523147583,
+              "old_off_axis": 0.4775296151638031,
+              "new_off_axis": 0.5592049360275269,
+              "off_axis_change": 0.08167532086372375,
+              "direction_correct": true
+            }
+          ]
+        },
+        "toward_source": {
+          "trials": [
+            {
+              "step_rms": 1e-05,
+              "old_progress": 0.8608222007751465,
+              "new_progress": 0.8435298204421997,
+              "progress_change": -0.017292380332946777,
+              "old_off_axis": 0.4775296151638031,
+              "new_off_axis": 0.45892298221588135,
+              "off_axis_change": -0.018606632947921753,
+              "direction_correct": true
+            },
+            {
+              "step_rms": 3e-05,
+              "old_progress": 0.8608222007751465,
+              "new_progress": 0.8397237062454224,
+              "progress_change": -0.02109849452972412,
+              "old_off_axis": 0.4775296151638031,
+              "new_off_axis": 0.45690497756004333,
+              "off_axis_change": -0.020624637603759766,
+              "direction_correct": true
+            },
+            {
+              "step_rms": 0.0001,
+              "old_progress": 0.8608222007751465,
+              "new_progress": 0.8235877752304077,
+              "progress_change": -0.03723442554473877,
+              "old_off_axis": 0.4775296151638031,
+              "new_off_axis": 0.4440132975578308,
+              "off_axis_change": -0.03351631760597229,
+              "direction_correct": true
+            },
+            {
+              "step_rms": 0.0003,
+              "old_progress": 0.8608222007751465,
+              "new_progress": 0.7542262077331543,
+              "progress_change": -0.10659599304199219,
+              "old_off_axis": 0.4775296151638031,
+              "new_off_axis": 0.40728944540023804,
+              "off_axis_change": -0.07024016976356506,
+              "direction_correct": true
+            }
+          ],
+          "small_steps": [
+            1e-05,
+            3e-05,
+            0.0001
+          ],
+          "correct_small_step_count": 3,
+          "required_correct_count": 2,
+          "passed": true,
+          "larger_steps_diagnostic_only": [
+            {
+              "step_rms": 0.0003,
+              "old_progress": 0.8608222007751465,
+              "new_progress": 0.7542262077331543,
+              "progress_change": -0.10659599304199219,
+              "old_off_axis": 0.4775296151638031,
+              "new_off_axis": 0.40728944540023804,
+              "off_axis_change": -0.07024016976356506,
+              "direction_correct": true
+            }
+          ]
+        }
+      },
+      "toward_source_pass": true,
+      "toward_full_pass": true
+    },
+    "environment_night_seed_20260914": {
+      "gradient_l2": 16.064355850219727,
+      "gradient_rms": 0.03622953221201897,
+      "gradient_finite": true,
+      "gradient_nonzero": true,
+      "directions": {
+        "toward_full": {
+          "trials": [
+            {
+              "step_rms": 1e-05,
+              "old_progress": 0.5764395594596863,
+              "new_progress": 0.6313250660896301,
+              "progress_change": 0.05488550662994385,
+              "old_off_axis": 0.5566332340240479,
+              "new_off_axis": 0.5226570963859558,
+              "off_axis_change": -0.03397613763809204,
+              "direction_correct": true
+            },
+            {
+              "step_rms": 3e-05,
+              "old_progress": 0.5764395594596863,
+              "new_progress": 0.6319286227226257,
+              "progress_change": 0.05548906326293945,
+              "old_off_axis": 0.5566332340240479,
+              "new_off_axis": 0.5225545763969421,
+              "off_axis_change": -0.03407865762710571,
+              "direction_correct": true
+            },
+            {
+              "step_rms": 0.0001,
+              "old_progress": 0.5764395594596863,
+              "new_progress": 0.6384862065315247,
+              "progress_change": 0.06204664707183838,
+              "old_off_axis": 0.5566332340240479,
+              "new_off_axis": 0.5150416493415833,
+              "off_axis_change": -0.0415915846824646,
+              "direction_correct": true
+            },
+            {
+              "step_rms": 0.0003,
+              "old_progress": 0.5764395594596863,
+              "new_progress": 0.7529009580612183,
+              "progress_change": 0.17646139860153198,
+              "old_off_axis": 0.5566332340240479,
+              "new_off_axis": 0.45788875222206116,
+              "off_axis_change": -0.0987444818019867,
+              "direction_correct": true
+            }
+          ],
+          "small_steps": [
+            1e-05,
+            3e-05,
+            0.0001
+          ],
+          "correct_small_step_count": 3,
+          "required_correct_count": 2,
+          "passed": true,
+          "larger_steps_diagnostic_only": [
+            {
+              "step_rms": 0.0003,
+              "old_progress": 0.5764395594596863,
+              "new_progress": 0.7529009580612183,
+              "progress_change": 0.17646139860153198,
+              "old_off_axis": 0.5566332340240479,
+              "new_off_axis": 0.45788875222206116,
+              "off_axis_change": -0.0987444818019867,
+              "direction_correct": true
+            }
+          ]
+        },
+        "toward_source": {
+          "trials": [
+            {
+              "step_rms": 1e-05,
+              "old_progress": 0.5764395594596863,
+              "new_progress": 0.5349372625350952,
+              "progress_change": -0.041502296924591064,
+              "old_off_axis": 0.5566332340240479,
+              "new_off_axis": 0.5811775922775269,
+              "off_axis_change": 0.024544358253479004,
+              "direction_correct": true
+            },
+            {
+              "step_rms": 3e-05,
+              "old_progress": 0.5764395594596863,
+              "new_progress": 0.5324392914772034,
+              "progress_change": -0.04400026798248291,
+              "old_off_axis": 0.5566332340240479,
+              "new_off_axis": 0.5835447311401367,
+              "off_axis_change": 0.026911497116088867,
+              "direction_correct": true
+            },
+            {
+              "step_rms": 0.0001,
+              "old_progress": 0.5764395594596863,
+              "new_progress": 0.5223838090896606,
+              "progress_change": -0.054055750370025635,
+              "old_off_axis": 0.5566332340240479,
+              "new_off_axis": 0.5914067029953003,
+              "off_axis_change": 0.03477346897125244,
+              "direction_correct": true
+            },
+            {
+              "step_rms": 0.0003,
+              "old_progress": 0.5764395594596863,
+              "new_progress": 0.4700166583061218,
+              "progress_change": -0.10642290115356445,
+              "old_off_axis": 0.5566332340240479,
+              "new_off_axis": 0.6360600590705872,
+              "off_axis_change": 0.0794268250465393,
+              "direction_correct": true
+            }
+          ],
+          "small_steps": [
+            1e-05,
+            3e-05,
+            0.0001
+          ],
+          "correct_small_step_count": 3,
+          "required_correct_count": 2,
+          "passed": true,
+          "larger_steps_diagnostic_only": [
+            {
+              "step_rms": 0.0003,
+              "old_progress": 0.5764395594596863,
+              "new_progress": 0.4700166583061218,
+              "progress_change": -0.10642290115356445,
+              "old_off_axis": 0.5566332340240479,
+              "new_off_axis": 0.6360600590705872,
+              "off_axis_change": 0.0794268250465393,
+              "direction_correct": true
+            }
+          ]
+        }
+      },
+      "toward_source_pass": true,
+      "toward_full_pass": true
+    }
+  },
+  "siglip": {
+    "ball_color_seed_20260914": {
+      "gradient_l2": 9.303525924682617,
+      "gradient_rms": 0.020982004702091217,
+      "gradient_finite": true,
+      "gradient_nonzero": true,
+      "directions": {
+        "toward_full": {
+          "trials": [
+            {
+              "step_rms": 1e-05,
+              "old_progress": 0.8277897834777832,
+              "new_progress": 0.8428148031234741,
+              "progress_change": 0.015025019645690918,
+              "old_off_axis": 0.3176131248474121,
+              "new_off_axis": 0.3103160560131073,
+              "off_axis_change": -0.00729706883430481,
+              "direction_correct": true
+            },
+            {
+              "step_rms": 3e-05,
+              "old_progress": 0.8277897834777832,
+              "new_progress": 0.8526094555854797,
+              "progress_change": 0.024819672107696533,
+              "old_off_axis": 0.3176131248474121,
+              "new_off_axis": 0.3087388277053833,
+              "off_axis_change": -0.008874297142028809,
+              "direction_correct": true
+            },
+            {
+              "step_rms": 0.0001,
+              "old_progress": 0.8277897834777832,
+              "new_progress": 0.8946014046669006,
+              "progress_change": 0.06681162118911743,
+              "old_off_axis": 0.3176131248474121,
+              "new_off_axis": 0.3017810881137848,
+              "off_axis_change": -0.01583203673362732,
+              "direction_correct": true
+            },
+            {
+              "step_rms": 0.0003,
+              "old_progress": 0.8277897834777832,
+              "new_progress": 0.9489138722419739,
+              "progress_change": 0.12112408876419067,
+              "old_off_axis": 0.3176131248474121,
+              "new_off_axis": 0.40242481231689453,
+              "off_axis_change": 0.08481168746948242,
+              "direction_correct": true
+            }
+          ],
+          "small_steps": [
+            1e-05,
+            3e-05,
+            0.0001
+          ],
+          "correct_small_step_count": 3,
+          "required_correct_count": 2,
+          "passed": true,
+          "larger_steps_diagnostic_only": [
+            {
+              "step_rms": 0.0003,
+              "old_progress": 0.8277897834777832,
+              "new_progress": 0.9489138722419739,
+              "progress_change": 0.12112408876419067,
+              "old_off_axis": 0.3176131248474121,
+              "new_off_axis": 0.40242481231689453,
+              "off_axis_change": 0.08481168746948242,
+              "direction_correct": true
+            }
+          ]
+        },
+        "toward_source": {
+          "trials": [
+            {
+              "step_rms": 1e-05,
+              "old_progress": 0.8277897834777832,
+              "new_progress": 0.8041908740997314,
+              "progress_change": -0.023598909378051758,
+              "old_off_axis": 0.3176131248474121,
+              "new_off_axis": 0.3207542300224304,
+              "off_axis_change": 0.0031411051750183105,
+              "direction_correct": true
+            },
+            {
+              "step_rms": 3e-05,
+              "old_progress": 0.8277897834777832,
+              "new_progress": 0.7951335906982422,
+              "progress_change": -0.032656192779541016,
+              "old_off_axis": 0.3176131248474121,
+              "new_off_axis": 0.320157527923584,
+              "off_axis_change": 0.002544403076171875,
+              "direction_correct": true
+            },
+            {
+              "step_rms": 0.0001,
+              "old_progress": 0.8277897834777832,
+              "new_progress": 0.7598307132720947,
+              "progress_change": -0.06795907020568848,
+              "old_off_axis": 0.3176131248474121,
+              "new_off_axis": 0.3551945090293884,
+              "off_axis_change": 0.03758138418197632,
+              "direction_correct": true
+            },
+            {
+              "step_rms": 0.0003,
+              "old_progress": 0.8277897834777832,
+              "new_progress": 0.6990299820899963,
+              "progress_change": -0.12875980138778687,
+              "old_off_axis": 0.3176131248474121,
+              "new_off_axis": 0.44868341088294983,
+              "off_axis_change": 0.13107028603553772,
+              "direction_correct": true
+            }
+          ],
+          "small_steps": [
+            1e-05,
+            3e-05,
+            0.0001
+          ],
+          "correct_small_step_count": 3,
+          "required_correct_count": 2,
+          "passed": true,
+          "larger_steps_diagnostic_only": [
+            {
+              "step_rms": 0.0003,
+              "old_progress": 0.8277897834777832,
+              "new_progress": 0.6990299820899963,
+              "progress_change": -0.12875980138778687,
+              "old_off_axis": 0.3176131248474121,
+              "new_off_axis": 0.44868341088294983,
+              "off_axis_change": 0.13107028603553772,
+              "direction_correct": true
+            }
+          ]
+        }
+      },
+      "toward_source_pass": true,
+      "toward_full_pass": true
+    },
+    "ball_color_seed_20260915": {
+      "gradient_l2": 3.4939050674438477,
+      "gradient_rms": 0.007879715412855148,
+      "gradient_finite": true,
+      "gradient_nonzero": true,
+      "directions": {
+        "toward_full": {
+          "trials": [
+            {
+              "step_rms": 1e-05,
+              "old_progress": 0.8524072170257568,
+              "new_progress": 0.8780338168144226,
+              "progress_change": 0.02562659978866577,
+              "old_off_axis": 0.6399566531181335,
+              "new_off_axis": 0.6216101050376892,
+              "off_axis_change": -0.018346548080444336,
+              "direction_correct": true
+            },
+            {
+              "step_rms": 3e-05,
+              "old_progress": 0.8524072170257568,
+              "new_progress": 0.8940978050231934,
+              "progress_change": 0.04169058799743652,
+              "old_off_axis": 0.6399566531181335,
+              "new_off_axis": 0.587512195110321,
+              "off_axis_change": -0.0524444580078125,
+              "direction_correct": true
+            },
+            {
+              "step_rms": 0.0001,
+              "old_progress": 0.8524072170257568,
+              "new_progress": 0.9333160519599915,
+              "progress_change": 0.08090883493423462,
+              "old_off_axis": 0.6399566531181335,
+              "new_off_axis": 0.5140897631645203,
+              "off_axis_change": -0.12586688995361328,
+              "direction_correct": true
+            },
+            {
+              "step_rms": 0.0003,
+              "old_progress": 0.8524072170257568,
+              "new_progress": 1.0029993057250977,
+              "progress_change": 0.15059208869934082,
+              "old_off_axis": 0.6399566531181335,
+              "new_off_axis": 0.4456280469894409,
+              "off_axis_change": -0.19432860612869263,
+              "direction_correct": true
+            }
+          ],
+          "small_steps": [
+            1e-05,
+            3e-05,
+            0.0001
+          ],
+          "correct_small_step_count": 3,
+          "required_correct_count": 2,
+          "passed": true,
+          "larger_steps_diagnostic_only": [
+            {
+              "step_rms": 0.0003,
+              "old_progress": 0.8524072170257568,
+              "new_progress": 1.0029993057250977,
+              "progress_change": 0.15059208869934082,
+              "old_off_axis": 0.6399566531181335,
+              "new_off_axis": 0.4456280469894409,
+              "off_axis_change": -0.19432860612869263,
+              "direction_correct": true
+            }
+          ]
+        },
+        "toward_source": {
+          "trials": [
+            {
+              "step_rms": 1e-05,
+              "old_progress": 0.8524072170257568,
+              "new_progress": 0.8257341980934143,
+              "progress_change": -0.02667301893234253,
+              "old_off_axis": 0.6399566531181335,
+              "new_off_axis": 0.6621151566505432,
+              "off_axis_change": 0.022158503532409668,
+              "direction_correct": true
+            },
+            {
+              "step_rms": 3e-05,
+              "old_progress": 0.8524072170257568,
+              "new_progress": 0.8128295540809631,
+              "progress_change": -0.0395776629447937,
+              "old_off_axis": 0.6399566531181335,
+              "new_off_axis": 0.6838153004646301,
+              "off_axis_change": 0.04385864734649658,
+              "direction_correct": true
+            },
+            {
+              "step_rms": 0.0001,
+              "old_progress": 0.8524072170257568,
+              "new_progress": 0.7757933139801025,
+              "progress_change": -0.0766139030456543,
+              "old_off_axis": 0.6399566531181335,
+              "new_off_axis": 0.7285232543945312,
+              "off_axis_change": 0.0885666012763977,
+              "direction_correct": true
+            },
+            {
+              "step_rms": 0.0003,
+              "old_progress": 0.8524072170257568,
+              "new_progress": 0.6932599544525146,
+              "progress_change": -0.1591472625732422,
+              "old_off_axis": 0.6399566531181335,
+              "new_off_axis": 0.7970830798149109,
+              "off_axis_change": 0.15712642669677734,
+              "direction_correct": true
+            }
+          ],
+          "small_steps": [
+            1e-05,
+            3e-05,
+            0.0001
+          ],
+          "correct_small_step_count": 3,
+          "required_correct_count": 2,
+          "passed": true,
+          "larger_steps_diagnostic_only": [
+            {
+              "step_rms": 0.0003,
+              "old_progress": 0.8524072170257568,
+              "new_progress": 0.6932599544525146,
+              "progress_change": -0.1591472625732422,
+              "old_off_axis": 0.6399566531181335,
+              "new_off_axis": 0.7970830798149109,
+              "off_axis_change": 0.15712642669677734,
+              "direction_correct": true
+            }
+          ]
+        }
+      },
+      "toward_source_pass": true,
+      "toward_full_pass": true
+    },
+    "ball_color_seed_20260916": {
+      "gradient_l2": 8.916105270385742,
+      "gradient_rms": 0.020108263939619064,
+      "gradient_finite": true,
+      "gradient_nonzero": true,
+      "directions": {
+        "toward_full": {
+          "trials": [
+            {
+              "step_rms": 1e-05,
+              "old_progress": 0.7319989800453186,
+              "new_progress": 0.7612407207489014,
+              "progress_change": 0.029241740703582764,
+              "old_off_axis": 0.4895420968532562,
+              "new_off_axis": 0.4738803207874298,
+              "off_axis_change": -0.015661776065826416,
+              "direction_correct": true
+            },
+            {
+              "step_rms": 3e-05,
+              "old_progress": 0.7319989800453186,
+              "new_progress": 0.7690511345863342,
+              "progress_change": 0.037052154541015625,
+              "old_off_axis": 0.4895420968532562,
+              "new_off_axis": 0.4602366089820862,
+              "off_axis_change": -0.029305487871170044,
+              "direction_correct": true
+            },
+            {
+              "step_rms": 0.0001,
+              "old_progress": 0.7319989800453186,
+              "new_progress": 0.820744514465332,
+              "progress_change": 0.08874553442001343,
+              "old_off_axis": 0.4895420968532562,
+              "new_off_axis": 0.40305259823799133,
+              "off_axis_change": -0.08648949861526489,
+              "direction_correct": true
+            },
+            {
+              "step_rms": 0.0003,
+              "old_progress": 0.7319989800453186,
+              "new_progress": 0.9259915947914124,
+              "progress_change": 0.19399261474609375,
+              "old_off_axis": 0.4895420968532562,
+              "new_off_axis": 0.3677893280982971,
+              "off_axis_change": -0.1217527687549591,
+              "direction_correct": true
+            }
+          ],
+          "small_steps": [
+            1e-05,
+            3e-05,
+            0.0001
+          ],
+          "correct_small_step_count": 3,
+          "required_correct_count": 2,
+          "passed": true,
+          "larger_steps_diagnostic_only": [
+            {
+              "step_rms": 0.0003,
+              "old_progress": 0.7319989800453186,
+              "new_progress": 0.9259915947914124,
+              "progress_change": 0.19399261474609375,
+              "old_off_axis": 0.4895420968532562,
+              "new_off_axis": 0.3677893280982971,
+              "off_axis_change": -0.1217527687549591,
+              "direction_correct": true
+            }
+          ]
+        },
+        "toward_source": {
+          "trials": [
+            {
+              "step_rms": 1e-05,
+              "old_progress": 0.7319989800453186,
+              "new_progress": 0.7048386335372925,
+              "progress_change": -0.027160346508026123,
+              "old_off_axis": 0.4895420968532562,
+              "new_off_axis": 0.5095876455307007,
+              "off_axis_change": 0.020045548677444458,
+              "direction_correct": true
+            },
+            {
+              "step_rms": 3e-05,
+              "old_progress": 0.7319989800453186,
+              "new_progress": 0.699791669845581,
+              "progress_change": -0.03220731019973755,
+              "old_off_axis": 0.4895420968532562,
+              "new_off_axis": 0.5161941051483154,
+              "off_axis_change": 0.026652008295059204,
+              "direction_correct": true
+            },
+            {
+              "step_rms": 0.0001,
+              "old_progress": 0.7319989800453186,
+              "new_progress": 0.6736893057823181,
+              "progress_change": -0.05830967426300049,
+              "old_off_axis": 0.4895420968532562,
+              "new_off_axis": 0.5619454979896545,
+              "off_axis_change": 0.07240340113639832,
+              "direction_correct": true
+            },
+            {
+              "step_rms": 0.0003,
+              "old_progress": 0.7319989800453186,
+              "new_progress": 0.6533021330833435,
+              "progress_change": -0.0786968469619751,
+              "old_off_axis": 0.4895420968532562,
+              "new_off_axis": 0.6771450042724609,
+              "off_axis_change": 0.1876029074192047,
+              "direction_correct": true
+            }
+          ],
+          "small_steps": [
+            1e-05,
+            3e-05,
+            0.0001
+          ],
+          "correct_small_step_count": 3,
+          "required_correct_count": 2,
+          "passed": true,
+          "larger_steps_diagnostic_only": [
+            {
+              "step_rms": 0.0003,
+              "old_progress": 0.7319989800453186,
+              "new_progress": 0.6533021330833435,
+              "progress_change": -0.0786968469619751,
+              "old_off_axis": 0.4895420968532562,
+              "new_off_axis": 0.6771450042724609,
+              "off_axis_change": 0.1876029074192047,
+              "direction_correct": true
+            }
+          ]
+        }
+      },
+      "toward_source_pass": true,
+      "toward_full_pass": true
+    },
+    "scene_reimagination_seed_20260914": {
+      "gradient_l2": 5.870798110961914,
+      "gradient_rms": 0.013240261003375053,
+      "gradient_finite": true,
+      "gradient_nonzero": true,
+      "directions": {
+        "toward_full": {
+          "trials": [
+            {
+              "step_rms": 1e-05,
+              "old_progress": 0.8931644558906555,
+              "new_progress": 0.9325098395347595,
+              "progress_change": 0.039345383644104004,
+              "old_off_axis": 0.5331629514694214,
+              "new_off_axis": 0.5465714335441589,
+              "off_axis_change": 0.013408482074737549,
+              "direction_correct": true
+            },
+            {
+              "step_rms": 3e-05,
+              "old_progress": 0.8931644558906555,
+              "new_progress": 0.9335654377937317,
+              "progress_change": 0.04040098190307617,
+              "old_off_axis": 0.5331629514694214,
+              "new_off_axis": 0.5489805936813354,
+              "off_axis_change": 0.015817642211914062,
+              "direction_correct": true
+            },
+            {
+              "step_rms": 0.0001,
+              "old_progress": 0.8931644558906555,
+              "new_progress": 0.9310039281845093,
+              "progress_change": 0.03783947229385376,
+              "old_off_axis": 0.5331629514694214,
+              "new_off_axis": 0.5421308875083923,
+              "off_axis_change": 0.008967936038970947,
+              "direction_correct": true
+            },
+            {
+              "step_rms": 0.0003,
+              "old_progress": 0.8931644558906555,
+              "new_progress": 0.9375633001327515,
+              "progress_change": 0.04439884424209595,
+              "old_off_axis": 0.5331629514694214,
+              "new_off_axis": 0.49704983830451965,
+              "off_axis_change": -0.03611311316490173,
+              "direction_correct": true
+            }
+          ],
+          "small_steps": [
+            1e-05,
+            3e-05,
+            0.0001
+          ],
+          "correct_small_step_count": 3,
+          "required_correct_count": 2,
+          "passed": true,
+          "larger_steps_diagnostic_only": [
+            {
+              "step_rms": 0.0003,
+              "old_progress": 0.8931644558906555,
+              "new_progress": 0.9375633001327515,
+              "progress_change": 0.04439884424209595,
+              "old_off_axis": 0.5331629514694214,
+              "new_off_axis": 0.49704983830451965,
+              "off_axis_change": -0.03611311316490173,
+              "direction_correct": true
+            }
+          ]
+        },
+        "toward_source": {
+          "trials": [
+            {
+              "step_rms": 1e-05,
+              "old_progress": 0.8931644558906555,
+              "new_progress": 0.8441335558891296,
+              "progress_change": -0.04903090000152588,
+              "old_off_axis": 0.5331629514694214,
+              "new_off_axis": 0.5647658109664917,
+              "off_axis_change": 0.03160285949707031,
+              "direction_correct": true
+            },
+            {
+              "step_rms": 3e-05,
+              "old_progress": 0.8931644558906555,
+              "new_progress": 0.8436899781227112,
+              "progress_change": -0.049474477767944336,
+              "old_off_axis": 0.5331629514694214,
+              "new_off_axis": 0.5684685111045837,
+              "off_axis_change": 0.035305559635162354,
+              "direction_correct": true
+            },
+            {
+              "step_rms": 0.0001,
+              "old_progress": 0.8931644558906555,
+              "new_progress": 0.8382245302200317,
+              "progress_change": -0.05493992567062378,
+              "old_off_axis": 0.5331629514694214,
+              "new_off_axis": 0.5877500772476196,
+              "off_axis_change": 0.05458712577819824,
+              "direction_correct": true
+            },
+            {
+              "step_rms": 0.0003,
+              "old_progress": 0.8931644558906555,
+              "new_progress": 0.8460446000099182,
+              "progress_change": -0.047119855880737305,
+              "old_off_axis": 0.5331629514694214,
+              "new_off_axis": 0.6019918322563171,
+              "off_axis_change": 0.06882888078689575,
+              "direction_correct": true
+            }
+          ],
+          "small_steps": [
+            1e-05,
+            3e-05,
+            0.0001
+          ],
+          "correct_small_step_count": 3,
+          "required_correct_count": 2,
+          "passed": true,
+          "larger_steps_diagnostic_only": [
+            {
+              "step_rms": 0.0003,
+              "old_progress": 0.8931644558906555,
+              "new_progress": 0.8460446000099182,
+              "progress_change": -0.047119855880737305,
+              "old_off_axis": 0.5331629514694214,
+              "new_off_axis": 0.6019918322563171,
+              "off_axis_change": 0.06882888078689575,
+              "direction_correct": true
+            }
+          ]
+        }
+      },
+      "toward_source_pass": true,
+      "toward_full_pass": true
+    },
+    "environment_night_seed_20260914": {
+      "gradient_l2": 9.220804214477539,
+      "gradient_rms": 0.020795444026589394,
+      "gradient_finite": true,
+      "gradient_nonzero": true,
+      "directions": {
+        "toward_full": {
+          "trials": [
+            {
+              "step_rms": 1e-05,
+              "old_progress": 0.9109155535697937,
+              "new_progress": 0.9657769799232483,
+              "progress_change": 0.05486142635345459,
+              "old_off_axis": 0.42247283458709717,
+              "new_off_axis": 0.4349629878997803,
+              "off_axis_change": 0.012490153312683105,
+              "direction_correct": true
+            },
+            {
+              "step_rms": 3e-05,
+              "old_progress": 0.9109155535697937,
+              "new_progress": 0.967272162437439,
+              "progress_change": 0.056356608867645264,
+              "old_off_axis": 0.42247283458709717,
+              "new_off_axis": 0.43729013204574585,
+              "off_axis_change": 0.014817297458648682,
+              "direction_correct": true
+            },
+            {
+              "step_rms": 0.0001,
+              "old_progress": 0.9109155535697937,
+              "new_progress": 0.9765344858169556,
+              "progress_change": 0.06561893224716187,
+              "old_off_axis": 0.42247283458709717,
+              "new_off_axis": 0.44349974393844604,
+              "off_axis_change": 0.021026909351348877,
+              "direction_correct": true
+            },
+            {
+              "step_rms": 0.0003,
+              "old_progress": 0.9109155535697937,
+              "new_progress": 1.0059399604797363,
+              "progress_change": 0.09502440690994263,
+              "old_off_axis": 0.42247283458709717,
+              "new_off_axis": 0.4764167070388794,
+              "off_axis_change": 0.05394387245178223,
+              "direction_correct": true
+            }
+          ],
+          "small_steps": [
+            1e-05,
+            3e-05,
+            0.0001
+          ],
+          "correct_small_step_count": 3,
+          "required_correct_count": 2,
+          "passed": true,
+          "larger_steps_diagnostic_only": [
+            {
+              "step_rms": 0.0003,
+              "old_progress": 0.9109155535697937,
+              "new_progress": 1.0059399604797363,
+              "progress_change": 0.09502440690994263,
+              "old_off_axis": 0.42247283458709717,
+              "new_off_axis": 0.4764167070388794,
+              "off_axis_change": 0.05394387245178223,
+              "direction_correct": true
+            }
+          ]
+        },
+        "toward_source": {
+          "trials": [
+            {
+              "step_rms": 1e-05,
+              "old_progress": 0.9109155535697937,
+              "new_progress": 0.8214498162269592,
+              "progress_change": -0.08946573734283447,
+              "old_off_axis": 0.42247283458709717,
+              "new_off_axis": 0.47322311997413635,
+              "off_axis_change": 0.050750285387039185,
+              "direction_correct": true
+            },
+            {
+              "step_rms": 3e-05,
+              "old_progress": 0.9109155535697937,
+              "new_progress": 0.8209110498428345,
+              "progress_change": -0.09000450372695923,
+              "old_off_axis": 0.42247283458709717,
+              "new_off_axis": 0.47425323724746704,
+              "off_axis_change": 0.05178040266036987,
+              "direction_correct": true
+            },
+            {
+              "step_rms": 0.0001,
+              "old_progress": 0.9109155535697937,
+              "new_progress": 0.807401180267334,
+              "progress_change": -0.10351437330245972,
+              "old_off_axis": 0.42247283458709717,
+              "new_off_axis": 0.4849046766757965,
+              "off_axis_change": 0.06243184208869934,
+              "direction_correct": true
+            },
+            {
+              "step_rms": 0.0003,
+              "old_progress": 0.9109155535697937,
+              "new_progress": 0.7458168268203735,
+              "progress_change": -0.16509872674942017,
+              "old_off_axis": 0.42247283458709717,
+              "new_off_axis": 0.5471474528312683,
+              "off_axis_change": 0.12467461824417114,
+              "direction_correct": true
+            }
+          ],
+          "small_steps": [
+            1e-05,
+            3e-05,
+            0.0001
+          ],
+          "correct_small_step_count": 3,
+          "required_correct_count": 2,
+          "passed": true,
+          "larger_steps_diagnostic_only": [
+            {
+              "step_rms": 0.0003,
+              "old_progress": 0.9109155535697937,
+              "new_progress": 0.7458168268203735,
+              "progress_change": -0.16509872674942017,
+              "old_off_axis": 0.42247283458709717,
+              "new_off_axis": 0.5471474528312683,
+              "off_axis_change": 0.12467461824417114,
+              "direction_correct": true
+            }
+          ]
+        }
+      },
+      "toward_source_pass": true,
+      "toward_full_pass": true
+    }
+  }
+}
