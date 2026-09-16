@@ -1,0 +1,10 @@
+{
+  "selection_rule_frozen_before_results": true,
+  "encoder_status": {
+    "clip": "FAIL",
+    "siglip": "FAIL"
+  },
+  "recommended_encoder_for_next_controller_test": null,
+  "controller_run": false,
+  "perceptual_percentage_calibration_established": false
+}

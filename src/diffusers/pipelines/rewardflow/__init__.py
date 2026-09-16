@@ -186,8 +186,26 @@ else:
     _import_structure["semantic_feature_scorers"] = [
         "CLIPImageFeatureScorer",
         "ImageFeatureScorer",
+        "ImageTextFeatureScorer",
         "QwenHiddenFeatureScorer",
         "SigLIPImageFeatureScorer",
+    ]
+    _import_structure["text_conditioned_semantic"] = [
+        "TEXT_CONDITIONED_SEMANTIC_CACHE_SCHEMA_VERSION",
+        "TEXT_CONDITIONED_SEMANTIC_PARSER_VERSION",
+        "TextConditionedParseRecord",
+        "TextConditionedPrimitiveSpec",
+        "TextConditionedSemanticGeometry",
+        "TextConditionedSemanticSpec",
+        "TextSemanticEndpointDirectionError",
+        "TextSemanticGeometryOutput",
+        "TianyuAITextConditionedSemanticParser",
+        "build_text_conditioned_semantic_parser_prompt",
+        "load_cached_text_conditioned_parse",
+        "make_text_conditioned_semantic_cache_key",
+        "parse_text_conditioned_semantic_json",
+        "save_cached_text_conditioned_parse",
+        "text_conditioned_semantic_json_schema",
     ]
     _import_structure["terminal_control"] = [
         "BestTerminalControlCheckpoint",
@@ -312,6 +330,7 @@ if TYPE_CHECKING or DIFFUSERS_SLOW_IMPORT:
         from .semantic_feature_scorers import (
             CLIPImageFeatureScorer,
             ImageFeatureScorer,
+            ImageTextFeatureScorer,
             QwenHiddenFeatureScorer,
             SigLIPImageFeatureScorer,
         )
@@ -371,6 +390,23 @@ if TYPE_CHECKING or DIFFUSERS_SLOW_IMPORT:
             source_restoring_velocity,
             unroll_terminal_velocity_controls,
             update_best_control_checkpoint,
+        )
+        from .text_conditioned_semantic import (
+            TEXT_CONDITIONED_SEMANTIC_CACHE_SCHEMA_VERSION,
+            TEXT_CONDITIONED_SEMANTIC_PARSER_VERSION,
+            TextConditionedParseRecord,
+            TextConditionedPrimitiveSpec,
+            TextConditionedSemanticGeometry,
+            TextConditionedSemanticSpec,
+            TextSemanticEndpointDirectionError,
+            TextSemanticGeometryOutput,
+            TianyuAITextConditionedSemanticParser,
+            build_text_conditioned_semantic_parser_prompt,
+            load_cached_text_conditioned_parse,
+            make_text_conditioned_semantic_cache_key,
+            parse_text_conditioned_semantic_json,
+            save_cached_text_conditioned_parse,
+            text_conditioned_semantic_json_schema,
         )
 
     from .relative_endpoint_parser import (

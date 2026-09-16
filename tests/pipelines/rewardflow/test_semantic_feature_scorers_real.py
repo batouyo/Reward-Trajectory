@@ -35,4 +35,9 @@ def test_real_projected_embedding_processor_fidelity_and_image_gradient(scorer_c
     assert fidelity["embedding_cosine"] >= 0.999
     gradient = torch.autograd.grad(scorer.encode_image(image)[0], image)[0]
     assert torch.isfinite(gradient).all() and gradient.abs().sum() > 0
+    text_feature = scorer.encode_text("a vivid blue weighted training ball")
+    assert text_feature.ndim == 1 and torch.isfinite(text_feature).all()
+    torch.testing.assert_close(torch.linalg.vector_norm(text_feature), torch.tensor(1.0, device="cuda:0"))
+    assert text_feature.grad_fn is None and not text_feature.requires_grad
+    assert scorer.last_text_metadata["truncated"] is False
     assert all(not parameter.requires_grad and parameter.grad is None for parameter in scorer.model.parameters())

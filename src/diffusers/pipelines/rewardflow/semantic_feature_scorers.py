@@ -16,6 +16,10 @@ class ImageFeatureScorer(Protocol):
     def encode_image(self, image: torch.Tensor) -> torch.Tensor: ...
 
 
+class ImageTextFeatureScorer(ImageFeatureScorer, Protocol):
+    def encode_text(self, text: str) -> torch.Tensor: ...
+
+
 def _feature_tensor(output) -> torch.Tensor:
     if torch.is_tensor(output):
         return output
@@ -82,6 +86,7 @@ class _ProjectedImageFeatureScorer:
         revision: str | None = None,
         model=None,
         image_processor=None,
+        tokenizer=None,
     ):
         if dtype != torch.float32:
             raise ValueError("The v6 formal geometry bake-off requires FP32 image encoders.")
@@ -90,7 +95,7 @@ class _ProjectedImageFeatureScorer:
         if model is None:
             try:
                 import transformers
-                from transformers import AutoImageProcessor
+                from transformers import AutoImageProcessor, AutoTokenizer
             except Exception as error:  # pragma: no cover - optional dependency
                 raise ImportError("Image feature scorers require transformers.") from error
             model_class = getattr(transformers, self.model_class_name)
@@ -102,10 +107,13 @@ class _ProjectedImageFeatureScorer:
             model = model_class.from_pretrained(model_id, **kwargs)
             processor_kwargs = {key: value for key, value in kwargs.items() if key != "torch_dtype"}
             image_processor = AutoImageProcessor.from_pretrained(model_id, use_fast=False, **processor_kwargs)
+            tokenizer = AutoTokenizer.from_pretrained(model_id, **processor_kwargs)
         self.model_id = str(model_id)
         self.revision = revision
         self.model = model
         self.image_processor = image_processor
+        self.tokenizer = tokenizer
+        self.last_text_metadata = None
         self.model.to(device=device, dtype=dtype)
         self.model.eval()
         for parameter in self.model.parameters():
@@ -186,6 +194,58 @@ class _ProjectedImageFeatureScorer:
         if features.ndim != 2 or features.shape[0] != 1:
             raise ValueError("Projected image features must have shape [1, D].")
         return F.normalize(features[0].float(), dim=0).to(image.device)
+
+    def _text_max_length(self) -> int:
+        text_config = getattr(getattr(self.model, "config", None), "text_config", None)
+        configured = getattr(text_config, "max_position_embeddings", None)
+        if isinstance(configured, int) and configured > 0:
+            return configured
+        tokenizer_limit = getattr(self.tokenizer, "model_max_length", None)
+        if isinstance(tokenizer_limit, int) and 0 < tokenizer_limit < 1_000_000:
+            return tokenizer_limit
+        raise ValueError("Cannot determine the checkpoint's text maximum length.")
+
+    def encode_text(self, text: str) -> torch.Tensor:
+        """Return the model's official projected, normalized text feature.
+
+        Text is fixed experiment context, so this method intentionally runs
+        without autograd. Candidate-image gradients remain enabled in
+        :meth:`encode_image`.
+        """
+
+        if self.tokenizer is None:
+            raise RuntimeError("`encode_text` requires the checkpoint tokenizer.")
+        if not isinstance(text, str) or not text.strip():
+            raise ValueError("Semantic text must be a non-empty string.")
+        max_length = self._text_max_length()
+        raw = self.tokenizer(text, add_special_tokens=True, truncation=False)
+        raw_ids = raw["input_ids"]
+        raw_length = len(raw_ids[0]) if raw_ids and isinstance(raw_ids[0], list) else len(raw_ids)
+        tokenized = self.tokenizer(
+            text,
+            add_special_tokens=True,
+            max_length=max_length,
+            padding="max_length",
+            truncation=True,
+            return_tensors="pt",
+        )
+        model_inputs = {
+            key: value.to(self._model_device())
+            for key, value in tokenized.items()
+            if key in {"input_ids", "attention_mask"} and torch.is_tensor(value)
+        }
+        with torch.no_grad():
+            features = self.model.get_text_features(**model_inputs)
+        if features.ndim != 2 or features.shape[0] != 1:
+            raise ValueError("Projected text features must have shape [1, D].")
+        effective_length = int(model_inputs.get("attention_mask", model_inputs["input_ids"].new_ones(1)).sum())
+        self.last_text_metadata = {
+            "raw_tokenized_length": raw_length,
+            "effective_tokenized_length": effective_length,
+            "model_max_length": max_length,
+            "truncated": raw_length > max_length,
+        }
+        return F.normalize(features[0].float(), dim=0).detach()
 
     def processor_fidelity(self, image: torch.Tensor) -> dict[str, object]:
         if image.ndim == 3:

@@ -1,0 +1,131 @@
+{
+  "rows": [
+    {
+      "case_id": "ball_color_seed_20260914",
+      "primitive_id": "weighted_training_ball_color",
+      "image_id": "source",
+      "question": "What color is the weighted training ball?",
+      "source_answer": "Black.",
+      "target_answer": "Blue.",
+      "source_answer_score": -5.999595642089844,
+      "target_answer_score": -6.387179374694824,
+      "preferred_endpoint_state": "source",
+      "used_for_continuous_progress": false
+    },
+    {
+      "case_id": "ball_color_seed_20260914",
+      "primitive_id": "weighted_training_ball_color",
+      "image_id": "full",
+      "question": "What color is the weighted training ball?",
+      "source_answer": "Black.",
+      "target_answer": "Blue.",
+      "source_answer_score": -7.093266487121582,
+      "target_answer_score": -5.054136753082275,
+      "preferred_endpoint_state": "target",
+      "used_for_continuous_progress": false
+    },
+    {
+      "case_id": "ball_color_seed_20260915",
+      "primitive_id": "ball_color",
+      "image_id": "source",
+      "question": "What is the color of the weighted training ball?",
+      "source_answer": "black",
+      "target_answer": "blue",
+      "source_answer_score": -10.785679817199707,
+      "target_answer_score": -11.728636741638184,
+      "preferred_endpoint_state": "source",
+      "used_for_continuous_progress": false
+    },
+    {
+      "case_id": "ball_color_seed_20260915",
+      "primitive_id": "ball_color",
+      "image_id": "full",
+      "question": "What is the color of the weighted training ball?",
+      "source_answer": "black",
+      "target_answer": "blue",
+      "source_answer_score": -13.728052139282227,
+      "target_answer_score": -9.089242935180664,
+      "preferred_endpoint_state": "target",
+      "used_for_continuous_progress": false
+    },
+    {
+      "case_id": "ball_color_seed_20260916",
+      "primitive_id": "weighted_training_ball_color",
+      "image_id": "source",
+      "question": "What is the color of the weighted training ball?",
+      "source_answer": "black",
+      "target_answer": "blue",
+      "source_answer_score": -10.785679817199707,
+      "target_answer_score": -11.728636741638184,
+      "preferred_endpoint_state": "source",
+      "used_for_continuous_progress": false
+    },
+    {
+      "case_id": "ball_color_seed_20260916",
+      "primitive_id": "weighted_training_ball_color",
+      "image_id": "full",
+      "question": "What is the color of the weighted training ball?",
+      "source_answer": "black",
+      "target_answer": "blue",
+      "source_answer_score": -13.676240921020508,
+      "target_answer_score": -8.994604110717773,
+      "preferred_endpoint_state": "target",
+      "used_for_continuous_progress": false
+    },
+    {
+      "case_id": "scene_reimagination_seed_20260914",
+      "primitive_id": "scene_environment_beach_to_minimalist_room",
+      "image_id": "source",
+      "question": "What environment surrounds the ergonomic object?",
+      "source_answer": "A sandy beach at sunset.",
+      "target_answer": "A serene minimalist room with a sleek modern desk.",
+      "source_answer_score": -2.4989869594573975,
+      "target_answer_score": -4.383322715759277,
+      "preferred_endpoint_state": "source",
+      "used_for_continuous_progress": false
+    },
+    {
+      "case_id": "scene_reimagination_seed_20260914",
+      "primitive_id": "scene_environment_beach_to_minimalist_room",
+      "image_id": "full",
+      "question": "What environment surrounds the ergonomic object?",
+      "source_answer": "A sandy beach at sunset.",
+      "target_answer": "A serene minimalist room with a sleek modern desk.",
+      "source_answer_score": -3.8001089096069336,
+      "target_answer_score": -3.366731643676758,
+      "preferred_endpoint_state": "target",
+      "used_for_continuous_progress": false
+    },
+    {
+      "case_id": "environment_night_seed_20260914",
+      "primitive_id": "scene_weather_time",
+      "image_id": "source",
+      "question": "What weather and time of day does the scene show?",
+      "source_answer": "A sunny daytime park setting.",
+      "target_answer": "A stormy nighttime setting with lightning.",
+      "source_answer_score": -4.202970504760742,
+      "target_answer_score": -4.899364948272705,
+      "preferred_endpoint_state": "source",
+      "used_for_continuous_progress": false
+    },
+    {
+      "case_id": "environment_night_seed_20260914",
+      "primitive_id": "scene_weather_time",
+      "image_id": "full",
+      "question": "What weather and time of day does the scene show?",
+      "source_answer": "A sunny daytime park setting.",
+      "target_answer": "A stormy nighttime setting with lightning.",
+      "source_answer_score": -5.837787628173828,
+      "target_answer_score": -3.151641368865967,
+      "preferred_endpoint_state": "target",
+      "used_for_continuous_progress": false
+    }
+  ],
+  "primitive_validity": {
+    "ball_color_seed_20260914::weighted_training_ball_color": true,
+    "ball_color_seed_20260915::ball_color": true,
+    "ball_color_seed_20260916::weighted_training_ball_color": true,
+    "scene_reimagination_seed_20260914::scene_environment_beach_to_minimalist_room": true,
+    "environment_night_seed_20260914::scene_weather_time": true
+  }
+}

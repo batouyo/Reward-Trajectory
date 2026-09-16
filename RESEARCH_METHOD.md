@@ -353,3 +353,37 @@ supports that CLIP/SigLIP improve spread and gradient stability over Qwen in imp
 is a sufficiently stable continuous semantic ruler. No encoder is approved for terminal-controller integration. The
 next isolated experiment should test a text-conditioned direction before localization: failures occur even for
 global scene/environment edits, so an object crop alone cannot address the observed ambiguity.
+
+## Text-conditioned semantic progress geometry v7
+
+V7 freezes the same five v6 cases and every Source, Native Full, and model-generated pixel-oracle diagnostic image.
+It does not generate probes or run a controller. A single cached TianyuAI `gpt-5.6-luna` parse sees only Source,
+Native Full, and the edit instruction. For each requested primitive it returns one matched source/target semantic-text
+pair that keeps object and context fixed while changing only the requested visible attribute. Preservation constraints
+remain outside the semantic text. No probe image or encoder score can influence parsing.
+
+CLIP and SigLIP use their official projected text and image features, all L2-normalized. With
+`m(I) = dot(f(I), t_target) - dot(f(I), t_source)`, the sole primary coordinate is the unclamped
+`p(I) = (m(I) - m(Source)) / (m(Full) - m(Source) + eps)`. Thus the text difference defines what visual semantic
+change is measured, while the real endpoints provide instance-relative scale. A non-positive Source-to-Full margin
+range is a hard `TEXT_SEMANTIC_ENDPOINT_DIRECTION_FAIL`; its sign is never flipped. Text and endpoint features are
+cached under `torch.no_grad()` and detached, while candidate-image features retain autograd.
+
+Qwen teacher-forced answers validate only the parsed Source/Full semantics. Text-axis alignment and the fraction of
+image-feature change orthogonal to that axis are diagnostics and do not modify the primary score. Each primitive is
+gated independently so averaging cannot hide a reversal. A candidate requires 5/5 valid endpoint directions, 5/5
+strict probe ordering, 5/5 gradients in both directions, median span at least `.10`, and all formal-ball gates. Four
+of five ordered cases is labeled `PROMISING_BUT_NOT_STABLE`, not a solution. This experiment is a same-encoder,
+same-image ablation against the stored v6 image-axis results; `controller_run=false`.
+
+The completed v7 run did not validate the text-conditioning hypothesis. All five Luna specifications passed the Qwen
+Source/Full endpoint audit, and both CLIP and SigLIP retained finite bidirectional candidate gradients in all five
+cases. Nevertheless, CLIP strict ordering fell from v6's 4/5 to 3/5 and SigLIP remained at 3/5. Median probe span
+fell from `.10566` to `.08632` for CLIP and from `.11452` to `.06938` for SigLIP. Median low-probe progress moved
+closer to Full (`.88205` CLIP, `.89887` SigLIP), so endpoint-side compression worsened rather than improved.
+
+SigLIP repaired the ball seed-`20260915` `.2 > .5` inversion. In the environment case, SigLIP repaired that adjacent
+pair but then placed `.8 < .5`, while CLIP retained the original inversion and produced a fully descending probe
+sequence. Both encoders also made the previously ordered scene-reimagination case non-monotonic. Formal-ball spans
+failed `.10` for both encoders; SigLIP additionally failed the `.02` minimum-gap gate. No encoder passed v7 and none
+is approved for controller integration. The controller was not run.

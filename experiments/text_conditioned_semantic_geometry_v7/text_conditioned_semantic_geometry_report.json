@@ -1,0 +1,1066 @@
+{
+  "experiment_version": "v7 — Text-Conditioned Semantic Progress Geometry",
+  "primary_formula": "p(I)=(m(I)-m(Source))/(m(Full)-m(Source)+eps), unclamped",
+  "margin_formula": "m(I)=dot(f(I), t_target)-dot(f(I), t_source)",
+  "controller_run": false,
+  "probe_provenance": "MODEL-GENERATED PIXEL-ORACLE DIAGNOSTIC; not semantic ground truth or method output",
+  "parser_runtime": {
+    "online_parse_calls": 0,
+    "cache_hits": 5
+  },
+  "endpoint_audit": {
+    "rows": [
+      {
+        "case_id": "ball_color_seed_20260914",
+        "primitive_id": "weighted_training_ball_color",
+        "image_id": "source",
+        "question": "What color is the weighted training ball?",
+        "source_answer": "Black.",
+        "target_answer": "Blue.",
+        "source_answer_score": -5.999595642089844,
+        "target_answer_score": -6.387179374694824,
+        "preferred_endpoint_state": "source",
+        "used_for_continuous_progress": false
+      },
+      {
+        "case_id": "ball_color_seed_20260914",
+        "primitive_id": "weighted_training_ball_color",
+        "image_id": "full",
+        "question": "What color is the weighted training ball?",
+        "source_answer": "Black.",
+        "target_answer": "Blue.",
+        "source_answer_score": -7.093266487121582,
+        "target_answer_score": -5.054136753082275,
+        "preferred_endpoint_state": "target",
+        "used_for_continuous_progress": false
+      },
+      {
+        "case_id": "ball_color_seed_20260915",
+        "primitive_id": "ball_color",
+        "image_id": "source",
+        "question": "What is the color of the weighted training ball?",
+        "source_answer": "black",
+        "target_answer": "blue",
+        "source_answer_score": -10.785679817199707,
+        "target_answer_score": -11.728636741638184,
+        "preferred_endpoint_state": "source",
+        "used_for_continuous_progress": false
+      },
+      {
+        "case_id": "ball_color_seed_20260915",
+        "primitive_id": "ball_color",
+        "image_id": "full",
+        "question": "What is the color of the weighted training ball?",
+        "source_answer": "black",
+        "target_answer": "blue",
+        "source_answer_score": -13.728052139282227,
+        "target_answer_score": -9.089242935180664,
+        "preferred_endpoint_state": "target",
+        "used_for_continuous_progress": false
+      },
+      {
+        "case_id": "ball_color_seed_20260916",
+        "primitive_id": "weighted_training_ball_color",
+        "image_id": "source",
+        "question": "What is the color of the weighted training ball?",
+        "source_answer": "black",
+        "target_answer": "blue",
+        "source_answer_score": -10.785679817199707,
+        "target_answer_score": -11.728636741638184,
+        "preferred_endpoint_state": "source",
+        "used_for_continuous_progress": false
+      },
+      {
+        "case_id": "ball_color_seed_20260916",
+        "primitive_id": "weighted_training_ball_color",
+        "image_id": "full",
+        "question": "What is the color of the weighted training ball?",
+        "source_answer": "black",
+        "target_answer": "blue",
+        "source_answer_score": -13.676240921020508,
+        "target_answer_score": -8.994604110717773,
+        "preferred_endpoint_state": "target",
+        "used_for_continuous_progress": false
+      },
+      {
+        "case_id": "scene_reimagination_seed_20260914",
+        "primitive_id": "scene_environment_beach_to_minimalist_room",
+        "image_id": "source",
+        "question": "What environment surrounds the ergonomic object?",
+        "source_answer": "A sandy beach at sunset.",
+        "target_answer": "A serene minimalist room with a sleek modern desk.",
+        "source_answer_score": -2.4989869594573975,
+        "target_answer_score": -4.383322715759277,
+        "preferred_endpoint_state": "source",
+        "used_for_continuous_progress": false
+      },
+      {
+        "case_id": "scene_reimagination_seed_20260914",
+        "primitive_id": "scene_environment_beach_to_minimalist_room",
+        "image_id": "full",
+        "question": "What environment surrounds the ergonomic object?",
+        "source_answer": "A sandy beach at sunset.",
+        "target_answer": "A serene minimalist room with a sleek modern desk.",
+        "source_answer_score": -3.8001089096069336,
+        "target_answer_score": -3.366731643676758,
+        "preferred_endpoint_state": "target",
+        "used_for_continuous_progress": false
+      },
+      {
+        "case_id": "environment_night_seed_20260914",
+        "primitive_id": "scene_weather_time",
+        "image_id": "source",
+        "question": "What weather and time of day does the scene show?",
+        "source_answer": "A sunny daytime park setting.",
+        "target_answer": "A stormy nighttime setting with lightning.",
+        "source_answer_score": -4.202970504760742,
+        "target_answer_score": -4.899364948272705,
+        "preferred_endpoint_state": "source",
+        "used_for_continuous_progress": false
+      },
+      {
+        "case_id": "environment_night_seed_20260914",
+        "primitive_id": "scene_weather_time",
+        "image_id": "full",
+        "question": "What weather and time of day does the scene show?",
+        "source_answer": "A sunny daytime park setting.",
+        "target_answer": "A stormy nighttime setting with lightning.",
+        "source_answer_score": -5.837787628173828,
+        "target_answer_score": -3.151641368865967,
+        "preferred_endpoint_state": "target",
+        "used_for_continuous_progress": false
+      }
+    ],
+    "primitive_validity": {
+      "ball_color_seed_20260914::weighted_training_ball_color": true,
+      "ball_color_seed_20260915::ball_color": true,
+      "ball_color_seed_20260916::weighted_training_ball_color": true,
+      "scene_reimagination_seed_20260914::scene_environment_beach_to_minimalist_room": true,
+      "environment_night_seed_20260914::scene_weather_time": true
+    }
+  },
+  "case_metrics": {
+    "clip": {
+      "ball_color_seed_20260914": {
+        "primitive_count": 1,
+        "all_primitives_evaluated": true,
+        "endpoint_semantic_valid": true,
+        "text_endpoint_direction_valid": true,
+        "strict_order_pass": true,
+        "tie_count": 0,
+        "toward_source_gradient_pass": true,
+        "toward_full_gradient_pass": true,
+        "minimum_adjacent_gap": 0.022468507289886475,
+        "probe_span": 0.09569305181503296,
+        "all_probes_in_wide_range": true,
+        "median_alignment": 0.2777591943740845,
+        "median_orthogonal_ratio": 0.9606507420539856,
+        "p_0.2": 0.8820450305938721,
+        "p_0.5": 0.9552695751190186,
+        "p_0.8": 0.977738082408905
+      },
+      "ball_color_seed_20260915": {
+        "primitive_count": 1,
+        "all_primitives_evaluated": true,
+        "endpoint_semantic_valid": true,
+        "text_endpoint_direction_valid": true,
+        "strict_order_pass": true,
+        "tie_count": 0,
+        "toward_source_gradient_pass": true,
+        "toward_full_gradient_pass": true,
+        "minimum_adjacent_gap": 0.017333567142486572,
+        "probe_span": 0.08632105588912964,
+        "all_probes_in_wide_range": true,
+        "median_alignment": 0.2825217545032501,
+        "median_orthogonal_ratio": 0.9592608213424683,
+        "p_0.2": 0.9038411974906921,
+        "p_0.5": 0.9728286862373352,
+        "p_0.8": 0.9901622533798218
+      },
+      "ball_color_seed_20260916": {
+        "primitive_count": 1,
+        "all_primitives_evaluated": true,
+        "endpoint_semantic_valid": true,
+        "text_endpoint_direction_valid": true,
+        "strict_order_pass": true,
+        "tie_count": 0,
+        "toward_source_gradient_pass": true,
+        "toward_full_gradient_pass": true,
+        "minimum_adjacent_gap": 0.049559175968170166,
+        "probe_span": 0.11436682939529419,
+        "all_probes_in_wide_range": true,
+        "median_alignment": 0.3008197844028473,
+        "median_orthogonal_ratio": 0.9536810517311096,
+        "p_0.2": 0.8656955361366272,
+        "p_0.5": 0.9305031895637512,
+        "p_0.8": 0.9800623655319214
+      },
+      "scene_reimagination_seed_20260914": {
+        "primitive_count": 1,
+        "all_primitives_evaluated": true,
+        "endpoint_semantic_valid": true,
+        "text_endpoint_direction_valid": true,
+        "strict_order_pass": false,
+        "tie_count": 0,
+        "toward_source_gradient_pass": true,
+        "toward_full_gradient_pass": true,
+        "minimum_adjacent_gap": -0.17939496040344238,
+        "probe_span": 0.04899841547012329,
+        "all_probes_in_wide_range": true,
+        "median_alignment": 0.1748266965150833,
+        "median_orthogonal_ratio": 0.984599232673645,
+        "p_0.2": 0.8414983749389648,
+        "p_0.5": 0.6621034145355225,
+        "p_0.8": 0.8904967904090881
+      },
+      "environment_night_seed_20260914": {
+        "primitive_count": 1,
+        "all_primitives_evaluated": true,
+        "endpoint_semantic_valid": true,
+        "text_endpoint_direction_valid": true,
+        "strict_order_pass": false,
+        "tie_count": 0,
+        "toward_source_gradient_pass": true,
+        "toward_full_gradient_pass": true,
+        "minimum_adjacent_gap": -0.18609380722045898,
+        "probe_span": -0.25845324993133545,
+        "all_probes_in_wide_range": false,
+        "median_alignment": 0.2966495752334595,
+        "median_orthogonal_ratio": 0.9549864530563354,
+        "p_0.2": 1.368021845817566,
+        "p_0.5": 1.2956624031066895,
+        "p_0.8": 1.1095685958862305
+      }
+    },
+    "siglip": {
+      "ball_color_seed_20260914": {
+        "primitive_count": 1,
+        "all_primitives_evaluated": true,
+        "endpoint_semantic_valid": true,
+        "text_endpoint_direction_valid": true,
+        "strict_order_pass": true,
+        "tie_count": 0,
+        "toward_source_gradient_pass": true,
+        "toward_full_gradient_pass": true,
+        "minimum_adjacent_gap": 0.004375755786895752,
+        "probe_span": 0.07940995693206787,
+        "all_probes_in_wide_range": true,
+        "median_alignment": 0.3862324059009552,
+        "median_orthogonal_ratio": 0.9224014282226562,
+        "p_0.2": 0.8906970620155334,
+        "p_0.5": 0.9657312631607056,
+        "p_0.8": 0.9701070189476013
+      },
+      "ball_color_seed_20260915": {
+        "primitive_count": 1,
+        "all_primitives_evaluated": true,
+        "endpoint_semantic_valid": true,
+        "text_endpoint_direction_valid": true,
+        "strict_order_pass": true,
+        "tie_count": 0,
+        "toward_source_gradient_pass": true,
+        "toward_full_gradient_pass": true,
+        "minimum_adjacent_gap": 0.015152335166931152,
+        "probe_span": 0.08351331949234009,
+        "all_probes_in_wide_range": true,
+        "median_alignment": 0.34599417448043823,
+        "median_orthogonal_ratio": 0.9382365942001343,
+        "p_0.2": 0.8926684856414795,
+        "p_0.5": 0.9610294699668884,
+        "p_0.8": 0.9761818051338196
+      },
+      "ball_color_seed_20260916": {
+        "primitive_count": 1,
+        "all_primitives_evaluated": true,
+        "endpoint_semantic_valid": true,
+        "text_endpoint_direction_valid": true,
+        "strict_order_pass": true,
+        "tie_count": 0,
+        "toward_source_gradient_pass": true,
+        "toward_full_gradient_pass": true,
+        "minimum_adjacent_gap": 0.01351088285446167,
+        "probe_span": 0.06938183307647705,
+        "all_probes_in_wide_range": true,
+        "median_alignment": 0.31924328207969666,
+        "median_orthogonal_ratio": 0.9476727247238159,
+        "p_0.2": 0.8988662362098694,
+        "p_0.5": 0.912377119064331,
+        "p_0.8": 0.9682480692863464
+      },
+      "scene_reimagination_seed_20260914": {
+        "primitive_count": 1,
+        "all_primitives_evaluated": true,
+        "endpoint_semantic_valid": true,
+        "text_endpoint_direction_valid": true,
+        "strict_order_pass": false,
+        "tie_count": 0,
+        "toward_source_gradient_pass": true,
+        "toward_full_gradient_pass": true,
+        "minimum_adjacent_gap": -0.2198793888092041,
+        "probe_span": -0.09984743595123291,
+        "all_probes_in_wide_range": true,
+        "median_alignment": 0.18034109473228455,
+        "median_orthogonal_ratio": 0.9836041927337646,
+        "p_0.2": 1.0486938953399658,
+        "p_0.5": 0.8288145065307617,
+        "p_0.8": 0.9488464593887329
+      },
+      "environment_night_seed_20260914": {
+        "primitive_count": 1,
+        "all_primitives_evaluated": true,
+        "endpoint_semantic_valid": true,
+        "text_endpoint_direction_valid": true,
+        "strict_order_pass": false,
+        "tie_count": 0,
+        "toward_source_gradient_pass": true,
+        "toward_full_gradient_pass": true,
+        "minimum_adjacent_gap": -0.05194050073623657,
+        "probe_span": -0.04020911455154419,
+        "all_probes_in_wide_range": true,
+        "median_alignment": 0.3624638319015503,
+        "median_orthogonal_ratio": 0.9319977760314941,
+        "p_0.2": 1.00203537940979,
+        "p_0.5": 1.0137667655944824,
+        "p_0.8": 0.9618262648582458
+      }
+    }
+  },
+  "primitive_metrics": {
+    "clip": {
+      "ball_color_seed_20260914::weighted_training_ball_color": {
+        "endpoint_audit_valid": true,
+        "text_endpoint_direction_valid": true,
+        "p_0.2": 0.8820450305938721,
+        "p_0.5": 0.9552695751190186,
+        "p_0.8": 0.977738082408905,
+        "strict_order_pass": true,
+        "adjacent_gaps": [
+          0.07322454452514648,
+          0.022468507289886475
+        ],
+        "descending_inversions": [],
+        "descending_inversion_count": 0,
+        "ties": [],
+        "tie_count": 0,
+        "non_strict_violations": [],
+        "non_strict_violation_count": 0,
+        "minimum_adjacent_gap": 0.022468507289886475,
+        "probe_span": 0.09569305181503296,
+        "all_probes_in_wide_range": true,
+        "median_alignment": 0.2777591943740845,
+        "median_orthogonal_ratio": 0.9606507420539856,
+        "toward_source_gradient_pass": true,
+        "toward_full_gradient_pass": true
+      },
+      "ball_color_seed_20260915::ball_color": {
+        "endpoint_audit_valid": true,
+        "text_endpoint_direction_valid": true,
+        "p_0.2": 0.9038411974906921,
+        "p_0.5": 0.9728286862373352,
+        "p_0.8": 0.9901622533798218,
+        "strict_order_pass": true,
+        "adjacent_gaps": [
+          0.06898748874664307,
+          0.017333567142486572
+        ],
+        "descending_inversions": [],
+        "descending_inversion_count": 0,
+        "ties": [],
+        "tie_count": 0,
+        "non_strict_violations": [],
+        "non_strict_violation_count": 0,
+        "minimum_adjacent_gap": 0.017333567142486572,
+        "probe_span": 0.08632105588912964,
+        "all_probes_in_wide_range": true,
+        "median_alignment": 0.2825217545032501,
+        "median_orthogonal_ratio": 0.9592608213424683,
+        "toward_source_gradient_pass": true,
+        "toward_full_gradient_pass": true
+      },
+      "ball_color_seed_20260916::weighted_training_ball_color": {
+        "endpoint_audit_valid": true,
+        "text_endpoint_direction_valid": true,
+        "p_0.2": 0.8656955361366272,
+        "p_0.5": 0.9305031895637512,
+        "p_0.8": 0.9800623655319214,
+        "strict_order_pass": true,
+        "adjacent_gaps": [
+          0.06480765342712402,
+          0.049559175968170166
+        ],
+        "descending_inversions": [],
+        "descending_inversion_count": 0,
+        "ties": [],
+        "tie_count": 0,
+        "non_strict_violations": [],
+        "non_strict_violation_count": 0,
+        "minimum_adjacent_gap": 0.049559175968170166,
+        "probe_span": 0.11436682939529419,
+        "all_probes_in_wide_range": true,
+        "median_alignment": 0.3008197844028473,
+        "median_orthogonal_ratio": 0.9536810517311096,
+        "toward_source_gradient_pass": true,
+        "toward_full_gradient_pass": true
+      },
+      "scene_reimagination_seed_20260914::scene_environment_beach_to_minimalist_room": {
+        "endpoint_audit_valid": true,
+        "text_endpoint_direction_valid": true,
+        "p_0.2": 0.8414983749389648,
+        "p_0.5": 0.6621034145355225,
+        "p_0.8": 0.8904967904090881,
+        "strict_order_pass": false,
+        "adjacent_gaps": [
+          -0.17939496040344238,
+          0.22839337587356567
+        ],
+        "descending_inversions": [
+          [
+            0,
+            1
+          ]
+        ],
+        "descending_inversion_count": 1,
+        "ties": [],
+        "tie_count": 0,
+        "non_strict_violations": [
+          [
+            0,
+            1
+          ]
+        ],
+        "non_strict_violation_count": 1,
+        "minimum_adjacent_gap": -0.17939496040344238,
+        "probe_span": 0.04899841547012329,
+        "all_probes_in_wide_range": true,
+        "median_alignment": 0.1748266965150833,
+        "median_orthogonal_ratio": 0.984599232673645,
+        "toward_source_gradient_pass": true,
+        "toward_full_gradient_pass": true
+      },
+      "environment_night_seed_20260914::scene_weather_time": {
+        "endpoint_audit_valid": true,
+        "text_endpoint_direction_valid": true,
+        "p_0.2": 1.368021845817566,
+        "p_0.5": 1.2956624031066895,
+        "p_0.8": 1.1095685958862305,
+        "strict_order_pass": false,
+        "adjacent_gaps": [
+          -0.07235944271087646,
+          -0.18609380722045898
+        ],
+        "descending_inversions": [
+          [
+            0,
+            1
+          ],
+          [
+            0,
+            2
+          ],
+          [
+            1,
+            2
+          ]
+        ],
+        "descending_inversion_count": 3,
+        "ties": [],
+        "tie_count": 0,
+        "non_strict_violations": [
+          [
+            0,
+            1
+          ],
+          [
+            0,
+            2
+          ],
+          [
+            1,
+            2
+          ]
+        ],
+        "non_strict_violation_count": 3,
+        "minimum_adjacent_gap": -0.18609380722045898,
+        "probe_span": -0.25845324993133545,
+        "all_probes_in_wide_range": false,
+        "median_alignment": 0.2966495752334595,
+        "median_orthogonal_ratio": 0.9549864530563354,
+        "toward_source_gradient_pass": true,
+        "toward_full_gradient_pass": true
+      }
+    },
+    "siglip": {
+      "ball_color_seed_20260914::weighted_training_ball_color": {
+        "endpoint_audit_valid": true,
+        "text_endpoint_direction_valid": true,
+        "p_0.2": 0.8906970620155334,
+        "p_0.5": 0.9657312631607056,
+        "p_0.8": 0.9701070189476013,
+        "strict_order_pass": true,
+        "adjacent_gaps": [
+          0.07503420114517212,
+          0.004375755786895752
+        ],
+        "descending_inversions": [],
+        "descending_inversion_count": 0,
+        "ties": [],
+        "tie_count": 0,
+        "non_strict_violations": [],
+        "non_strict_violation_count": 0,
+        "minimum_adjacent_gap": 0.004375755786895752,
+        "probe_span": 0.07940995693206787,
+        "all_probes_in_wide_range": true,
+        "median_alignment": 0.3862324059009552,
+        "median_orthogonal_ratio": 0.9224014282226562,
+        "toward_source_gradient_pass": true,
+        "toward_full_gradient_pass": true
+      },
+      "ball_color_seed_20260915::ball_color": {
+        "endpoint_audit_valid": true,
+        "text_endpoint_direction_valid": true,
+        "p_0.2": 0.8926684856414795,
+        "p_0.5": 0.9610294699668884,
+        "p_0.8": 0.9761818051338196,
+        "strict_order_pass": true,
+        "adjacent_gaps": [
+          0.06836098432540894,
+          0.015152335166931152
+        ],
+        "descending_inversions": [],
+        "descending_inversion_count": 0,
+        "ties": [],
+        "tie_count": 0,
+        "non_strict_violations": [],
+        "non_strict_violation_count": 0,
+        "minimum_adjacent_gap": 0.015152335166931152,
+        "probe_span": 0.08351331949234009,
+        "all_probes_in_wide_range": true,
+        "median_alignment": 0.34599417448043823,
+        "median_orthogonal_ratio": 0.9382365942001343,
+        "toward_source_gradient_pass": true,
+        "toward_full_gradient_pass": true
+      },
+      "ball_color_seed_20260916::weighted_training_ball_color": {
+        "endpoint_audit_valid": true,
+        "text_endpoint_direction_valid": true,
+        "p_0.2": 0.8988662362098694,
+        "p_0.5": 0.912377119064331,
+        "p_0.8": 0.9682480692863464,
+        "strict_order_pass": true,
+        "adjacent_gaps": [
+          0.01351088285446167,
+          0.05587095022201538
+        ],
+        "descending_inversions": [],
+        "descending_inversion_count": 0,
+        "ties": [],
+        "tie_count": 0,
+        "non_strict_violations": [],
+        "non_strict_violation_count": 0,
+        "minimum_adjacent_gap": 0.01351088285446167,
+        "probe_span": 0.06938183307647705,
+        "all_probes_in_wide_range": true,
+        "median_alignment": 0.31924328207969666,
+        "median_orthogonal_ratio": 0.9476727247238159,
+        "toward_source_gradient_pass": true,
+        "toward_full_gradient_pass": true
+      },
+      "scene_reimagination_seed_20260914::scene_environment_beach_to_minimalist_room": {
+        "endpoint_audit_valid": true,
+        "text_endpoint_direction_valid": true,
+        "p_0.2": 1.0486938953399658,
+        "p_0.5": 0.8288145065307617,
+        "p_0.8": 0.9488464593887329,
+        "strict_order_pass": false,
+        "adjacent_gaps": [
+          -0.2198793888092041,
+          0.12003195285797119
+        ],
+        "descending_inversions": [
+          [
+            0,
+            1
+          ],
+          [
+            0,
+            2
+          ]
+        ],
+        "descending_inversion_count": 2,
+        "ties": [],
+        "tie_count": 0,
+        "non_strict_violations": [
+          [
+            0,
+            1
+          ],
+          [
+            0,
+            2
+          ]
+        ],
+        "non_strict_violation_count": 2,
+        "minimum_adjacent_gap": -0.2198793888092041,
+        "probe_span": -0.09984743595123291,
+        "all_probes_in_wide_range": true,
+        "median_alignment": 0.18034109473228455,
+        "median_orthogonal_ratio": 0.9836041927337646,
+        "toward_source_gradient_pass": true,
+        "toward_full_gradient_pass": true
+      },
+      "environment_night_seed_20260914::scene_weather_time": {
+        "endpoint_audit_valid": true,
+        "text_endpoint_direction_valid": true,
+        "p_0.2": 1.00203537940979,
+        "p_0.5": 1.0137667655944824,
+        "p_0.8": 0.9618262648582458,
+        "strict_order_pass": false,
+        "adjacent_gaps": [
+          0.011731386184692383,
+          -0.05194050073623657
+        ],
+        "descending_inversions": [
+          [
+            0,
+            2
+          ],
+          [
+            1,
+            2
+          ]
+        ],
+        "descending_inversion_count": 2,
+        "ties": [],
+        "tie_count": 0,
+        "non_strict_violations": [
+          [
+            0,
+            2
+          ],
+          [
+            1,
+            2
+          ]
+        ],
+        "non_strict_violation_count": 2,
+        "minimum_adjacent_gap": -0.05194050073623657,
+        "probe_span": -0.04020911455154419,
+        "all_probes_in_wide_range": true,
+        "median_alignment": 0.3624638319015503,
+        "median_orthogonal_ratio": 0.9319977760314941,
+        "toward_source_gradient_pass": true,
+        "toward_full_gradient_pass": true
+      }
+    }
+  },
+  "direction_failures": {
+    "clip": {},
+    "siglip": {}
+  },
+  "token_metadata": {
+    "clip": {
+      "ball_color_seed_20260914::weighted_training_ball_color": {
+        "source": {
+          "raw_tokenized_length": 9,
+          "effective_tokenized_length": 9,
+          "model_max_length": 77,
+          "truncated": false
+        },
+        "target": {
+          "raw_tokenized_length": 9,
+          "effective_tokenized_length": 9,
+          "model_max_length": 77,
+          "truncated": false
+        }
+      },
+      "ball_color_seed_20260915::ball_color": {
+        "source": {
+          "raw_tokenized_length": 13,
+          "effective_tokenized_length": 13,
+          "model_max_length": 77,
+          "truncated": false
+        },
+        "target": {
+          "raw_tokenized_length": 13,
+          "effective_tokenized_length": 13,
+          "model_max_length": 77,
+          "truncated": false
+        }
+      },
+      "ball_color_seed_20260916::weighted_training_ball_color": {
+        "source": {
+          "raw_tokenized_length": 9,
+          "effective_tokenized_length": 9,
+          "model_max_length": 77,
+          "truncated": false
+        },
+        "target": {
+          "raw_tokenized_length": 9,
+          "effective_tokenized_length": 9,
+          "model_max_length": 77,
+          "truncated": false
+        }
+      },
+      "scene_reimagination_seed_20260914::scene_environment_beach_to_minimalist_room": {
+        "source": {
+          "raw_tokenized_length": 16,
+          "effective_tokenized_length": 16,
+          "model_max_length": 77,
+          "truncated": false
+        },
+        "target": {
+          "raw_tokenized_length": 20,
+          "effective_tokenized_length": 20,
+          "model_max_length": 77,
+          "truncated": false
+        }
+      },
+      "environment_night_seed_20260914::scene_weather_time": {
+        "source": {
+          "raw_tokenized_length": 11,
+          "effective_tokenized_length": 11,
+          "model_max_length": 77,
+          "truncated": false
+        },
+        "target": {
+          "raw_tokenized_length": 12,
+          "effective_tokenized_length": 12,
+          "model_max_length": 77,
+          "truncated": false
+        }
+      }
+    },
+    "siglip": {
+      "ball_color_seed_20260914::weighted_training_ball_color": {
+        "source": {
+          "raw_tokenized_length": 7,
+          "effective_tokenized_length": 1,
+          "model_max_length": 64,
+          "truncated": false
+        },
+        "target": {
+          "raw_tokenized_length": 7,
+          "effective_tokenized_length": 1,
+          "model_max_length": 64,
+          "truncated": false
+        }
+      },
+      "ball_color_seed_20260915::ball_color": {
+        "source": {
+          "raw_tokenized_length": 13,
+          "effective_tokenized_length": 1,
+          "model_max_length": 64,
+          "truncated": false
+        },
+        "target": {
+          "raw_tokenized_length": 13,
+          "effective_tokenized_length": 1,
+          "model_max_length": 64,
+          "truncated": false
+        }
+      },
+      "ball_color_seed_20260916::weighted_training_ball_color": {
+        "source": {
+          "raw_tokenized_length": 9,
+          "effective_tokenized_length": 1,
+          "model_max_length": 64,
+          "truncated": false
+        },
+        "target": {
+          "raw_tokenized_length": 9,
+          "effective_tokenized_length": 1,
+          "model_max_length": 64,
+          "truncated": false
+        }
+      },
+      "scene_reimagination_seed_20260914::scene_environment_beach_to_minimalist_room": {
+        "source": {
+          "raw_tokenized_length": 14,
+          "effective_tokenized_length": 1,
+          "model_max_length": 64,
+          "truncated": false
+        },
+        "target": {
+          "raw_tokenized_length": 19,
+          "effective_tokenized_length": 1,
+          "model_max_length": 64,
+          "truncated": false
+        }
+      },
+      "environment_night_seed_20260914::scene_weather_time": {
+        "source": {
+          "raw_tokenized_length": 10,
+          "effective_tokenized_length": 1,
+          "model_max_length": 64,
+          "truncated": false
+        },
+        "target": {
+          "raw_tokenized_length": 13,
+          "effective_tokenized_length": 1,
+          "model_max_length": 64,
+          "truncated": false
+        }
+      }
+    }
+  },
+  "model_metadata": {
+    "clip": {
+      "model_id": "/data15/hyp/weight/reward_models/clip-vit-large-patch14",
+      "local_path": "/data15/hyp/weight/reward_models/clip-vit-large-patch14",
+      "revision": "unavailable_local_snapshot",
+      "parameter_count": 427616513,
+      "dtype": "float32",
+      "native_image_resolution": {
+        "height": 224,
+        "width": 224
+      },
+      "parameters_frozen": true
+    },
+    "siglip": {
+      "model_id": "/data15/hyp/weight/reward_models/siglip-so400m-patch14-384",
+      "local_path": "/data15/hyp/weight/reward_models/siglip-so400m-patch14-384",
+      "revision": "unavailable_local_snapshot",
+      "parameter_count": 877960498,
+      "dtype": "float32",
+      "native_image_resolution": {
+        "height": 384,
+        "width": 384
+      },
+      "parameters_frozen": true
+    }
+  },
+  "processor_fidelity": {
+    "clip": {
+      "official_pixel_shape": [
+        1,
+        3,
+        224,
+        224
+      ],
+      "differentiable_pixel_shape": [
+        1,
+        3,
+        224,
+        224
+      ],
+      "pixel_cosine": 0.9999986886978149,
+      "pixel_mse": 1.7194709016621346e-06,
+      "pixel_max_abs_difference": 0.03001558780670166,
+      "embedding_cosine": 0.9998669624328613,
+      "embedding_mse": 3.463559039573738e-07,
+      "engineering_gate_embedding_cosine_at_least_0p999": true
+    },
+    "siglip": {
+      "official_pixel_shape": [
+        1,
+        3,
+        384,
+        384
+      ],
+      "differentiable_pixel_shape": [
+        1,
+        3,
+        384,
+        384
+      ],
+      "pixel_cosine": 1.000008225440979,
+      "pixel_mse": 7.993044164322782e-07,
+      "pixel_max_abs_difference": 0.015686392784118652,
+      "embedding_cosine": 0.9998360276222229,
+      "embedding_mse": 2.847274345185724e-07,
+      "engineering_gate_embedding_cosine_at_least_0p999": true
+    }
+  },
+  "aggregate_metrics": {
+    "table": [
+      {
+        "method": "CLIP image-axis v6",
+        "strict_order_rate": 0.8,
+        "gradient_pass_rate": 1.0,
+        "median_span": 0.10565608739852905,
+        "worst_minimum_adjacent_gap": -0.014078378677368164,
+        "endpoint_direction_valid_rate": 1.0
+      },
+      {
+        "method": "CLIP text-conditioned v7",
+        "strict_order_rate": 0.6,
+        "gradient_pass_rate": 1.0,
+        "median_span": 0.08632105588912964,
+        "worst_minimum_adjacent_gap": -0.18609380722045898,
+        "endpoint_direction_valid_rate": 1.0
+      },
+      {
+        "method": "SIGLIP image-axis v6",
+        "strict_order_rate": 0.6,
+        "gradient_pass_rate": 1.0,
+        "median_span": 0.11452430486679077,
+        "worst_minimum_adjacent_gap": -0.010838866233825684,
+        "endpoint_direction_valid_rate": 1.0
+      },
+      {
+        "method": "SIGLIP text-conditioned v7",
+        "strict_order_rate": 0.6,
+        "gradient_pass_rate": 1.0,
+        "median_span": 0.06938183307647705,
+        "worst_minimum_adjacent_gap": -0.2198793888092041,
+        "endpoint_direction_valid_rate": 1.0
+      }
+    ],
+    "details": {
+      "clip_image_axis_v6": {
+        "case_count": 5,
+        "endpoint_valid_case_count": 5,
+        "strict_order_case_count": 4,
+        "strict_order_rate": 0.8,
+        "gradient_both_pass_count": 5,
+        "gradient_both_pass_rate": 1.0,
+        "median_min_adjacent_gap": 0.030055224895477295,
+        "median_probe_span": 0.10565608739852905,
+        "median_p_0.2": 0.8164423704147339,
+        "median_off_axis": 0.34457793831825256,
+        "extrapolation_case_count": 0,
+        "all_endpoint_axes_finite_nondegenerate": true,
+        "runtime_seconds": 2.084807140287012,
+        "peak_allocated_gib": 2.0395545959472656,
+        "peak_reserved_gib": 2.052734375
+      },
+      "clip_text_conditioned_v7": {
+        "case_count": 5,
+        "endpoint_valid_case_count": 5,
+        "endpoint_direction_valid_rate": 1.0,
+        "strict_order_case_count": 3,
+        "strict_order_rate": 0.6,
+        "toward_source_gradient_pass_count": 5,
+        "toward_full_gradient_pass_count": 5,
+        "gradient_both_pass_count": 5,
+        "gradient_both_pass_rate": 1.0,
+        "median_probe_span": 0.08632105588912964,
+        "median_p_0.2": 0.8820450305938721,
+        "worst_minimum_adjacent_gap": -0.18609380722045898,
+        "median_orthogonal_ratio": 0.9592608213424683,
+        "extrapolation_case_count": 1,
+        "runtime_seconds": 2.0793398306705058,
+        "peak_allocated_gib": 2.042448043823242,
+        "peak_reserved_gib": 2.06640625,
+        "formal_ball_gates": {
+          "endpoint_semantic_direction_valid": true,
+          "text_endpoint_direction_valid": true,
+          "strict_order": true,
+          "no_ties": true,
+          "minimum_adjacent_gap_above_0p02": true,
+          "probe_span_at_least_0p10": false,
+          "p_0p2_at_most_0p90": true,
+          "all_probes_in_minus_0p25_to_1p25": true,
+          "gradient_toward_source": true,
+          "gradient_toward_full": true,
+          "passed": false
+        },
+        "status": "FAIL"
+      },
+      "siglip_image_axis_v6": {
+        "case_count": 5,
+        "endpoint_valid_case_count": 5,
+        "strict_order_case_count": 3,
+        "strict_order_rate": 0.6,
+        "gradient_both_pass_count": 5,
+        "gradient_both_pass_rate": 1.0,
+        "median_min_adjacent_gap": 0.034299373626708984,
+        "median_probe_span": 0.11452430486679077,
+        "median_p_0.2": 0.819403350353241,
+        "median_off_axis": 0.4748407204945882,
+        "extrapolation_case_count": 0,
+        "all_endpoint_axes_finite_nondegenerate": true,
+        "runtime_seconds": 4.88037122040987,
+        "peak_allocated_gib": 4.201563835144043,
+        "peak_reserved_gib": 4.525390625
+      },
+      "siglip_text_conditioned_v7": {
+        "case_count": 5,
+        "endpoint_valid_case_count": 5,
+        "endpoint_direction_valid_rate": 1.0,
+        "strict_order_case_count": 3,
+        "strict_order_rate": 0.6,
+        "toward_source_gradient_pass_count": 5,
+        "toward_full_gradient_pass_count": 5,
+        "gradient_both_pass_count": 5,
+        "gradient_both_pass_rate": 1.0,
+        "median_probe_span": 0.06938183307647705,
+        "median_p_0.2": 0.8988662362098694,
+        "worst_minimum_adjacent_gap": -0.2198793888092041,
+        "median_orthogonal_ratio": 0.9382365942001343,
+        "extrapolation_case_count": 0,
+        "runtime_seconds": 5.000366859138012,
+        "peak_allocated_gib": 4.200500965118408,
+        "peak_reserved_gib": 4.5234375,
+        "formal_ball_gates": {
+          "endpoint_semantic_direction_valid": true,
+          "text_endpoint_direction_valid": true,
+          "strict_order": true,
+          "no_ties": true,
+          "minimum_adjacent_gap_above_0p02": false,
+          "probe_span_at_least_0p10": false,
+          "p_0p2_at_most_0p90": true,
+          "all_probes_in_minus_0p25_to_1p25": true,
+          "gradient_toward_source": true,
+          "gradient_toward_full": true,
+          "passed": false
+        },
+        "status": "FAIL"
+      }
+    }
+  },
+  "known_inversion_comparison": [
+    {
+      "encoder": "clip",
+      "case_id": "environment_night_seed_20260914",
+      "v6_p_0.2": 0.5905179381370544,
+      "v6_p_0.5": 0.5764395594596863,
+      "v6_p_0.8": 0.7327679991722107,
+      "v6_ordered": false,
+      "v7_p_0.2": 1.368021845817566,
+      "v7_p_0.5": 1.2956624031066895,
+      "v7_p_0.8": 1.1095685958862305,
+      "v7_ordered": false,
+      "known_v6_inversion": true,
+      "known_inversion_fixed": false
+    },
+    {
+      "encoder": "siglip",
+      "case_id": "ball_color_seed_20260915",
+      "v6_p_0.2": 0.8632460832595825,
+      "v6_p_0.5": 0.8524072170257568,
+      "v6_p_0.8": 0.9681588411331177,
+      "v6_ordered": false,
+      "v7_p_0.2": 0.8926684856414795,
+      "v7_p_0.5": 0.9610294699668884,
+      "v7_p_0.8": 0.9761818051338196,
+      "v7_ordered": true,
+      "known_v6_inversion": true,
+      "known_inversion_fixed": true
+    },
+    {
+      "encoder": "siglip",
+      "case_id": "environment_night_seed_20260914",
+      "v6_p_0.2": 0.9160636067390442,
+      "v6_p_0.5": 0.9109155535697937,
+      "v6_p_0.8": 0.9605305194854736,
+      "v6_ordered": false,
+      "v7_p_0.2": 1.00203537940979,
+      "v7_p_0.5": 1.0137667655944824,
+      "v7_p_0.8": 0.9618262648582458,
+      "v7_ordered": false,
+      "known_v6_inversion": true,
+      "known_inversion_fixed": true
+    }
+  ],
+  "selection": {
+    "selection_rule_frozen_before_results": true,
+    "encoder_status": {
+      "clip": "FAIL",
+      "siglip": "FAIL"
+    },
+    "recommended_encoder_for_next_controller_test": null,
+    "controller_run": false,
+    "perceptual_percentage_calibration_established": false
+  }
+}

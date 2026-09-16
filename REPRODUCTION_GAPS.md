@@ -111,6 +111,14 @@ The legacy `reward_guidance=True` path remains separate.
   as the continuous coordinate.
 - V6 model-generated pixel-oracle probes are fixed data preparation only. They are not produced by the evaluated
   feature method, are not semantic ground truth, and cannot establish human-perceptual percentage calibration.
+- Text-conditioned semantic geometry v7 is independent research code, not a RewardFlow paper component. Its matched
+  semantic-text parser, CLIP/SigLIP text direction, endpoint-relative margin normalization, formal gates, and
+  five-case selection rule are preregistered engineering choices.
+- V7 `orthogonal_ratio` divides the text-axis projection residual norm by total candidate-to-Source image-feature
+  change. This is an explicit diagnostic assumption; it is not part of the primary progress coordinate or a loss.
+- V7 depends on a third-party TianyuAI `gpt-5.6-luna` parse. Provider availability, model snapshot stability, and
+  semantic-text quality are external variables. Cache identity binds provider, model, base URL, parser version,
+  instruction, and both endpoint fingerprints; credentials are never cached.
 
 ## NOT-YET-IMPLEMENTED
 
@@ -177,3 +185,10 @@ The legacy `reward_guidance=True` path remains separate.
   the next recommended isolated test because failures include global environment edits; localization alone would not
   explain or solve all observed inversions. Crop/region localization remains untested and may still be needed for
   small local attributes after the text-direction question is isolated.
+- V7 does not test prompt ensembles, automatic prompt search, crops, segmentation, localization, or region encoders.
+  It also cannot establish human-perceptual percentage calibration from the fixed model-generated diagnostic probes.
+  Controller integration remains blocked unless one encoder passes every preregistered v7 gate.
+- The completed v7 suite selected no encoder. CLIP dropped from 4/5 to 3/5 strict ordering and SigLIP stayed at 3/5;
+  both retained 5/5 bidirectional gradients but had median spans below `.10` and stronger Full-side compression than
+  v6. The scene case became non-monotonic for both, and the environment case remained non-monotonic. Thus matched
+  semantic text alone does not resolve global progress ambiguity on this suite, and no controller claim follows.

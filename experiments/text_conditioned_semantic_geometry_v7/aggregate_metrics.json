@@ -1,0 +1,138 @@
+{
+  "table": [
+    {
+      "method": "CLIP image-axis v6",
+      "strict_order_rate": 0.8,
+      "gradient_pass_rate": 1.0,
+      "median_span": 0.10565608739852905,
+      "worst_minimum_adjacent_gap": -0.014078378677368164,
+      "endpoint_direction_valid_rate": 1.0
+    },
+    {
+      "method": "CLIP text-conditioned v7",
+      "strict_order_rate": 0.6,
+      "gradient_pass_rate": 1.0,
+      "median_span": 0.08632105588912964,
+      "worst_minimum_adjacent_gap": -0.18609380722045898,
+      "endpoint_direction_valid_rate": 1.0
+    },
+    {
+      "method": "SIGLIP image-axis v6",
+      "strict_order_rate": 0.6,
+      "gradient_pass_rate": 1.0,
+      "median_span": 0.11452430486679077,
+      "worst_minimum_adjacent_gap": -0.010838866233825684,
+      "endpoint_direction_valid_rate": 1.0
+    },
+    {
+      "method": "SIGLIP text-conditioned v7",
+      "strict_order_rate": 0.6,
+      "gradient_pass_rate": 1.0,
+      "median_span": 0.06938183307647705,
+      "worst_minimum_adjacent_gap": -0.2198793888092041,
+      "endpoint_direction_valid_rate": 1.0
+    }
+  ],
+  "details": {
+    "clip_image_axis_v6": {
+      "case_count": 5,
+      "endpoint_valid_case_count": 5,
+      "strict_order_case_count": 4,
+      "strict_order_rate": 0.8,
+      "gradient_both_pass_count": 5,
+      "gradient_both_pass_rate": 1.0,
+      "median_min_adjacent_gap": 0.030055224895477295,
+      "median_probe_span": 0.10565608739852905,
+      "median_p_0.2": 0.8164423704147339,
+      "median_off_axis": 0.34457793831825256,
+      "extrapolation_case_count": 0,
+      "all_endpoint_axes_finite_nondegenerate": true,
+      "runtime_seconds": 2.084807140287012,
+      "peak_allocated_gib": 2.0395545959472656,
+      "peak_reserved_gib": 2.052734375
+    },
+    "clip_text_conditioned_v7": {
+      "case_count": 5,
+      "endpoint_valid_case_count": 5,
+      "endpoint_direction_valid_rate": 1.0,
+      "strict_order_case_count": 3,
+      "strict_order_rate": 0.6,
+      "toward_source_gradient_pass_count": 5,
+      "toward_full_gradient_pass_count": 5,
+      "gradient_both_pass_count": 5,
+      "gradient_both_pass_rate": 1.0,
+      "median_probe_span": 0.08632105588912964,
+      "median_p_0.2": 0.8820450305938721,
+      "worst_minimum_adjacent_gap": -0.18609380722045898,
+      "median_orthogonal_ratio": 0.9592608213424683,
+      "extrapolation_case_count": 1,
+      "runtime_seconds": 2.0793398306705058,
+      "peak_allocated_gib": 2.042448043823242,
+      "peak_reserved_gib": 2.06640625,
+      "formal_ball_gates": {
+        "endpoint_semantic_direction_valid": true,
+        "text_endpoint_direction_valid": true,
+        "strict_order": true,
+        "no_ties": true,
+        "minimum_adjacent_gap_above_0p02": true,
+        "probe_span_at_least_0p10": false,
+        "p_0p2_at_most_0p90": true,
+        "all_probes_in_minus_0p25_to_1p25": true,
+        "gradient_toward_source": true,
+        "gradient_toward_full": true,
+        "passed": false
+      },
+      "status": "FAIL"
+    },
+    "siglip_image_axis_v6": {
+      "case_count": 5,
+      "endpoint_valid_case_count": 5,
+      "strict_order_case_count": 3,
+      "strict_order_rate": 0.6,
+      "gradient_both_pass_count": 5,
+      "gradient_both_pass_rate": 1.0,
+      "median_min_adjacent_gap": 0.034299373626708984,
+      "median_probe_span": 0.11452430486679077,
+      "median_p_0.2": 0.819403350353241,
+      "median_off_axis": 0.4748407204945882,
+      "extrapolation_case_count": 0,
+      "all_endpoint_axes_finite_nondegenerate": true,
+      "runtime_seconds": 4.88037122040987,
+      "peak_allocated_gib": 4.201563835144043,
+      "peak_reserved_gib": 4.525390625
+    },
+    "siglip_text_conditioned_v7": {
+      "case_count": 5,
+      "endpoint_valid_case_count": 5,
+      "endpoint_direction_valid_rate": 1.0,
+      "strict_order_case_count": 3,
+      "strict_order_rate": 0.6,
+      "toward_source_gradient_pass_count": 5,
+      "toward_full_gradient_pass_count": 5,
+      "gradient_both_pass_count": 5,
+      "gradient_both_pass_rate": 1.0,
+      "median_probe_span": 0.06938183307647705,
+      "median_p_0.2": 0.8988662362098694,
+      "worst_minimum_adjacent_gap": -0.2198793888092041,
+      "median_orthogonal_ratio": 0.9382365942001343,
+      "extrapolation_case_count": 0,
+      "runtime_seconds": 5.000366859138012,
+      "peak_allocated_gib": 4.200500965118408,
+      "peak_reserved_gib": 4.5234375,
+      "formal_ball_gates": {
+        "endpoint_semantic_direction_valid": true,
+        "text_endpoint_direction_valid": true,
+        "strict_order": true,
+        "no_ties": true,
+        "minimum_adjacent_gap_above_0p02": false,
+        "probe_span_at_least_0p10": false,
+        "p_0p2_at_most_0p90": true,
+        "all_probes_in_minus_0p25_to_1p25": true,
+        "gradient_toward_source": true,
+        "gradient_toward_full": true,
+        "passed": false
+      },
+      "status": "FAIL"
+    }
+  }
+}

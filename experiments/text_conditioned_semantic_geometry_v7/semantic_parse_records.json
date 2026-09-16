@@ -1,0 +1,197 @@
+{
+  "ball_color_seed_20260914": {
+    "spec": {
+      "edit_instruction": "Make the weighted training ball blue while preserving its shape, texture, lighting, and background.",
+      "primitives": [
+        {
+          "id": "weighted_training_ball_color",
+          "object": "weighted training ball",
+          "attribute": "color",
+          "edit_description": "Change the weighted training ball's color to blue.",
+          "comparison_focus": "The visible color of the weighted training ball changes from black to blue.",
+          "source_state": "black",
+          "target_state": "blue",
+          "source_semantic_text": "The weighted training ball is black.",
+          "target_semantic_text": "The weighted training ball is blue.",
+          "endpoint_question": "What color is the weighted training ball?",
+          "source_answer": "Black.",
+          "target_answer": "Blue.",
+          "weight": 1.0
+        }
+      ],
+      "preserve_constraints": [
+        "Preserve the weighted training ball's shape.",
+        "Preserve the weighted training ball's texture.",
+        "Preserve the lighting.",
+        "Preserve the background."
+      ],
+      "unresolved_instruction_items": []
+    },
+    "provenance": {
+      "provider": "tianyuai",
+      "base_url": "https://tianyuai.lol/v1",
+      "model": "gpt-5.6-luna",
+      "parser_version": "text-conditioned-semantic-v7-parser-v1",
+      "source_fingerprint": "b406f99da00489b01035d33be3dfd68ecdd1ca7a7bf591972fa9722e772621fe",
+      "full_fingerprint": "c812a4b7e20cc5b580ae8f3faf20a43b8f0134319156c4665607599a0ad29da7",
+      "edit_instruction": "Make the weighted training ball blue while preserving its shape, texture, lighting, and background.",
+      "created_at": "2026-09-16T07:30:06.804902+00:00",
+      "cache_hit": true
+    }
+  },
+  "ball_color_seed_20260915": {
+    "spec": {
+      "edit_instruction": "Make the weighted training ball blue while preserving its shape, texture, lighting, and background.",
+      "primitives": [
+        {
+          "id": "ball_color",
+          "object": "weighted training ball",
+          "attribute": "color",
+          "edit_description": "Change the color of the weighted training ball from black to blue.",
+          "comparison_focus": "weighted training ball",
+          "source_state": "black",
+          "target_state": "blue",
+          "source_semantic_text": "A black weighted training ball sits on a wooden bench.",
+          "target_semantic_text": "A blue weighted training ball sits on a wooden bench.",
+          "endpoint_question": "What is the color of the weighted training ball?",
+          "source_answer": "black",
+          "target_answer": "blue",
+          "weight": 1.0
+        }
+      ],
+      "preserve_constraints": [
+        "shape",
+        "texture",
+        "lighting",
+        "background"
+      ],
+      "unresolved_instruction_items": []
+    },
+    "provenance": {
+      "provider": "tianyuai",
+      "base_url": "https://tianyuai.lol/v1",
+      "model": "gpt-5.6-luna",
+      "parser_version": "text-conditioned-semantic-v7-parser-v1",
+      "source_fingerprint": "b406f99da00489b01035d33be3dfd68ecdd1ca7a7bf591972fa9722e772621fe",
+      "full_fingerprint": "d737640ccf0f593eaca3db02a95befd9e70cccadce95d82e5943fbf13ff6ffc9",
+      "edit_instruction": "Make the weighted training ball blue while preserving its shape, texture, lighting, and background.",
+      "created_at": "2026-09-16T07:37:44.543472+00:00",
+      "cache_hit": true
+    }
+  },
+  "ball_color_seed_20260916": {
+    "spec": {
+      "edit_instruction": "Make the weighted training ball blue while preserving its shape, texture, lighting, and background.",
+      "primitives": [
+        {
+          "id": "weighted_training_ball_color",
+          "object": "weighted training ball",
+          "attribute": "color",
+          "edit_description": "The surface color of the weighted training ball changes from black to blue.",
+          "comparison_focus": "surface color of the weighted training ball",
+          "source_state": "black",
+          "target_state": "blue",
+          "source_semantic_text": "weighted training ball with a black surface",
+          "target_semantic_text": "weighted training ball with a blue surface",
+          "endpoint_question": "What is the color of the weighted training ball?",
+          "source_answer": "black",
+          "target_answer": "blue",
+          "weight": 1.0
+        }
+      ],
+      "preserve_constraints": [
+        "shape of the weighted training ball",
+        "texture of the weighted training ball",
+        "lighting of the weighted training ball",
+        "background scene"
+      ],
+      "unresolved_instruction_items": []
+    },
+    "provenance": {
+      "provider": "tianyuai",
+      "base_url": "https://tianyuai.lol/v1",
+      "model": "gpt-5.6-luna",
+      "parser_version": "text-conditioned-semantic-v7-parser-v1",
+      "source_fingerprint": "b406f99da00489b01035d33be3dfd68ecdd1ca7a7bf591972fa9722e772621fe",
+      "full_fingerprint": "fd7459aab039b4e126275efeece7886b52e743f9c5f865b81881c8433067df7a",
+      "edit_instruction": "Make the weighted training ball blue while preserving its shape, texture, lighting, and background.",
+      "created_at": "2026-09-16T07:41:01.067873+00:00",
+      "cache_hit": true
+    }
+  },
+  "scene_reimagination_seed_20260914": {
+    "spec": {
+      "edit_instruction": "Reimagine the entire scene as a serene, minimalist room with a modern, sleek desk setup, maintaining the ergonomic object's design and placement.",
+      "primitives": [
+        {
+          "id": "scene_environment_beach_to_minimalist_room",
+          "object": "scene",
+          "attribute": "scene_environment",
+          "edit_description": "Replace the beach-at-sunset setting with a serene minimalist room containing a sleek modern desk.",
+          "comparison_focus": "surrounding environment and workspace setting",
+          "source_state": "Sandy beach with sunset lighting and ocean background.",
+          "target_state": "Minimalist indoor room with a sleek desk and window view.",
+          "source_semantic_text": "The scene around the ergonomic object is a sandy beach at sunset.",
+          "target_semantic_text": "The scene around the ergonomic object is a serene minimalist room with a sleek modern desk.",
+          "endpoint_question": "What environment surrounds the ergonomic object?",
+          "source_answer": "A sandy beach at sunset.",
+          "target_answer": "A serene minimalist room with a sleek modern desk.",
+          "weight": 1.0
+        }
+      ],
+      "preserve_constraints": [
+        "Maintain the ergonomic object's design.",
+        "Maintain the ergonomic object's placement."
+      ],
+      "unresolved_instruction_items": []
+    },
+    "provenance": {
+      "provider": "tianyuai",
+      "base_url": "https://tianyuai.lol/v1",
+      "model": "gpt-5.6-luna",
+      "parser_version": "text-conditioned-semantic-v7-parser-v1",
+      "source_fingerprint": "1b5a4979631d7f9a8f5c0921c223225a871cb42a96726c6252fc78738601f52a",
+      "full_fingerprint": "76ade66c6d834f86b49740f2042baaf4add8d2db8e2291ffddde5b36e47804b4",
+      "edit_instruction": "Reimagine the entire scene as a serene, minimalist room with a modern, sleek desk setup, maintaining the ergonomic object's design and placement.",
+      "created_at": "2026-09-16T07:42:01.579350+00:00",
+      "cache_hit": true
+    }
+  },
+  "environment_night_seed_20260914": {
+    "spec": {
+      "edit_instruction": "Replace the sunny park setting with a stormy night sky, preserving the fitness tool's position and framing.",
+      "primitives": [
+        {
+          "id": "scene_weather_time",
+          "object": "scene",
+          "attribute": "environmental lighting, weather, and time of day",
+          "edit_description": "Change the scene from a bright sunny daytime park to a dark stormy night environment with visible lightning.",
+          "comparison_focus": "sunny daytime park setting versus stormy nighttime setting",
+          "source_state": "Sunny daytime park setting.",
+          "target_state": "Stormy nighttime setting with lightning.",
+          "source_semantic_text": "The scene has a sunny daytime park setting.",
+          "target_semantic_text": "The scene has a stormy nighttime setting with lightning.",
+          "endpoint_question": "What weather and time of day does the scene show?",
+          "source_answer": "A sunny daytime park setting.",
+          "target_answer": "A stormy nighttime setting with lightning.",
+          "weight": 1.0
+        }
+      ],
+      "preserve_constraints": [
+        "The fitness tool remains in the same position and framing."
+      ],
+      "unresolved_instruction_items": []
+    },
+    "provenance": {
+      "provider": "tianyuai",
+      "base_url": "https://tianyuai.lol/v1",
+      "model": "gpt-5.6-luna",
+      "parser_version": "text-conditioned-semantic-v7-parser-v1",
+      "source_fingerprint": "17ce86e0760ccde524b66bd60fb79ba83bb1e4e66c2afeac2a4d9159cc3301aa",
+      "full_fingerprint": "b0b4601efb0dd24d7861d44d5402ae9f1fbc59e75201d3c01814fd24fcd61686",
+      "edit_instruction": "Replace the sunny park setting with a stormy night sky, preserving the fitness tool's position and framing.",
+      "created_at": "2026-09-16T07:42:33.157687+00:00",
+      "cache_hit": true
+    }
+  }
+}
