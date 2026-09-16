@@ -1,0 +1,308 @@
+{
+  "scope": "Minimal FLUX-Kontext native-text suppression diagnostic. Tests whether negative T5 steering can retract a correct Native Full Edit. Not a semantic-strength calibration method and not a paper-faithful contrastive Difference-of-Means reproduction.",
+  "status": "STEERING_RESPONSE_DETECTED",
+  "git_head": "c893b089bf8d6539bcba780aaf8d2d8461e33823",
+  "model": "/data15/hyp/weight/FLUX.1-Kontext-dev",
+  "source": "/data15/hyp/dataset/kontinuous_kontext/raw/source_images/source_000000.png",
+  "prompt": "Make the weighted training ball blue while preserving its shape, texture, lighting, and background.",
+  "method": {
+    "type": "single_pair_generator_native_t5_negative_steering",
+    "paper_faithful_dom": false,
+    "velocity_control_used": false,
+    "reward_used": false,
+    "elastic_band_used": false,
+    "clip_pooled_modified": false,
+    "only_t5_prompt_embeds_modified": true
+  },
+  "semantic_pair": {
+    "source_text": "The weighted training ball is black.",
+    "target_text": "The weighted training ball is blue.",
+    "source_phrase": "black",
+    "target_phrase": "blue",
+    "edit_phrase": "blue"
+  },
+  "generation_config": {
+    "seed": 20260914,
+    "height": 256,
+    "width": 256,
+    "num_inference_steps": 12,
+    "guidance_scale": 2.5,
+    "dtype": "bfloat16",
+    "device": "cuda:0",
+    "max_sequence_length": 512,
+    "factors": [
+      -2.75,
+      -2.7,
+      -2.65,
+      -2.6,
+      -2.55,
+      -2.5,
+      0.0
+    ],
+    "batching": "B=1 sequential unroll per factor; no factor batching"
+  },
+  "interpretation_guardrails": {
+    "factor_is_not_semantic_percentage": true,
+    "pixel_distance_is_not_semantic_strength": true,
+    "visual_review_required": true
+  },
+  "token_alignment": {
+    "source_semantic": {
+      "text": "The weighted training ball is black.",
+      "phrase": "black",
+      "token_indices": [
+        7
+      ],
+      "token_ids": [
+        1001
+      ],
+      "token_pieces": [
+        "\u2581black"
+      ],
+      "offsets": [
+        [
+          29,
+          35
+        ]
+      ]
+    },
+    "target_semantic": {
+      "text": "The weighted training ball is blue.",
+      "phrase": "blue",
+      "token_indices": [
+        7
+      ],
+      "token_ids": [
+        1692
+      ],
+      "token_pieces": [
+        "\u2581blue"
+      ],
+      "offsets": [
+        [
+          29,
+          34
+        ]
+      ]
+    },
+    "edit": {
+      "text": "Make the weighted training ball blue while preserving its shape, texture, lighting, and background.",
+      "phrase": "blue",
+      "token_indices": [
+        7
+      ],
+      "token_ids": [
+        1692
+      ],
+      "token_pieces": [
+        "\u2581blue"
+      ],
+      "offsets": [
+        [
+          31,
+          36
+        ]
+      ]
+    }
+  },
+  "direction": {
+    "raw_norm": 4.518367767333984,
+    "normalized_norm": 0.9999999403953552,
+    "finite": true,
+    "source_token_indices": [
+      7
+    ],
+    "target_token_indices": [
+      7
+    ],
+    "source_token_pieces": [
+      "\u2581black"
+    ],
+    "target_token_pieces": [
+      "\u2581blue"
+    ]
+  },
+  "parity": {
+    "captured_native_vs_native_reunroll_latent": {
+      "max_abs_diff": 0.0,
+      "mean_abs_diff": 0.0
+    },
+    "native_reunroll_vs_factor_zero_latent": {
+      "max_abs_diff": 0.0,
+      "mean_abs_diff": 0.0
+    },
+    "native_reunroll_vs_factor_zero_decoded_image": {
+      "max_abs_diff": 0.0,
+      "mean_abs_diff": 0.0
+    }
+  },
+  "source_provenance": "SOURCE IMAGE",
+  "native_full_provenance": "MODEL GENERATED \u2014 NATIVE FULL",
+  "results": [
+    {
+      "factor": -2.75,
+      "image_provenance": "MODEL GENERATED \u2014 TEXT STEERING DIAGNOSTIC",
+      "finite": true,
+      "prompt_embedding_perturbation_norm": 2.750124216079712,
+      "image_mad_mse_to_source": {
+        "mad": 0.040733981877565384,
+        "mse": 0.01020929217338562
+      },
+      "image_mad_mse_to_native_full": {
+        "mad": 0.06357359886169434,
+        "mse": 0.03326409310102463
+      },
+      "latent_distance_to_native_full": {
+        "l2": 82.8177490234375,
+        "mad": 0.26213857531547546
+      },
+      "adjacent_image_mad": null
+    },
+    {
+      "factor": -2.7,
+      "image_provenance": "MODEL GENERATED \u2014 TEXT STEERING DIAGNOSTIC",
+      "finite": true,
+      "prompt_embedding_perturbation_norm": 2.700035333633423,
+      "image_mad_mse_to_source": {
+        "mad": 0.04001998156309128,
+        "mse": 0.010050585493445396
+      },
+      "image_mad_mse_to_native_full": {
+        "mad": 0.0635388195514679,
+        "mse": 0.03293979912996292
+      },
+      "latent_distance_to_native_full": {
+        "l2": 81.91700744628906,
+        "mad": 0.26041847467422485
+      },
+      "adjacent_image_mad": 0.0037334661465138197
+    },
+    {
+      "factor": -2.65,
+      "image_provenance": "MODEL GENERATED \u2014 TEXT STEERING DIAGNOSTIC",
+      "finite": true,
+      "prompt_embedding_perturbation_norm": 2.6499996185302734,
+      "image_mad_mse_to_source": {
+        "mad": 0.0366600900888443,
+        "mse": 0.008365368470549583
+      },
+      "image_mad_mse_to_native_full": {
+        "mad": 0.062369316816329956,
+        "mse": 0.030630331486463547
+      },
+      "latent_distance_to_native_full": {
+        "l2": 78.17969512939453,
+        "mad": 0.25376254320144653
+      },
+      "adjacent_image_mad": 0.007925450801849365
+    },
+    {
+      "factor": -2.6,
+      "image_provenance": "MODEL GENERATED \u2014 TEXT STEERING DIAGNOSTIC",
+      "finite": true,
+      "prompt_embedding_perturbation_norm": 2.5999224185943604,
+      "image_mad_mse_to_source": {
+        "mad": 0.03979509323835373,
+        "mse": 0.009419798851013184
+      },
+      "image_mad_mse_to_native_full": {
+        "mad": 0.04176216572523117,
+        "mse": 0.01148578803986311
+      },
+      "latent_distance_to_native_full": {
+        "l2": 43.5363655090332,
+        "mad": 0.16454413533210754
+      },
+      "adjacent_image_mad": 0.026835381984710693
+    },
+    {
+      "factor": -2.55,
+      "image_provenance": "MODEL GENERATED \u2014 TEXT STEERING DIAGNOSTIC",
+      "finite": true,
+      "prompt_embedding_perturbation_norm": 2.5498857498168945,
+      "image_mad_mse_to_source": {
+        "mad": 0.05191576108336449,
+        "mse": 0.018496185541152954
+      },
+      "image_mad_mse_to_native_full": {
+        "mad": 0.03039032220840454,
+        "mse": 0.006676995661109686
+      },
+      "latent_distance_to_native_full": {
+        "l2": 37.95406723022461,
+        "mad": 0.13761648535728455
+      },
+      "adjacent_image_mad": 0.018931757658720016
+    },
+    {
+      "factor": -2.5,
+      "image_provenance": "MODEL GENERATED \u2014 TEXT STEERING DIAGNOSTIC",
+      "finite": true,
+      "prompt_embedding_perturbation_norm": 2.499932050704956,
+      "image_mad_mse_to_source": {
+        "mad": 0.05623515695333481,
+        "mse": 0.021993419155478477
+      },
+      "image_mad_mse_to_native_full": {
+        "mad": 0.027449339628219604,
+        "mse": 0.006451689638197422
+      },
+      "latent_distance_to_native_full": {
+        "l2": 39.47109603881836,
+        "mad": 0.13738790154457092
+      },
+      "adjacent_image_mad": 0.008277446031570435
+    },
+    {
+      "factor": 0.0,
+      "image_provenance": "MODEL GENERATED \u2014 TEXT STEERING DIAGNOSTIC",
+      "finite": true,
+      "prompt_embedding_perturbation_norm": 0.0,
+      "image_mad_mse_to_source": {
+        "mad": 0.05583079904317856,
+        "mse": 0.018910249695181847
+      },
+      "image_mad_mse_to_native_full": {
+        "mad": 0.0,
+        "mse": 0.0
+      },
+      "latent_distance_to_native_full": {
+        "l2": 0.0,
+        "mad": 0.0
+      },
+      "adjacent_image_mad": 0.027449339628219604
+    }
+  ],
+  "reversion_signal": {
+    "factor_order_as_provided": [
+      -2.75,
+      -2.7,
+      -2.65,
+      -2.6,
+      -2.55,
+      -2.5,
+      0.0
+    ],
+    "distance_to_full_over_input_order": [
+      0.06357359886169434,
+      0.0635388195514679,
+      0.062369316816329956,
+      0.04176216572523117,
+      0.03039032220840454,
+      0.027449339628219604,
+      0.0
+    ],
+    "distance_to_source_over_input_order": [
+      0.040733981877565384,
+      0.04001998156309128,
+      0.0366600900888443,
+      0.03979509323835373,
+      0.05191576108336449,
+      0.05623515695333481,
+      0.05583079904317856
+    ],
+    "distance_to_full_non_increasing_in_input_order": true,
+    "distance_to_source_non_decreasing_in_input_order": false
+  },
+  "visual_status": "VISUAL_REVIEW_REQUIRED"
+}

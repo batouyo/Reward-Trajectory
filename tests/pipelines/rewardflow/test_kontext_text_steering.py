@@ -2,9 +2,12 @@ import pytest
 import torch
 
 from diffusers.pipelines.rewardflow.kontext_text_steering import (
+    apply_kontext_pooled_steering,
     apply_kontext_text_steering,
+    build_single_pair_clip_direction,
     build_single_pair_t5_direction,
     find_t5_phrase_indices,
+    reversion_fraction_to_alpha,
 )
 
 
@@ -46,6 +49,10 @@ class _MockPipe:
         else:
             values[0, 5] = torch.tensor([1.0, 0.0, 0.0, 0.0])
         return values
+
+    def _get_clip_prompt_embeds(self, prompt, num_images_per_prompt, device):
+        assert num_images_per_prompt == 1
+        return torch.tensor([[1.0 if self.same or "black" in prompt else 4.0, 0.0]])
 
 
 def test_factor_zero_is_exact_and_does_not_mutate_base():
@@ -141,3 +148,55 @@ def test_out_of_range_and_duplicate_indices_fail():
         apply_kontext_text_steering(base, [1, 1], torch.ones(3), 1.0)
     with pytest.raises(ValueError, match="out-of-range"):
         apply_kontext_text_steering(base, [4], torch.ones(3), 1.0)
+
+
+def test_reversion_fraction_is_text_space_displacement_only():
+    assert reversion_fraction_to_alpha(0, 4.5) == 0
+    assert reversion_fraction_to_alpha(0.5, 4.5) == -2.25
+    assert reversion_fraction_to_alpha(1, 4.5) == -4.5
+    with pytest.raises(ValueError, match="nonnegative"):
+        reversion_fraction_to_alpha(-0.1, 4.5)
+    with pytest.raises(ValueError, match="positive"):
+        reversion_fraction_to_alpha(0.5, 0)
+
+
+def test_clip_direction_uses_native_pooled_output_and_is_normalized():
+    direction = build_single_pair_clip_direction(_MockPipe(), "ball black", "ball blue", torch.zeros(1, 2))
+    assert direction.raw_direction_norm == 3.0
+    torch.testing.assert_close(torch.linalg.vector_norm(direction.direction), torch.tensor(1.0))
+    assert direction.normalized_direction_norm == 1.0
+
+
+def test_clip_zero_and_nonfinite_directions_hard_fail():
+    with pytest.raises(ValueError, match="zero"):
+        build_single_pair_clip_direction(_MockPipe(same=True), "ball black", "ball blue")
+    with pytest.raises(ValueError, match="dimension"):
+        build_single_pair_clip_direction(_MockPipe(), "ball black", "ball blue", torch.zeros(1, 3))
+    base = torch.zeros(1, 2)
+    with pytest.raises(ValueError, match="finite"):
+        apply_kontext_pooled_steering(base, torch.tensor([float("nan"), 0.0]), -1.0)
+    with pytest.raises(ValueError, match="dimension"):
+        apply_kontext_pooled_steering(base, torch.ones(3), -1.0)
+
+
+def test_clip_apply_zero_immutable_and_actual_perturbation_norm():
+    base = torch.tensor([[1.0, 2.0]])
+    before = base.clone()
+    direction = torch.tensor([0.6, 0.8])
+    zero = apply_kontext_pooled_steering(base, direction, 0)
+    assert torch.equal(zero, base)
+    changed = apply_kontext_pooled_steering(base, direction, -2.0)
+    assert torch.equal(base, before)
+    torch.testing.assert_close(torch.linalg.vector_norm(changed - base), torch.tensor(2.0))
+
+
+def test_t5_and_clip_updates_are_independent():
+    base_t5 = torch.zeros(1, 4, 2)
+    base_clip = torch.zeros(1, 3)
+    changed_t5 = apply_kontext_text_steering(base_t5, [2], torch.tensor([1.0, 0.0]), -1.0)
+    changed_clip = apply_kontext_pooled_steering(base_clip, torch.tensor([0.0, 1.0, 0.0]), -2.0)
+    assert torch.equal(base_t5, torch.zeros_like(base_t5))
+    assert torch.equal(base_clip, torch.zeros_like(base_clip))
+    assert torch.equal(changed_t5[:, [0, 1, 3]], base_t5[:, [0, 1, 3]])
+    assert changed_t5[0, 2, 0] == -1.0
+    assert changed_clip[0, 1] == -2.0

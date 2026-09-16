@@ -6,6 +6,7 @@ Difference-of-Means implementation. It contains no reward or velocity control.
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass
 from typing import Any
 
@@ -51,6 +52,20 @@ class T5SteeringDirection:
             "target_token_indices": list(self.target_token_indices),
             "source_token_pieces": list(self.source_token_pieces),
             "target_token_pieces": list(self.target_token_pieces),
+        }
+
+
+@dataclass(frozen=True)
+class CLIPSteeringDirection:
+    direction: torch.Tensor
+    raw_direction_norm: float
+    normalized_direction_norm: float
+
+    def as_dict(self) -> dict[str, Any]:
+        return {
+            "raw_norm": self.raw_direction_norm,
+            "normalized_norm": self.normalized_direction_norm,
+            "finite": bool(torch.isfinite(self.direction).all().item()),
         }
 
 
@@ -272,4 +287,86 @@ def apply_kontext_text_steering(
     steered[:, list(indices), :] = steered[:, list(indices), :] + update
     if not torch.isfinite(steered).all():
         raise ValueError("Steered prompt embeddings contain non-finite values")
+    return steered
+
+
+def reversion_fraction_to_alpha(reversion_fraction: float, raw_direction_norm: float) -> float:
+    """Convert text-space displacement fraction to a negative steering coefficient.
+
+    This fraction describes embedding displacement, never image semantic strength.
+    """
+
+    fraction = float(reversion_fraction)
+    norm = float(raw_direction_norm)
+    if not math.isfinite(fraction) or fraction < 0:
+        raise ValueError("reversion_fraction must be finite and nonnegative")
+    if not math.isfinite(norm) or norm <= 0:
+        raise ValueError("raw_direction_norm must be finite and positive")
+    return -fraction * norm
+
+
+def build_single_pair_clip_direction(
+    pipe: Any,
+    source_text: str,
+    target_text: str,
+    base_pooled_prompt_embeds: torch.Tensor | None = None,
+) -> CLIPSteeringDirection:
+    """Build target-minus-source pooled direction with Kontext's own CLIP helper."""
+
+    if not isinstance(source_text, str) or not source_text or not isinstance(target_text, str) or not target_text:
+        raise ValueError("CLIP source and target texts must be non-empty strings")
+    if not hasattr(pipe, "_get_clip_prompt_embeds"):
+        raise TypeError("pipe must expose native _get_clip_prompt_embeds")
+    device = getattr(pipe, "_execution_device", None)
+    source = pipe._get_clip_prompt_embeds(prompt=source_text, num_images_per_prompt=1, device=device)
+    target = pipe._get_clip_prompt_embeds(prompt=target_text, num_images_per_prompt=1, device=device)
+    if (
+        not torch.is_tensor(source)
+        or not torch.is_tensor(target)
+        or source.ndim != 2
+        or target.ndim != 2
+        or source.shape[0] != 1
+        or source.shape != target.shape
+    ):
+        raise ValueError("Native CLIP pooled embeddings must have matching shape [1, hidden]")
+    if base_pooled_prompt_embeds is not None and (
+        not torch.is_tensor(base_pooled_prompt_embeds)
+        or base_pooled_prompt_embeds.ndim != 2
+        or base_pooled_prompt_embeds.shape != source.shape
+    ):
+        raise ValueError("CLIP direction dimension does not match base pooled prompt embeddings")
+    raw = target.float().squeeze(0) - source.float().squeeze(0)
+    norm = torch.linalg.vector_norm(raw)
+    if not torch.isfinite(raw).all() or not torch.isfinite(norm) or norm <= 0:
+        raise ValueError("CLIP source-to-target direction is non-finite or zero")
+    direction = raw / norm
+    normalized_norm = torch.linalg.vector_norm(direction)
+    if not torch.isfinite(direction).all() or normalized_norm <= 0:
+        raise ValueError("Normalized CLIP direction is non-finite or zero")
+    return CLIPSteeringDirection(direction, float(norm.detach().cpu()), float(normalized_norm.detach().cpu()))
+
+
+def apply_kontext_pooled_steering(
+    base_pooled_prompt_embeds: torch.Tensor, steering_direction: torch.Tensor, factor: float
+) -> torch.Tensor:
+    """Return a clone with a native CLIP pooled direction added; never mutate base."""
+
+    if not torch.is_tensor(base_pooled_prompt_embeds) or base_pooled_prompt_embeds.ndim != 2:
+        raise ValueError("base_pooled_prompt_embeds must have shape [batch, hidden]")
+    if not torch.is_tensor(steering_direction) or steering_direction.ndim != 1:
+        raise ValueError("CLIP steering_direction must have shape [hidden]")
+    if base_pooled_prompt_embeds.shape[1] != steering_direction.shape[0]:
+        raise ValueError("CLIP steering direction dimension mismatch")
+    if not torch.isfinite(base_pooled_prompt_embeds).all() or not torch.isfinite(steering_direction).all():
+        raise ValueError("CLIP pooled embeddings and direction must be finite")
+    factor_value = float(factor)
+    if not math.isfinite(factor_value):
+        raise ValueError("CLIP steering factor must be finite")
+    steered = base_pooled_prompt_embeds.clone()
+    if factor_value == 0:
+        return steered
+    update = steering_direction.to(device=steered.device, dtype=steered.dtype) * factor_value
+    steered = steered + update
+    if not torch.isfinite(steered).all():
+        raise ValueError("Steered CLIP pooled embeddings contain non-finite values")
     return steered

@@ -1,0 +1,488 @@
+{
+  "scope": "Minimal FLUX-Kontext native-text suppression diagnostic. Tests whether negative T5 steering can retract a correct Native Full Edit. Not a semantic-strength calibration method and not a paper-faithful contrastive Difference-of-Means reproduction.",
+  "status": "STEERING_RESPONSE_DETECTED",
+  "git_head": "c893b089bf8d6539bcba780aaf8d2d8461e33823",
+  "model": "/data15/hyp/weight/FLUX.1-Kontext-dev",
+  "source": "/data15/hyp/dataset/kontinuous_kontext/raw/source_images/source_000000.png",
+  "prompt": "Make the weighted training ball blue while preserving its shape, texture, lighting, and background.",
+  "method": {
+    "type": "single_pair_generator_native_t5_negative_steering",
+    "paper_faithful_dom": false,
+    "velocity_control_used": false,
+    "reward_used": false,
+    "elastic_band_used": false,
+    "clip_pooled_modified": false,
+    "only_t5_prompt_embeds_modified": true,
+    "parameterization": "reversion-fraction"
+  },
+  "semantic_pair": {
+    "source_text": "Make the weighted training ball black while preserving its shape, texture, lighting, and background.",
+    "target_text": "Make the weighted training ball blue while preserving its shape, texture, lighting, and background.",
+    "source_phrase": "black",
+    "target_phrase": "blue",
+    "edit_phrase": "blue"
+  },
+  "generation_config": {
+    "seed": 20260914,
+    "height": 256,
+    "width": 256,
+    "num_inference_steps": 12,
+    "guidance_scale": 2.5,
+    "dtype": "bfloat16",
+    "device": "cuda:0",
+    "max_sequence_length": 512,
+    "factors": [
+      -0.0,
+      -0.556168031692505,
+      -1.11233606338501,
+      -1.6685040950775145,
+      -2.22467212677002,
+      -2.7808401584625244,
+      -3.337008190155029,
+      -3.893176221847534,
+      -4.44934425354004,
+      -5.005512285232544,
+      -5.561680316925049,
+      -6.117848348617554,
+      -6.674016380310058
+    ],
+    "reversion_fractions": [
+      0.0,
+      0.1,
+      0.2,
+      0.3,
+      0.4,
+      0.5,
+      0.6,
+      0.7,
+      0.8,
+      0.9,
+      1.0,
+      1.1,
+      1.2
+    ],
+    "batching": "B=1 sequential unroll per factor; no factor batching"
+  },
+  "interpretation_guardrails": {
+    "factor_is_not_semantic_percentage": true,
+    "pixel_distance_is_not_semantic_strength": true,
+    "visual_review_required": true
+  },
+  "token_alignment": {
+    "source_semantic": {
+      "text": "Make the weighted training ball black while preserving its shape, texture, lighting, and background.",
+      "phrase": "black",
+      "token_indices": [
+        7
+      ],
+      "token_ids": [
+        1001
+      ],
+      "token_pieces": [
+        "\u2581black"
+      ],
+      "offsets": [
+        [
+          31,
+          37
+        ]
+      ]
+    },
+    "target_semantic": {
+      "text": "Make the weighted training ball blue while preserving its shape, texture, lighting, and background.",
+      "phrase": "blue",
+      "token_indices": [
+        7
+      ],
+      "token_ids": [
+        1692
+      ],
+      "token_pieces": [
+        "\u2581blue"
+      ],
+      "offsets": [
+        [
+          31,
+          36
+        ]
+      ]
+    },
+    "edit": {
+      "text": "Make the weighted training ball blue while preserving its shape, texture, lighting, and background.",
+      "phrase": "blue",
+      "token_indices": [
+        7
+      ],
+      "token_ids": [
+        1692
+      ],
+      "token_pieces": [
+        "\u2581blue"
+      ],
+      "offsets": [
+        [
+          31,
+          36
+        ]
+      ]
+    }
+  },
+  "direction": {
+    "raw_norm": 5.561680316925049,
+    "normalized_norm": 1.0,
+    "finite": true,
+    "source_token_indices": [
+      7
+    ],
+    "target_token_indices": [
+      7
+    ],
+    "source_token_pieces": [
+      "\u2581black"
+    ],
+    "target_token_pieces": [
+      "\u2581blue"
+    ]
+  },
+  "parity": {
+    "captured_native_vs_native_reunroll_latent": {
+      "max_abs_diff": 0.0,
+      "mean_abs_diff": 0.0
+    },
+    "native_reunroll_vs_factor_zero_latent": {
+      "max_abs_diff": 0.0,
+      "mean_abs_diff": 0.0
+    },
+    "native_reunroll_vs_factor_zero_decoded_image": {
+      "max_abs_diff": 0.0,
+      "mean_abs_diff": 0.0
+    }
+  },
+  "source_provenance": "SOURCE IMAGE",
+  "native_full_provenance": "MODEL GENERATED \u2014 NATIVE FULL",
+  "results": [
+    {
+      "factor": -0.0,
+      "reversion_fraction": 0.0,
+      "image_file": "fraction_0.00_alpha_-0.000.png",
+      "image_provenance": "MODEL GENERATED \u2014 TEXT STEERING DIAGNOSTIC",
+      "finite": true,
+      "prompt_embedding_perturbation_norm": 0.0,
+      "image_mad_mse_to_source": {
+        "mad": 0.05583079904317856,
+        "mse": 0.018910249695181847
+      },
+      "image_mad_mse_to_native_full": {
+        "mad": 0.0,
+        "mse": 0.0
+      },
+      "latent_distance_to_native_full": {
+        "l2": 0.0,
+        "mad": 0.0
+      },
+      "adjacent_image_mad": null
+    },
+    {
+      "factor": -0.556168031692505,
+      "reversion_fraction": 0.1,
+      "image_file": "fraction_0.10_alpha_-0.556.png",
+      "image_provenance": "MODEL GENERATED \u2014 TEXT STEERING DIAGNOSTIC",
+      "finite": true,
+      "prompt_embedding_perturbation_norm": 0.5562533736228943,
+      "image_mad_mse_to_source": {
+        "mad": 0.05947330594062805,
+        "mse": 0.022105125710368156
+      },
+      "image_mad_mse_to_native_full": {
+        "mad": 0.011505862697958946,
+        "mse": 0.002041235100477934
+      },
+      "latent_distance_to_native_full": {
+        "l2": 23.164148330688477,
+        "mad": 0.06982210278511047
+      },
+      "adjacent_image_mad": 0.011505862697958946
+    },
+    {
+      "factor": -1.11233606338501,
+      "reversion_fraction": 0.2,
+      "image_file": "fraction_0.20_alpha_-1.112.png",
+      "image_provenance": "MODEL GENERATED \u2014 TEXT STEERING DIAGNOSTIC",
+      "finite": true,
+      "prompt_embedding_perturbation_norm": 1.112415075302124,
+      "image_mad_mse_to_source": {
+        "mad": 0.06374339759349823,
+        "mse": 0.026709534227848053
+      },
+      "image_mad_mse_to_native_full": {
+        "mad": 0.020078390836715698,
+        "mse": 0.005412952974438667
+      },
+      "latent_distance_to_native_full": {
+        "l2": 35.35894012451172,
+        "mad": 0.11226516962051392
+      },
+      "adjacent_image_mad": 0.011952608823776245
+    },
+    {
+      "factor": -1.6685040950775145,
+      "reversion_fraction": 0.3,
+      "image_file": "fraction_0.30_alpha_-1.669.png",
+      "image_provenance": "MODEL GENERATED \u2014 TEXT STEERING DIAGNOSTIC",
+      "finite": true,
+      "prompt_embedding_perturbation_norm": 1.6687425374984741,
+      "image_mad_mse_to_source": {
+        "mad": 0.0659429207444191,
+        "mse": 0.029756424948573112
+      },
+      "image_mad_mse_to_native_full": {
+        "mad": 0.02471337839961052,
+        "mse": 0.006713598966598511
+      },
+      "latent_distance_to_native_full": {
+        "l2": 40.9570426940918,
+        "mad": 0.1360507607460022
+      },
+      "adjacent_image_mad": 0.008456975221633911
+    },
+    {
+      "factor": -2.22467212677002,
+      "reversion_fraction": 0.4,
+      "image_file": "fraction_0.40_alpha_-2.225.png",
+      "image_provenance": "MODEL GENERATED \u2014 TEXT STEERING DIAGNOSTIC",
+      "finite": true,
+      "prompt_embedding_perturbation_norm": 2.2245595455169678,
+      "image_mad_mse_to_source": {
+        "mad": 0.06399981677532196,
+        "mse": 0.02830619178712368
+      },
+      "image_mad_mse_to_native_full": {
+        "mad": 0.025944393128156662,
+        "mse": 0.007181787397712469
+      },
+      "latent_distance_to_native_full": {
+        "l2": 42.69319534301758,
+        "mad": 0.14246800541877747
+      },
+      "adjacent_image_mad": 0.006502171512693167
+    },
+    {
+      "factor": -2.7808401584625244,
+      "reversion_fraction": 0.5,
+      "image_file": "fraction_0.50_alpha_-2.781.png",
+      "image_provenance": "MODEL GENERATED \u2014 TEXT STEERING DIAGNOSTIC",
+      "finite": true,
+      "prompt_embedding_perturbation_norm": 2.781190872192383,
+      "image_mad_mse_to_source": {
+        "mad": 0.03776518255472183,
+        "mse": 0.009004532359540462
+      },
+      "image_mad_mse_to_native_full": {
+        "mad": 0.06276373565196991,
+        "mse": 0.03177936002612114
+      },
+      "latent_distance_to_native_full": {
+        "l2": 79.90931701660156,
+        "mad": 0.25549155473709106
+      },
+      "adjacent_image_mad": 0.05481598898768425
+    },
+    {
+      "factor": -3.337008190155029,
+      "reversion_fraction": 0.6,
+      "image_file": "fraction_0.60_alpha_-3.337.png",
+      "image_provenance": "MODEL GENERATED \u2014 TEXT STEERING DIAGNOSTIC",
+      "finite": true,
+      "prompt_embedding_perturbation_norm": 3.337315082550049,
+      "image_mad_mse_to_source": {
+        "mad": 0.028475936502218246,
+        "mse": 0.00329535361379385
+      },
+      "image_mad_mse_to_native_full": {
+        "mad": 0.056334130465984344,
+        "mse": 0.025084486231207848
+      },
+      "latent_distance_to_native_full": {
+        "l2": 72.58161163330078,
+        "mad": 0.2324228286743164
+      },
+      "adjacent_image_mad": 0.016428858041763306
+    },
+    {
+      "factor": -3.893176221847534,
+      "reversion_fraction": 0.7,
+      "image_file": "fraction_0.70_alpha_-3.893.png",
+      "image_provenance": "MODEL GENERATED \u2014 TEXT STEERING DIAGNOSTIC",
+      "finite": true,
+      "prompt_embedding_perturbation_norm": 3.892404317855835,
+      "image_mad_mse_to_source": {
+        "mad": 0.026996320113539696,
+        "mse": 0.0027588976081460714
+      },
+      "image_mad_mse_to_native_full": {
+        "mad": 0.05609383434057236,
+        "mse": 0.02468225359916687
+      },
+      "latent_distance_to_native_full": {
+        "l2": 72.20305633544922,
+        "mad": 0.23200419545173645
+      },
+      "adjacent_image_mad": 0.0038163564167916775
+    },
+    {
+      "factor": -4.44934425354004,
+      "reversion_fraction": 0.8,
+      "image_file": "fraction_0.80_alpha_-4.449.png",
+      "image_provenance": "MODEL GENERATED \u2014 TEXT STEERING DIAGNOSTIC",
+      "finite": true,
+      "prompt_embedding_perturbation_norm": 4.4501800537109375,
+      "image_mad_mse_to_source": {
+        "mad": 0.026620617136359215,
+        "mse": 0.0026493892073631287
+      },
+      "image_mad_mse_to_native_full": {
+        "mad": 0.056089721620082855,
+        "mse": 0.024463947862386703
+      },
+      "latent_distance_to_native_full": {
+        "l2": 71.931396484375,
+        "mad": 0.23157121241092682
+      },
+      "adjacent_image_mad": 0.001825869083404541
+    },
+    {
+      "factor": -5.005512285232544,
+      "reversion_fraction": 0.9,
+      "image_file": "fraction_0.90_alpha_-5.006.png",
+      "image_provenance": "MODEL GENERATED \u2014 TEXT STEERING DIAGNOSTIC",
+      "finite": true,
+      "prompt_embedding_perturbation_norm": 5.005590915679932,
+      "image_mad_mse_to_source": {
+        "mad": 0.0261656753718853,
+        "mse": 0.0024265300016850233
+      },
+      "image_mad_mse_to_native_full": {
+        "mad": 0.05583372712135315,
+        "mse": 0.024304326623678207
+      },
+      "latent_distance_to_native_full": {
+        "l2": 71.77059936523438,
+        "mad": 0.2309354841709137
+      },
+      "adjacent_image_mad": 0.002362718340009451
+    },
+    {
+      "factor": -5.561680316925049,
+      "reversion_fraction": 1.0,
+      "image_file": "fraction_1.00_alpha_-5.562.png",
+      "image_provenance": "MODEL GENERATED \u2014 TEXT STEERING DIAGNOSTIC",
+      "finite": true,
+      "prompt_embedding_perturbation_norm": 5.562116622924805,
+      "image_mad_mse_to_source": {
+        "mad": 0.025934193283319473,
+        "mse": 0.0014338204637169838
+      },
+      "image_mad_mse_to_native_full": {
+        "mad": 0.051999472081661224,
+        "mse": 0.022735383361577988
+      },
+      "latent_distance_to_native_full": {
+        "l2": 70.33331298828125,
+        "mad": 0.22075384855270386
+      },
+      "adjacent_image_mad": 0.009136250242590904
+    },
+    {
+      "factor": -6.117848348617554,
+      "reversion_fraction": 1.1,
+      "image_file": "fraction_1.10_alpha_-6.118.png",
+      "image_provenance": "MODEL GENERATED \u2014 TEXT STEERING DIAGNOSTIC",
+      "finite": true,
+      "prompt_embedding_perturbation_norm": 6.118438720703125,
+      "image_mad_mse_to_source": {
+        "mad": 0.025189435109496117,
+        "mse": 0.001316191628575325
+      },
+      "image_mad_mse_to_native_full": {
+        "mad": 0.05204857513308525,
+        "mse": 0.02245611511170864
+      },
+      "latent_distance_to_native_full": {
+        "l2": 69.98619079589844,
+        "mad": 0.22009223699569702
+      },
+      "adjacent_image_mad": 0.0020552377682179213
+    },
+    {
+      "factor": -6.674016380310058,
+      "reversion_fraction": 1.2,
+      "image_file": "fraction_1.20_alpha_-6.674.png",
+      "image_provenance": "MODEL GENERATED \u2014 TEXT STEERING DIAGNOSTIC",
+      "finite": true,
+      "prompt_embedding_perturbation_norm": 6.674554347991943,
+      "image_mad_mse_to_source": {
+        "mad": 0.02565666288137436,
+        "mse": 0.0013189222663640976
+      },
+      "image_mad_mse_to_native_full": {
+        "mad": 0.05187806487083435,
+        "mse": 0.02231490984559059
+      },
+      "latent_distance_to_native_full": {
+        "l2": 69.84461212158203,
+        "mad": 0.22007450461387634
+      },
+      "adjacent_image_mad": 0.0022988717537373304
+    }
+  ],
+  "reversion_signal": {
+    "factor_order_as_provided": [
+      -0.0,
+      -0.556168031692505,
+      -1.11233606338501,
+      -1.6685040950775145,
+      -2.22467212677002,
+      -2.7808401584625244,
+      -3.337008190155029,
+      -3.893176221847534,
+      -4.44934425354004,
+      -5.005512285232544,
+      -5.561680316925049,
+      -6.117848348617554,
+      -6.674016380310058
+    ],
+    "distance_to_full_over_input_order": [
+      0.0,
+      0.011505862697958946,
+      0.020078390836715698,
+      0.02471337839961052,
+      0.025944393128156662,
+      0.06276373565196991,
+      0.056334130465984344,
+      0.05609383434057236,
+      0.056089721620082855,
+      0.05583372712135315,
+      0.051999472081661224,
+      0.05204857513308525,
+      0.05187806487083435
+    ],
+    "distance_to_source_over_input_order": [
+      0.05583079904317856,
+      0.05947330594062805,
+      0.06374339759349823,
+      0.0659429207444191,
+      0.06399981677532196,
+      0.03776518255472183,
+      0.028475936502218246,
+      0.026996320113539696,
+      0.026620617136359215,
+      0.0261656753718853,
+      0.025934193283319473,
+      0.025189435109496117,
+      0.02565666288137436
+    ],
+    "distance_to_full_non_increasing_in_input_order": false,
+    "distance_to_source_non_decreasing_in_input_order": false
+  },
+  "visual_status": "VISUAL_REVIEW_REQUIRED"
+}

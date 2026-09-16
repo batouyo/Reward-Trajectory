@@ -19,9 +19,12 @@ import torch
 from PIL import Image, ImageDraw
 
 from diffusers.pipelines.rewardflow.kontext_text_steering import (
+    apply_kontext_pooled_steering,
     apply_kontext_text_steering,
+    build_single_pair_clip_direction,
     build_single_pair_t5_direction,
     find_t5_phrase_alignment,
+    reversion_fraction_to_alpha,
 )
 from diffusers.pipelines.rewardflow.pipeline_flux_kontext_terminal_control import (
     FluxKontextTerminalControlPipeline,
@@ -46,7 +49,8 @@ def _parse_args():
     parser.add_argument("--source-state-phrase", default="black")
     parser.add_argument("--target-state-phrase", default="blue")
     parser.add_argument("--edit-phrase", default="blue")
-    parser.add_argument("--factors", type=float, nargs="+", default=DEFAULT_FACTORS)
+    parser.add_argument("--factors", type=float, nargs="+", default=None)
+    parser.add_argument("--reversion-fractions", type=float, nargs="+", default=None)
     parser.add_argument("--seed", type=int, default=20260914)
     parser.add_argument("--height", type=int, default=256)
     parser.add_argument("--width", type=int, default=256)
@@ -57,14 +61,34 @@ def _parse_args():
     parser.add_argument("--device", default="cuda")
     parser.add_argument("--output-dir", default="experiments/kontext_text_suppression_v1")
     parser.add_argument("--parity-only", action="store_true", help="Stop after the alpha=0 exact parity gate.")
+    parser.add_argument("--joint-clip", action="store_true", help="Compare matched T5-only against T5+CLIP.")
     args = parser.parse_args()
-    if not args.factors or any(not math.isfinite(value) for value in args.factors):
-        parser.error("--factors must contain at least one finite number")
-    if len(set(args.factors)) != len(args.factors):
-        parser.error("--factors must be unique")
-    if 0.0 not in args.factors and not args.parity_only:
-        parser.error("--factors must include 0 as the Native Full anchor")
-    args.factors = tuple(sorted(args.factors))
+    if args.factors is not None and args.reversion_fractions is not None:
+        parser.error("--factors and --reversion-fractions are mutually exclusive")
+    if args.reversion_fractions is None:
+        args.parameterization = "factor"
+        args.factors = tuple(sorted(DEFAULT_FACTORS if args.factors is None else args.factors))
+        scan_values = args.factors
+    else:
+        args.parameterization = "reversion-fraction"
+        args.reversion_fractions = tuple(sorted(args.reversion_fractions))
+        scan_values = args.reversion_fractions
+    if not scan_values or any(not math.isfinite(value) for value in scan_values):
+        parser.error("scan values must contain at least one finite number")
+    if len(set(scan_values)) != len(scan_values):
+        parser.error("scan values must be unique")
+    if args.parameterization == "reversion-fraction" and any(value < 0 for value in scan_values):
+        parser.error("reversion fractions must be nonnegative")
+    if 0.0 not in scan_values and not args.parity_only:
+        parser.error("scan values must include 0 as the Native Full anchor")
+    if args.joint_clip and args.parameterization != "reversion-fraction":
+        parser.error("--joint-clip requires --reversion-fractions")
+    if args.joint_clip and (
+        args.target_semantic_text != args.prompt
+        or args.source_semantic_text.replace(args.source_state_phrase, args.target_state_phrase, 1)
+        != args.target_semantic_text
+    ):
+        parser.error("joint CLIP requires instruction-matched source/target texts and target equal to prompt")
     if args.height <= 0 or args.width <= 0 or args.steps <= 0 or args.max_sequence_length <= 0:
         parser.error("height, width, steps, and max sequence length must be positive")
     if not math.isfinite(args.guidance_scale):
@@ -101,17 +125,24 @@ def _parity(actual: torch.Tensor, expected: torch.Tensor) -> dict[str, float]:
     return {"max_abs_diff": float(difference.abs().max()), "mean_abs_diff": float(difference.abs().mean())}
 
 
-def _make_grid(source: Image.Image, native: Image.Image, factors: list[float], images: dict[float, Image.Image]):
+def _make_grid(
+    source: Image.Image,
+    native: Image.Image,
+    factors: list[float],
+    images: dict[float, Image.Image],
+    labels: dict[float, str] | None = None,
+):
     ordered = [(source, "Source")]
-    ordered.extend((images[factor], f"factor {factor:+g}") for factor in factors)
+    ordered.extend((images[factor], labels[factor] if labels else f"factor {factor:+g}") for factor in factors)
     ordered.append((native, "Native Full"))
     width, height = source.size
-    grid = Image.new("RGB", (width * len(ordered), height + 28), "white")
+    header_height = 42 if labels else 28
+    grid = Image.new("RGB", (width * len(ordered), height + header_height), "white")
     draw = ImageDraw.Draw(grid)
     for index, (image, label) in enumerate(ordered):
         left = index * width
-        draw.text((left + 5, 7), label, fill="black")
-        grid.paste(image.resize((width, height), Image.Resampling.LANCZOS), (left, 28))
+        draw.multiline_text((left + 5, 7), label, fill="black", spacing=1)
+        grid.paste(image.resize((width, height), Image.Resampling.LANCZOS), (left, header_height))
     return grid
 
 
@@ -123,6 +154,180 @@ def _serializable(value):
     if isinstance(value, (list, tuple)):
         return [_serializable(item) for item in value]
     return value
+
+
+def _assert_only_text_conditioning_changed(inputs, changed_inputs, allowed_keys: set[str]) -> None:
+    """Audit exact capture reuse for every non-steered tensor and value."""
+
+    if (
+        changed_inputs.initial_latent is not inputs.initial_latent
+        or changed_inputs.native_final_latent is not inputs.native_final_latent
+        or changed_inputs.timesteps is not inputs.timesteps
+        or changed_inputs.sigmas is not inputs.sigmas
+        or changed_inputs.source_clean_latent is not inputs.source_clean_latent
+    ):
+        raise AssertionError("Captured trajectory state was replaced")
+    if changed_inputs.forward_kwargs.keys() != inputs.forward_kwargs.keys():
+        raise AssertionError("Kontext forward key set changed")
+    for key, original in inputs.forward_kwargs.items():
+        if key in allowed_keys:
+            continue
+        candidate = changed_inputs.forward_kwargs[key]
+        if torch.is_tensor(original):
+            if not torch.is_tensor(candidate) or not torch.equal(original, candidate):
+                raise AssertionError(f"Non-steered tensor changed: {key}")
+        elif candidate != original:
+            raise AssertionError(f"Non-steered forward value changed: {key}")
+
+
+def _make_joint_grid(points, images_by_mode: dict[str, dict[float, Image.Image]], t5_norm: float, clip_norm: float):
+    width, height = next(iter(images_by_mode["t5_only"].values())).size
+    header = 44
+    grid = Image.new("RGB", (width * len(points), 2 * (height + header)), "white")
+    draw = ImageDraw.Draw(grid)
+    for row, mode in enumerate(("t5_only", "joint_t5_clip")):
+        for column, (_, fraction) in enumerate(points):
+            alpha_t5 = reversion_fraction_to_alpha(fraction, t5_norm)
+            alpha_clip = reversion_fraction_to_alpha(fraction, clip_norm) if row else 0.0
+            label = f"{mode} r={fraction:.2f}\nT5={alpha_t5:.2f} CLIP={alpha_clip:.2f}"
+            left, top = column * width, row * (height + header)
+            draw.multiline_text((left + 5, top + 5), label, fill="black", spacing=1)
+            grid.paste(images_by_mode[mode][fraction], (left, top + header))
+    return grid
+
+
+def _run_joint_experiment(
+    args,
+    pipe,
+    inputs,
+    edit_alignment,
+    t5_direction,
+    scan_points,
+    native_reunroll,
+    native_image,
+    source_image,
+    report,
+    report_path,
+    output_dir,
+) -> int:
+    base_t5 = inputs.forward_kwargs["prompt_embeds"]
+    base_clip = inputs.forward_kwargs["pooled_prompt_embeds"]
+    clip_direction = build_single_pair_clip_direction(
+        pipe, args.source_semantic_text, args.target_semantic_text, base_clip
+    )
+    report["clip_direction"] = clip_direction.as_dict()
+    report["method"].update(
+        {
+            "type": "matched_t5_only_vs_joint_t5_clip",
+            "clip_pooled_modified": True,
+            "only_t5_prompt_embeds_modified": False,
+        }
+    )
+    zero_kwargs = dict(inputs.forward_kwargs)
+    zero_kwargs["prompt_embeds"] = apply_kontext_text_steering(
+        base_t5, edit_alignment.token_indices, t5_direction.direction, 0.0
+    )
+    zero_kwargs["pooled_prompt_embeds"] = apply_kontext_pooled_steering(base_clip, clip_direction.direction, 0.0)
+    zero_inputs = replace(inputs, forward_kwargs=zero_kwargs)
+    _assert_only_text_conditioning_changed(inputs, zero_inputs, {"prompt_embeds", "pooled_prompt_embeds"})
+    joint_zero = pipe.unroll_terminal_controls(zero_inputs, controls=(), use_checkpointing=False)
+    joint_zero_image = pipe.decode_terminal_latent(joint_zero.final_latent, zero_inputs).detach()
+    report["parity"]["native_reunroll_vs_joint_zero_latent"] = _parity(
+        native_reunroll.final_latent, joint_zero.final_latent
+    )
+    report["parity"]["native_reunroll_vs_joint_zero_decoded_image"] = _parity(native_image, joint_zero_image)
+    if any(item["max_abs_diff"] != 0 for item in report["parity"].values()):
+        report["status"] = "IMPLEMENTATION_PARITY_FAIL"
+        report_path.write_text(json.dumps(report, indent=2), encoding="utf-8")
+        return 2
+
+    source_image.save(output_dir / "source.png")
+    native_pil = _tensor_to_pil(native_image)
+    native_pil.save(output_dir / "native_full.png")
+    source_tensor = _pil_to_tensor(source_image, torch.device(args.device))
+    report["source_provenance"] = "SOURCE IMAGE"
+    report["native_full_provenance"] = "MODEL GENERATED — NATIVE FULL"
+    report["modes"] = {}
+    images_by_mode = {}
+    for mode in ("t5_only", "joint_t5_clip"):
+        mode_dir = output_dir / mode
+        mode_dir.mkdir(parents=True, exist_ok=True)
+        rows, images, labels, previous = [], {}, {}, None
+        for alpha_t5, fraction in scan_points:
+            alpha_clip = (
+                reversion_fraction_to_alpha(fraction, clip_direction.raw_direction_norm)
+                if mode == "joint_t5_clip"
+                else 0.0
+            )
+            kwargs = dict(inputs.forward_kwargs)
+            kwargs["prompt_embeds"] = apply_kontext_text_steering(
+                base_t5, edit_alignment.token_indices, t5_direction.direction, alpha_t5
+            )
+            if mode == "joint_t5_clip":
+                kwargs["pooled_prompt_embeds"] = apply_kontext_pooled_steering(
+                    base_clip, clip_direction.direction, alpha_clip
+                )
+            current_inputs = replace(inputs, forward_kwargs=kwargs)
+            _assert_only_text_conditioning_changed(
+                inputs,
+                current_inputs,
+                {"prompt_embeds"} if mode == "t5_only" else {"prompt_embeds", "pooled_prompt_embeds"},
+            )
+            unroll = pipe.unroll_terminal_controls(current_inputs, controls=(), use_checkpointing=False)
+            image = pipe.decode_terminal_latent(unroll.final_latent, current_inputs).detach()
+            if not torch.isfinite(unroll.final_latent).all() or not torch.isfinite(image).all():
+                raise RuntimeError(f"Non-finite {mode} output at r={fraction}")
+            rendered = _tensor_to_pil(image)
+            image_file = f"fraction_{fraction:.2f}.png"
+            rendered.save(mode_dir / image_file)
+            images[fraction] = rendered
+            labels[alpha_t5] = f"r={fraction:.2f}\nT5={alpha_t5:.2f} CLIP={alpha_clip:.2f}"
+            rows.append(
+                {
+                    "reversion_fraction": fraction,
+                    "alpha_t5": alpha_t5,
+                    "alpha_clip": alpha_clip,
+                    "image_file": f"{mode}/{image_file}",
+                    "finite": True,
+                    "image_provenance": "MODEL GENERATED — TEXT STEERING DIAGNOSTIC",
+                    "t5_actual_perturbation_norm": float(
+                        torch.linalg.vector_norm((kwargs["prompt_embeds"] - base_t5).float())
+                    ),
+                    "clip_actual_perturbation_norm": float(
+                        torch.linalg.vector_norm((kwargs["pooled_prompt_embeds"] - base_clip).float())
+                    ),
+                    "image_mad_mse_to_source": _distance(image, source_tensor),
+                    "image_mad_mse_to_native_full": _distance(image, native_image),
+                    "latent_distance_to_native_full": _latent_distance(
+                        unroll.final_latent, inputs.native_final_latent
+                    ),
+                    "adjacent_image_mad": None if previous is None else _distance(image, previous)["mad"],
+                }
+            )
+            previous = image
+        _make_grid(
+            source_image,
+            native_pil,
+            [alpha for alpha, _ in scan_points],
+            {alpha: images[fraction] for alpha, fraction in scan_points},
+            labels,
+        ).save(mode_dir / "grid.png")
+        report["modes"][mode] = rows
+        images_by_mode[mode] = images
+    _make_joint_grid(
+        scan_points, images_by_mode, t5_direction.raw_direction_norm, clip_direction.raw_direction_norm
+    ).save(output_dir / "comparison_grid.png")
+    responded = any(
+        row["image_mad_mse_to_native_full"]["mad"] > 0
+        for rows in report["modes"].values()
+        for row in rows
+        if row["reversion_fraction"] != 0
+    )
+    report["status"] = "STEERING_RESPONSE_DETECTED" if responded else "NO_STEERING_RESPONSE"
+    report["visual_status"] = "VISUAL_REVIEW_REQUIRED"
+    report_path.write_text(json.dumps(report, indent=2), encoding="utf-8")
+    print(f"status={report['status']} grid={output_dir / 'comparison_grid.png'} report={report_path}", flush=True)
+    return 0
 
 
 def _report(args, head: str, source: str) -> dict:
@@ -145,6 +350,7 @@ def _report(args, head: str, source: str) -> dict:
             "elastic_band_used": False,
             "clip_pooled_modified": False,
             "only_t5_prompt_embeds_modified": True,
+            "parameterization": args.parameterization,
         },
         "semantic_pair": {
             "source_text": args.source_semantic_text,
@@ -162,7 +368,8 @@ def _report(args, head: str, source: str) -> dict:
             "dtype": args.dtype,
             "device": args.device,
             "max_sequence_length": args.max_sequence_length,
-            "factors": list(args.factors),
+            "factors": list(args.factors or ()),
+            "reversion_fractions": list(args.reversion_fractions or ()),
             "batching": "B=1 sequential unroll per factor; no factor batching",
         },
         "interpretation_guardrails": {
@@ -226,6 +433,15 @@ def main() -> int:
         "edit": edit_alignment.as_dict(),
     }
     report["direction"] = direction.as_dict()
+    if args.parameterization == "reversion-fraction":
+        scan_points = [
+            (reversion_fraction_to_alpha(fraction, direction.raw_direction_norm), fraction)
+            for fraction in args.reversion_fractions
+        ]
+        args.factors = tuple(alpha for alpha, _ in scan_points)
+        report["generation_config"]["factors"] = list(args.factors)
+    else:
+        scan_points = [(factor, None) for factor in args.factors]
     zero_prompt = apply_kontext_text_steering(
         base_prompt_embeds, edit_alignment.token_indices, direction.direction, 0.0
     )
@@ -252,14 +468,29 @@ def main() -> int:
         report_path.write_text(json.dumps(_serializable(report), indent=2), encoding="utf-8")
         print(f"alpha=0 exact parity PASS report={report_path}", flush=True)
         return 0
+    if args.joint_clip:
+        return _run_joint_experiment(
+            args,
+            pipe,
+            inputs,
+            edit_alignment,
+            direction,
+            scan_points,
+            native_reunroll,
+            native_image,
+            source_image,
+            report,
+            report_path,
+            output_dir,
+        )
     report["source_provenance"] = "SOURCE IMAGE"
     report["native_full_provenance"] = "MODEL GENERATED — NATIVE FULL"
     source_tensor = _pil_to_tensor(source_image, device)
     native_pil = _tensor_to_pil(native_image)
     native_pil.save(output_dir / "native_full.png")
-    result_images, results = {}, []
+    result_images, results, labels = {}, [], {}
     previous_image = None
-    for factor in args.factors:
+    for factor, fraction in scan_points:
         steered = apply_kontext_text_steering(
             base_prompt_embeds, edit_alignment.token_indices, direction.direction, factor
         )
@@ -271,12 +502,21 @@ def main() -> int:
         if not torch.isfinite(unroll.final_latent).all() or not torch.isfinite(image).all():
             raise RuntimeError(f"Non-finite output at factor {factor}.")
         image_pil = _tensor_to_pil(image)
-        image_pil.save(output_dir / f"factor_{_factor_tag(factor)}.png")
+        image_name = (
+            f"factor_{_factor_tag(factor)}.png"
+            if fraction is None
+            else f"fraction_{fraction:.2f}_alpha_{_factor_tag(factor)}.png"
+        )
+        image_pil.save(output_dir / image_name)
         result_images[factor] = image_pil
+        if fraction is not None:
+            labels[factor] = f"r={fraction:.2f}\nalpha={factor:.2f}"
         delta = steered.detach().float() - base_prompt_embeds.detach().float()
         results.append(
             {
                 "factor": factor,
+                "reversion_fraction": fraction,
+                "image_file": image_name,
                 "image_provenance": "MODEL GENERATED — TEXT STEERING DIAGNOSTIC",
                 "finite": True,
                 "prompt_embedding_perturbation_norm": float(torch.linalg.vector_norm(delta)),
@@ -292,16 +532,21 @@ def main() -> int:
     source = [row["image_mad_mse_to_source"]["mad"] for row in results]
     report["reversion_signal"] = {
         "factor_order_as_provided": list(args.factors),
+        "scan_order": "increasing_reversion_fraction" if args.reversion_fractions is not None else "increasing_factor",
         "distance_to_full_over_input_order": full,
         "distance_to_source_over_input_order": source,
         "distance_to_full_non_increasing_in_input_order": all(a >= b for a, b in zip(full, full[1:])),
+        "distance_to_full_non_decreasing_in_input_order": all(a <= b for a, b in zip(full, full[1:])),
         "distance_to_source_non_decreasing_in_input_order": all(a <= b for a, b in zip(source, source[1:])),
+        "distance_to_source_non_increasing_in_input_order": all(a >= b for a, b in zip(source, source[1:])),
     }
     nonzero = [row for row in results if row["factor"] != 0]
     response = any(row["image_mad_mse_to_native_full"]["mad"] > 0 for row in nonzero)
     report["status"] = "STEERING_RESPONSE_DETECTED" if response else "NO_STEERING_RESPONSE"
     report["visual_status"] = "VISUAL_REVIEW_REQUIRED"
-    _make_grid(source_image, native_pil, list(args.factors), result_images).save(output_dir / "grid.png")
+    _make_grid(source_image, native_pil, list(args.factors), result_images, labels or None).save(
+        output_dir / "grid.png"
+    )
     report_path.write_text(json.dumps(_serializable(report), indent=2), encoding="utf-8")
     print(f"status={report['status']} grid={output_dir / 'grid.png'} report={report_path}", flush=True)
     return 0
