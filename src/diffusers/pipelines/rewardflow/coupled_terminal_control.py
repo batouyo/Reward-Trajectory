@@ -215,15 +215,22 @@ def spatial_prior_loss(controls: Sequence[torch.Tensor], relevance: Sequence[tor
     return torch.stack(values).mean()
 
 
-def control_smoothness_loss(controls: Sequence[torch.Tensor], directions: Sequence[torch.Tensor], *, eps: float = 1e-8) -> torch.Tensor:
-    """Second difference over fixed nodes ``[D,U_1,...,U_K,0]``."""
+def control_no_jump_loss(controls: Sequence[torch.Tensor], *, max_jump_ratio: float = 3.0, eps: float = 1e-8) -> torch.Tensor:
+    """Optional control-only outlier-jump penalty, defaulted off by the caller.
 
+    This deliberately uses only ``[U_weak, U_mid, U_strong, 0]``.  It neither
+    includes ``D`` as an endpoint nor asks adjacent jumps to be equal.
+    """
+
+    if max_jump_ratio <= 1:
+        raise ValueError("`max_jump_ratio` must be greater than one.")
     values = []
-    for control, direction in zip(controls, directions):
-        direction = direction.to(control)
-        nodes = torch.cat((direction, control, torch.zeros_like(direction)), dim=0)
-        curvature = nodes[:-2] - 2 * nodes[1:-1] + nodes[2:]
-        values.append(curvature.float().square().mean() / direction.float().square().mean().clamp_min(eps))
+    for control in controls:
+        if control.ndim != 3 or control.shape[0] < 1:
+            raise ValueError("Each coupled control must have shape [K,tokens,channels].")
+        nodes = torch.cat((control, torch.zeros_like(control[:1])), dim=0)
+        jumps = (nodes[1:] - nodes[:-1]).float().square().mean(dim=(1, 2)).sqrt()
+        values.append(F.relu(jumps.max() / jumps.mean().clamp_min(eps) - max_jump_ratio).square())
     return torch.stack(values).mean()
 
 
@@ -239,23 +246,55 @@ def adjacent_ranking_loss(progress: torch.Tensor, *, margin: float = 0.01) -> to
     return F.relu(float(margin) - (progress[1:] - progress[:-1])).mean()
 
 
-def gap_bound_loss(distances: torch.Tensor, source_full_distance: torch.Tensor, *, min_ratio: float, max_ratio: float, eps: float = 1e-8) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+def relative_gap_loss(
+    distances: torch.Tensor,
+    *,
+    min_gap_fraction: float = 0.05,
+    max_gap_fraction: float = 0.55,
+    eps: float = 1e-8,
+) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
+    """Scale-free collapse/jump loss over each trajectory's path fractions."""
+
     if distances.ndim != 1 or distances.numel() < 1:
         raise ValueError("Adjacent distances must be one-dimensional.")
-    if not 0 <= min_ratio <= max_ratio:
-        raise ValueError("Gap ratios must satisfy 0 <= min <= max.")
-    reference = source_full_distance / distances.numel()
-    lower, upper = min_ratio * reference, max_ratio * reference
-    collapse = F.relu(lower - distances).mean()
-    jump = F.relu(distances - upper).mean()
-    return collapse + jump, collapse, jump
+    if not 0 <= min_gap_fraction <= max_gap_fraction <= 1:
+        raise ValueError("Gap fractions must satisfy 0 <= min <= max <= 1.")
+    fractions = distances / distances.sum().clamp_min(eps)
+    collapse = F.relu(min_gap_fraction - fractions).mean()
+    jump = F.relu(fractions - max_gap_fraction).mean()
+    return collapse + jump, collapse, jump, fractions
 
 
-def triangle_deficit_loss(adjacent: torch.Tensor, skip: torch.Tensor, source_full_distance: torch.Tensor, *, eps: float = 1e-8) -> tuple[torch.Tensor, torch.Tensor]:
+def triangle_deficit_loss(
+    adjacent: torch.Tensor, skip: torch.Tensor, *, eps: float = 1e-8
+) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+    """Local-normalized non-detour penalty for every consecutive triplet."""
+
     if adjacent.ndim != 1 or skip.ndim != 1 or adjacent.numel() != skip.numel() + 1:
         raise ValueError("Need N adjacent and N-1 skip distances.")
-    deficits = F.relu(adjacent[:-1] + adjacent[1:] - skip)
-    return (deficits / source_full_distance.clamp_min(eps)).mean(), deficits
+    raw_deficits = F.relu(adjacent[:-1] + adjacent[1:] - skip)
+    normalized = raw_deficits / skip.clamp_min(eps)
+    return normalized.mean(), raw_deficits, normalized
+
+
+def scalar_direction_residual_diagnostics(
+    controls: Sequence[torch.Tensor], directions: Sequence[torch.Tensor], *, eps: float = 1e-8
+) -> list[dict[str, torch.Tensor]]:
+    """Measure each branch's departure from its best scalar multiple of ``D``."""
+
+    if len(controls) != len(directions):
+        raise ValueError("Every control needs one detached keep-edit direction.")
+    diagnostics = []
+    for control, direction in zip(controls, directions):
+        if control.ndim != 3 or direction.shape != (1, *control.shape[1:]):
+            raise ValueError("Expected control [K,tokens,channels] and direction [1,tokens,channels].")
+        direction = direction.to(control)
+        denominator = direction.float().square().sum().clamp_min(eps)
+        beta = (control.float() * direction.float()).sum(dim=(1, 2)) / denominator
+        residual = control.float() - beta[:, None, None] * direction.float()
+        residual_ratio = residual.flatten(1).norm(dim=1) / control.float().flatten(1).norm(dim=1).clamp_min(eps)
+        diagnostics.append({"beta_star": beta.detach(), "residual_ratio": residual_ratio.detach()})
+    return diagnostics
 
 
 def weighted_source_preservation(images: torch.Tensor, source: torch.Tensor, relevance_image: torch.Tensor, *, eps: float = 1e-8) -> torch.Tensor:

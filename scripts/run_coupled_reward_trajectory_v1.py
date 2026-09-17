@@ -1,45 +1,48 @@
-"""Run auditable RewardSlider V1 prior, parity, and compute diagnostics.
+"""Run the independent-control RewardSlider V1 diagnostics and smoke experiment.
 
-This runner deliberately stops before image-trajectory optimization when the
-official differentiable DreamSim path is unavailable.  It still emits A/B/C/F
-artifacts so a reviewer can verify independent controls and Kontext batching.
+The runner keeps controls as independent [K,tokens,channels] FP32 parameters.
+``D`` is used only for initialization and weak soft priors, never as a control
+parameterization or a control-trajectory endpoint.
 """
 
 from __future__ import annotations
 
 import argparse
-import gc
+import csv
 import json
 import os
+import subprocess
 import time
 from pathlib import Path
 
 import numpy as np
 import torch
-from PIL import Image
+from PIL import Image, ImageDraw
 
 from diffusers.pipelines.rewardflow.coupled_terminal_control import (
-    adjacent_ranking_loss,
     control_band_loss,
-    control_smoothness_loss,
-    gap_bound_loss,
     initialize_independent_coupled_controls,
-    spatial_prior_loss,
-    triangle_deficit_loss,
+    scalar_direction_residual_diagnostics,
 )
 from diffusers.pipelines.rewardflow.dreamsim_adapter import DreamSimAdapter
 from diffusers.pipelines.rewardflow.pipeline_flux_kontext_coupled_control import FluxKontextCoupledControlPipeline
+from diffusers.pipelines.rewardflow.semantic_feature_scorers import CLIPImageFeatureScorer
 from diffusers.pipelines.rewardflow.terminal_control import initialize_velocity_controls
+from diffusers.pipelines.rewardflow.trajectory_objectives import CoupledTrajectoryObjective, RewardSliderV1LossWeights
 
 
 FORMAL_MANIFEST = "experiments/semantic_embedding_geometry_v6/formal_stage/suite_manifest.json"
+DEFAULT_CLIP = "/data15/hyp/weight/reward_models/clip-vit-large-patch14"
+DEFAULT_DREAMSIM = "/data15/hyp/weight/dreamsim_ckpts"
 
 
 def _args():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--manifest", default=FORMAL_MANIFEST)
     parser.add_argument("--model", default=os.getenv("FLUX_KONTEXT_MODEL_PATH"))
-    parser.add_argument("--output-dir", default="experiments/coupled_reward_trajectory_v1")
+    parser.add_argument("--clip-model", default=DEFAULT_CLIP)
+    parser.add_argument("--dreamsim-model", default=DEFAULT_DREAMSIM)
+    parser.add_argument("--output-dir", default="experiments/coupled_reward_trajectory_v1_reviewed")
     parser.add_argument("--steps", type=int, default=12)
     parser.add_argument("--control-steps", type=int, default=2)
     parser.add_argument("--branches", type=int, default=3)
@@ -50,29 +53,61 @@ def _args():
     parser.add_argument("--dtype", choices=("bfloat16", "float16"), default="bfloat16")
     parser.add_argument("--device", default="cuda:0")
     parser.add_argument("--control-init-noise", type=float, default=0.0)
+    parser.add_argument("--outer-iters", type=int, default=8)
+    parser.add_argument("--ablation-iters", type=int, default=6)
+    parser.add_argument("--control-lr", type=float, default=0.05)
+    parser.add_argument("--grad-clip", type=float, default=None)
     parser.add_argument("--use-checkpointing", action=argparse.BooleanOptionalAction, default=True)
-    parser.add_argument("--benchmark-repeats", type=int, default=2)
-    # Defaults are smoke-test weights only, not claimed as a final method setting.
+    parser.add_argument("--run-ablations", action=argparse.BooleanOptionalAction, default=True)
+    parser.add_argument("--benchmark-repeats", type=int, default=1)
     parser.add_argument("--lambda-rank", type=float, default=1.0)
     parser.add_argument("--lambda-gap", type=float, default=1.0)
     parser.add_argument("--lambda-second", type=float, default=0.25)
     parser.add_argument("--lambda-preserve", type=float, default=1.0)
-    parser.add_argument("--lambda-ctrl", type=float, default=0.05)
-    parser.add_argument("--lambda-band", type=float, default=0.05)
+    parser.add_argument("--lambda-ctrl", type=float, default=0.0)
+    parser.add_argument("--lambda-band", type=float, default=0.01)
     parser.add_argument("--lambda-spatial", type=float, default=0.05)
     parser.add_argument("--lambda-energy", type=float, default=1e-4)
     parser.add_argument("--rank-margin", type=float, default=0.01)
-    parser.add_argument("--min-gap-ratio", type=float, default=0.25)
-    parser.add_argument("--max-gap-ratio", type=float, default=2.0)
-    parser.add_argument("--dreamsim-model", default=None)
+    parser.add_argument("--min-gap-fraction", type=float, default=0.05)
+    parser.add_argument("--max-gap-fraction", type=float, default=0.55)
+    parser.add_argument("--parity-min-cosine", type=float, default=0.999)
+    parser.add_argument("--parity-max-mean-error", type=float, default=0.01)
+    parser.add_argument("--try-fp32-first-step", action=argparse.BooleanOptionalAction, default=False)
     args = parser.parse_args()
     if not args.model:
         parser.error("Pass --model or set FLUX_KONTEXT_MODEL_PATH.")
     if args.branches < 1 or args.control_steps < 1 or args.steps < args.control_steps:
         parser.error("Require branches/control-steps >= 1 and steps >= control-steps.")
-    if args.control_init_noise < 0 or args.benchmark_repeats < 1:
-        parser.error("--control-init-noise must be non-negative and repeats positive.")
+    if args.outer_iters < 0 or args.ablation_iters < 0 or args.control_lr <= 0:
+        parser.error("Iteration counts must be non-negative and --control-lr must be positive.")
+    if not 0 <= args.min_gap_fraction <= args.max_gap_fraction <= 1:
+        parser.error("Gap fractions must satisfy 0 <= min <= max <= 1.")
     return args
+
+
+def _commit() -> str:
+    return subprocess.check_output(["git", "rev-parse", "HEAD"], text=True).strip()
+
+
+def _jsonable(value):
+    if torch.is_tensor(value):
+        return value.detach().float().cpu().tolist() if value.ndim else float(value.detach().float().cpu())
+    if isinstance(value, dict):
+        return {key: _jsonable(item) for key, item in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [_jsonable(item) for item in value]
+    return value
+
+
+def _json(path: Path, payload) -> None:
+    path.write_text(json.dumps(_jsonable(payload), indent=2, sort_keys=True), encoding="utf-8")
+
+
+def _write_jsonl(path: Path, rows: list[dict]) -> None:
+    with path.open("w", encoding="utf-8") as handle:
+        for row in rows:
+            handle.write(json.dumps(_jsonable(row), sort_keys=True) + "\n")
 
 
 def _pil_tensor(image: Image.Image, device: torch.device) -> torch.Tensor:
@@ -83,120 +118,523 @@ def _to_pil(image: torch.Tensor) -> Image.Image:
     return Image.fromarray(image.detach().clamp(0, 1).mul(255).round().byte().permute(1, 2, 0).cpu().numpy(), "RGB")
 
 
-def _json(path: Path, payload):
-    path.write_text(json.dumps(payload, indent=2, sort_keys=True), encoding="utf-8")
+def _errors(actual: torch.Tensor, expected: torch.Tensor) -> dict[str, float]:
+    difference = (actual.float() - expected.float()).abs()
+    return {
+        "max_abs": float(difference.max()),
+        "mean_abs": float(difference.mean()),
+        "rms": float(difference.square().mean().sqrt()),
+        "cosine": float(
+            torch.nn.functional.cosine_similarity(actual.float().flatten()[None], expected.float().flatten()[None])
+        ),
+    }
 
 
-def _module_diagnostics() -> dict[str, float]:
-    direction = torch.tensor([[[1.0, 0.0], [1.0, 0.0]]])
-    relevance = (torch.tensor([[1.0, 0.0]]),)
-    good, _ = control_band_loss((0.5 * direction,), (direction,), relevance)
-    wrong, _ = control_band_loss((-0.5 * direction,), (direction,), relevance)
-    orth, _ = control_band_loss((0.5 * direction + torch.tensor([[[0.0, 2.0], [0.0, 2.0]]]),), (direction,), relevance)
-    high = spatial_prior_loss((torch.tensor([[[2.0], [0.0]]]),), relevance)
-    low = spatial_prior_loss((torch.tensor([[[0.0], [2.0]]]),), relevance)
-    linear = (torch.tensor([[[0.75], [0.75]], [[0.5], [0.5]], [[0.25], [0.25]]]),)
-    zigzag = (linear[0] + torch.tensor([[[0.4], [0.4]], [[-0.4], [-0.4]], [[0.4], [0.4]]]),)
-    smooth = control_smoothness_loss(linear, (torch.ones(1, 2, 1),))
-    curved = control_smoothness_loss(zigzag, (torch.ones(1, 2, 1),))
-    normal_gap, _, _ = gap_bound_loss(torch.tensor([0.25, 0.3, 0.2, 0.25]), torch.tensor(1.0), min_ratio=0.25, max_ratio=2.0)
-    collapse_gap, _, _ = gap_bound_loss(torch.tensor([0.01, 0.25, 0.25, 0.25]), torch.tensor(1.0), min_ratio=0.25, max_ratio=2.0)
-    jump_gap, _, _ = gap_bound_loss(torch.tensor([0.25, 0.25, 0.25, 0.8]), torch.tensor(1.0), min_ratio=0.25, max_ratio=2.0)
-    straight, _ = triangle_deficit_loss(torch.tensor([1.0, 1.0]), torch.tensor([2.0]), torch.tensor(2.0))
-    detour, _ = triangle_deficit_loss(torch.tensor([1.0, 1.0]), torch.tensor([0.5]), torch.tensor(2.0))
-    return {key: float(value) for key, value in {
-        "band_good": good, "band_wrong": wrong, "band_orthogonal": orth,
-        "spatial_high_relevance": high, "spatial_low_relevance": low,
-        "control_smooth_linear": smooth, "control_smooth_zigzag": curved,
-        "rank_ordered": adjacent_ranking_loss(torch.tensor([0., .2, .5, .8, 1.]), margin=.01),
-        "rank_inverted": adjacent_ranking_loss(torch.tensor([0., .5, .3]), margin=.01),
-        "gap_normal": normal_gap, "gap_collapse": collapse_gap, "gap_jump": jump_gap,
-        "triangle_straight": straight, "triangle_detour": detour,
-    }.items()}
+def _no_parameter_grad(*modules) -> bool:
+    return all(parameter.grad is None for module in modules if module is not None for parameter in module.parameters())
 
 
-def _save_relevance(output: Path, inputs):
+def _make_grid(
+    path: Path, source: torch.Tensor, candidates: torch.Tensor, native: torch.Tensor, labels: list[str]
+) -> None:
+    panels = [_to_pil(source[0]), *[_to_pil(image) for image in candidates], _to_pil(native[0])]
+    width, height = panels[0].size
+    canvas = Image.new("RGB", (width * len(panels), height + 28), "white")
+    draw = ImageDraw.Draw(canvas)
+    for index, (image, label) in enumerate(zip(panels, labels)):
+        draw.text((index * width + 4, 7), label, fill="black")
+        canvas.paste(image, (index * width, 28))
+    canvas.save(path)
+
+
+def _save_relevance(output: Path, inputs) -> None:
     rows = []
-    for index, (direction, score, relevance) in enumerate(zip(inputs.prior.directions, inputs.prior.raw_scores, inputs.prior.relevance)):
+    for index, (direction, score, relevance) in enumerate(
+        zip(inputs.prior.directions, inputs.prior.raw_scores, inputs.prior.relevance)
+    ):
         map_ = relevance[0].reshape(inputs.native.sampling_token_height, inputs.native.sampling_token_width)
         pixels = map_.mul(255).round().byte().cpu().numpy()
-        Image.fromarray(pixels, "L").resize((inputs.native.width, inputs.native.height), Image.Resampling.NEAREST).save(output / f"relevance_step_{index}.png")
-        rows.append({
-            "step": index, "direction_l2": float(direction.float().norm()),
-            "raw_min": float(score.min()), "raw_mean": float(score.mean()), "raw_max": float(score.max()), "raw_std": float(score.std(unbiased=False)),
-            "relevance_min": float(relevance.min()), "relevance_mean": float(relevance.mean()), "relevance_max": float(relevance.max()), "relevance_std": float(relevance.std(unbiased=False)),
-            "fraction_above_0p25": float((relevance > .25).float().mean()), "fraction_above_0p5": float((relevance > .5).float().mean()), "fraction_above_0p75": float((relevance > .75).float().mean()),
-            "is_binary": bool(torch.all((relevance == 0) | (relevance == 1))),
-        })
-    _json(output / "prior_diagnostics.json", {"soft_prior": "score / max(score) per timestep; no threshold or hard mask", "steps": rows})
+        Image.fromarray(pixels, "L").resize(
+            (inputs.native.width, inputs.native.height), Image.Resampling.NEAREST
+        ).save(output / f"relevance_step_{index}.png")
+        probability = relevance / relevance.sum().clamp_min(1e-8)
+        rows.append(
+            {
+                "step": index,
+                "direction_l2": direction.float().norm(),
+                "raw_min": score.min(),
+                "raw_mean": score.mean(),
+                "raw_max": score.max(),
+                "raw_std": score.std(unbiased=False),
+                "relevance_min": relevance.min(),
+                "relevance_mean": relevance.mean(),
+                "relevance_max": relevance.max(),
+                "relevance_std": relevance.std(unbiased=False),
+                "relevance_entropy": -(probability * probability.clamp_min(1e-8).log()).sum(),
+                "fraction_above_0p25": (relevance > 0.25).float().mean(),
+                "fraction_above_0p5": (relevance > 0.5).float().mean(),
+                "fraction_above_0p75": (relevance > 0.75).float().mean(),
+                "is_binary": bool(torch.all((relevance == 0) | (relevance == 1))),
+            }
+        )
+    _json(
+        output / "prior_diagnostics.json",
+        {"soft_prior": "score / max(score) per timestep; no threshold or hard mask", "steps": rows},
+    )
 
 
-def _errors(actual: torch.Tensor, expected: torch.Tensor):
-    difference = (actual.float() - expected.float()).abs()
-    return {"max_abs": float(difference.max()), "mean_abs": float(difference.mean()), "cosine": float(torch.nn.functional.cosine_similarity(actual.float().flatten()[None], expected.float().flatten()[None]))}
+def _control_diagnostics(controls, prior) -> dict:
+    _, band = control_band_loss(controls, prior.directions, prior.relevance)
+    scalar = scalar_direction_residual_diagnostics(controls, prior.directions)
+    steps = []
+    for step, (control, direction, relevance, band_row, scalar_row) in enumerate(
+        zip(controls, prior.directions, prior.relevance, band, scalar)
+    ):
+        direction = direction.to(control)
+        coefficient = (control.float() * direction.float()).sum(-1) / direction.float().square().sum(-1).clamp_min(
+            1e-8
+        )
+        orthogonal = control.float() - coefficient[..., None] * direction.float()
+        high = relevance.to(control) >= relevance.to(control).median()
+        low = ~high
+        branches = []
+        for branch in range(control.shape[0]):
+            item = control[branch].float()
+            branches.append(
+                {
+                    "branch": branch,
+                    "grad_norm": None if control.grad is None else control.grad[branch].detach().float().norm(),
+                    "control_norm": item.norm(),
+                    "cosine_to_D": torch.nn.functional.cosine_similarity(
+                        item.flatten()[None], direction[0].float().flatten()[None]
+                    ).squeeze(),
+                    "coefficient_mean": coefficient[branch].mean(),
+                    "coefficient_std": coefficient[branch].std(unbiased=False),
+                    "orthogonal_ratio": orthogonal[branch].norm() / item.norm().clamp_min(1e-8),
+                    "control_to_D_norm": item.norm() / direction.float().norm().clamp_min(1e-8),
+                    "scalar_beta_star": scalar_row["beta_star"][branch],
+                    "scalar_D_residual_ratio": scalar_row["residual_ratio"][branch],
+                    "low_relevance_energy": item[low[0]].square().mean(),
+                    "high_relevance_energy": item[high[0]].square().mean(),
+                }
+            )
+        steps.append({"step": step, "aggregate": band_row, "branches": branches})
+    return {"steps": steps}
+
+
+def _objective_summary(result, controls, prior) -> dict:
+    return {
+        "losses": result.components,
+        "total": result.total,
+        "clip_q": result.progress,
+        "semantic_gaps": result.adjacent_semantic_gaps,
+        "strict_semantic_order": bool(torch.all(result.adjacent_semantic_gaps > 0)),
+        "margin_semantic_order": bool(torch.all(result.adjacent_semantic_gaps >= 0.01)),
+        "dreamsim_gaps": result.dreamsim_gaps,
+        "dreamsim_gap_fractions": result.dreamsim_gap_fractions,
+        "dreamsim_min_fraction": result.dreamsim_gap_fractions.min(),
+        "dreamsim_max_fraction": result.dreamsim_gap_fractions.max(),
+        "triangle_raw_deficits": result.triangle_raw_deficits,
+        "triangle_normalized_deficits": result.triangle_normalized_deficits,
+        "triangle_mean": result.triangle_normalized_deficits.mean(),
+        "triangle_max": result.triangle_normalized_deficits.max(),
+        "controls": _control_diagnostics(controls, prior),
+    }
+
+
+def _evaluate(pipe, inputs, controls, objective, *, checkpointing: bool):
+    unroll = pipe.unroll_coupled_controls(inputs, controls, use_checkpointing=checkpointing)
+    candidates = pipe.decode_coupled_terminal_latent(unroll.final_latent, inputs)
+    result = objective(candidates, controls)
+    return candidates, result
+
+
+def _parity_localization(pipe, inputs, args, output: Path) -> dict:
+    native = inputs.native
+    with torch.no_grad():
+        velocity_one = pipe._predict_kontext_velocity(
+            native.initial_latent, native.timesteps[0], **native.forward_kwargs
+        )
+        velocity_three = pipe._predict_kontext_velocity(
+            inputs.initial_latent, native.timesteps[0], **inputs.forward_kwargs
+        )
+        controls = initialize_independent_coupled_controls(
+            inputs.prior.directions, num_branches=args.branches, betas=(0.0,) * args.branches
+        )
+        batched = pipe.unroll_coupled_controls(inputs, controls, use_checkpointing=False)
+        sequential = pipe.unroll_terminal_controls(
+            native, initialize_velocity_controls(native.initial_latent, args.control_steps), use_checkpointing=False
+        )
+    first = {
+        "B3_branch_vs_branch": _errors(velocity_three, velocity_three[:1].expand_as(velocity_three)),
+        "B3_branch0_vs_B1": _errors(velocity_three[:1], velocity_one),
+    }
+    rows = []
+    for step, (batched_state, one_state) in enumerate(zip(batched.states, sequential.states)):
+        row = {"step": step, **_errors(batched_state[:1], one_state)}
+        rows.append(row)
+    with (output / "parity_by_step.csv").open("w", newline="", encoding="utf-8") as handle:
+        writer = csv.DictWriter(handle, fieldnames=rows[0].keys())
+        writer.writeheader()
+        writer.writerows(rows)
+        f = native.forward_kwargs
+        legacy_values = pipe._materialize_kontext_strength_batch(
+            args.branches,
+            native.initial_latent,
+            f["image_latents"],
+            f["prompt_embeds"],
+            f["pooled_prompt_embeds"],
+            f["guidance"],
+            f["negative_prompt_embeds"],
+            f["negative_pooled_prompt_embeds"],
+            f["image_embeds"],
+            f["negative_image_embeds"],
+        )
+        (
+            legacy_initial,
+            legacy_image_latents,
+            legacy_prompt,
+            legacy_pooled,
+            legacy_guidance,
+            legacy_negative_prompt,
+            legacy_negative_pooled,
+            legacy_image_embeds,
+            legacy_negative_image_embeds,
+        ) = legacy_values
+        legacy_kwargs = dict(f)
+        legacy_kwargs.update(
+            {
+                "image_latents": legacy_image_latents,
+                "prompt_embeds": legacy_prompt,
+                "pooled_prompt_embeds": legacy_pooled,
+                "guidance": legacy_guidance,
+                "negative_prompt_embeds": legacy_negative_prompt,
+                "negative_pooled_prompt_embeds": legacy_negative_pooled,
+                "image_embeds": legacy_image_embeds,
+                "negative_image_embeds": legacy_negative_image_embeds,
+            }
+        )
+        legacy_velocity = pipe._predict_kontext_velocity(legacy_initial, native.timesteps[0], **legacy_kwargs)
+    legacy = {
+        "materialization": "FluxKontextStrengthTrajectoryPipeline._materialize_kontext_strength_batch",
+        "initial_latent_vs_coupled": _errors(legacy_initial, inputs.initial_latent),
+        "velocity_vs_coupled": _errors(legacy_velocity, velocity_three),
+        "note": "This explicitly re-executes the legacy materialization helper; image_ids and text_ids remain shared sequence tensors.",
+    }
+    fp32 = {"attempted": bool(args.try_fp32_first_step), "available": False}
+    if args.try_fp32_first_step:
+        try:
+            original_dtype = next(pipe.transformer.parameters()).dtype
+            pipe.transformer.float()
+            kwargs_one = {
+                key: value.float() if torch.is_tensor(value) and value.is_floating_point() else value
+                for key, value in native.forward_kwargs.items()
+            }
+            kwargs_three = {
+                key: value.float() if torch.is_tensor(value) and value.is_floating_point() else value
+                for key, value in inputs.forward_kwargs.items()
+            }
+            one = pipe._predict_kontext_velocity(native.initial_latent.float(), native.timesteps[0], **kwargs_one)
+            three = pipe._predict_kontext_velocity(inputs.initial_latent.float(), native.timesteps[0], **kwargs_three)
+            fp32 = {"attempted": True, "available": True, "B3_branch0_vs_B1": _errors(three[:1], one)}
+            pipe.transformer.to(dtype=original_dtype)
+        except RuntimeError as error:
+            fp32["reason"] = str(error)
+    parity = {
+        "first_transformer_forward": first,
+        "legacy_k_batched_path": legacy,
+        "fp32_first_step": fp32,
+        "zero_control_branch_max_difference": (batched.final_latent - batched.final_latent[:1]).abs().max(),
+        "final_B3_branch0_vs_B1": _errors(batched.final_latent[:1], sequential.final_latent),
+        "gate": {
+            "branch_identity": bool((batched.final_latent - batched.final_latent[:1]).abs().max() == 0),
+            "minimum_cosine": args.parity_min_cosine,
+            "maximum_mean_error": args.parity_max_mean_error,
+            "B3_vs_B1_cosine_pass": rows[-1]["cosine"] >= args.parity_min_cosine,
+            "B3_vs_B1_mean_error_pass": rows[-1]["mean_abs"] <= args.parity_max_mean_error,
+        },
+    }
+    parity["gate"]["passed"] = all(
+        value for key, value in parity["gate"].items() if key.endswith("pass") or key == "branch_identity"
+    )
+    _json(output / "parity_localization.json", parity)
+    return parity
+
+
+def _compute_benchmark(pipe, inputs, args, output: Path) -> dict:
+    """Compare one K=3 batched unroll against K separate B=1 unrolls.
+
+    This is a timing and peak-memory observation only; it makes no claim about
+    FLOP reduction and uses zero controls to preserve the native trajectory.
+    """
+
+    controls = initialize_independent_coupled_controls(
+        inputs.prior.directions,
+        num_branches=args.branches,
+        betas=(0.0,) * args.branches,
+    )
+
+    def measure(call):
+        torch.cuda.empty_cache()
+        torch.cuda.reset_peak_memory_stats(args.device)
+        torch.cuda.synchronize(args.device)
+        started = time.perf_counter()
+        with torch.no_grad():
+            value = call()
+        torch.cuda.synchronize(args.device)
+        return {
+            "seconds": time.perf_counter() - started,
+            "peak_allocated_vram": torch.cuda.max_memory_allocated(args.device),
+            "peak_reserved_vram": torch.cuda.max_memory_reserved(args.device),
+            "final_latent_norm": value.final_latent.float().norm(),
+        }
+
+    batched = [
+        measure(lambda: pipe.unroll_coupled_controls(inputs, controls, use_checkpointing=False))
+        for _ in range(args.benchmark_repeats)
+    ]
+
+    def separate():
+        output_states = []
+        for branch in range(args.branches):
+            branch_controls = [control[branch : branch + 1] for control in controls]
+            output_states.append(
+                pipe.unroll_terminal_controls(inputs.native, branch_controls, use_checkpointing=False)
+            )
+        return output_states[-1]
+
+    separate_runs = [measure(separate) for _ in range(args.benchmark_repeats)]
+    payload = {
+        "description": "K=3 batched versus K separate B=1 zero-control unrolls; timing only, not a FLOP claim.",
+        "repeats": args.benchmark_repeats,
+        "batched": batched,
+        "separate_b1": separate_runs,
+    }
+    _json(output / "compute_benchmark.json", payload)
+    return payload
+
+
+def _run_optimization(
+    pipe, inputs, objective, args, output: Path, name: str, weights: RewardSliderV1LossWeights, iterations: int
+):
+    run_dir = output / name
+    run_dir.mkdir(parents=True, exist_ok=True)
+    objective.weights = weights
+    betas = tuple(1 - (index + 1) / (args.branches + 1) for index in range(args.branches))
+    controls = initialize_independent_coupled_controls(
+        inputs.prior.directions, num_branches=args.branches, betas=betas, noise_std=args.control_init_noise
+    )
+    optimizer = torch.optim.Adam(controls, lr=args.control_lr)
+    if {id(parameter) for parameter in optimizer.param_groups[0]["params"]} != {id(control) for control in controls}:
+        raise RuntimeError("Only independent velocity controls may enter the optimizer.")
+    with torch.no_grad():
+        initial_images, initial_result = _evaluate(pipe, inputs, controls, objective, checkpointing=False)
+    initial_summary = _objective_summary(initial_result, controls, inputs.prior)
+    _make_grid(
+        run_dir / "trajectory_initial.png",
+        objective.source_image,
+        initial_images,
+        objective.native_full_image,
+        ["Source", "Weak", "Mid", "Strong", "NativeFull"],
+    )
+    for label, image in zip(("weak", "mid", "strong"), initial_images):
+        _to_pil(image).save(run_dir / f"initial_{label}.png")
+    trace = []
+    for iteration in range(1, iterations + 1):
+        optimizer.zero_grad(set_to_none=True)
+        torch.cuda.reset_peak_memory_stats(args.device)
+        started = time.perf_counter()
+        images, result = _evaluate(pipe, inputs, controls, objective, checkpointing=args.use_checkpointing)
+        result.total.backward()
+        gradients = [control.grad for control in controls]
+        if any(gradient is None or not torch.isfinite(gradient).all() for gradient in gradients):
+            raise RuntimeError("Independent controls have a missing or non-finite gradient.")
+        if not any(gradient.abs().sum() > 0 for gradient in gradients):
+            raise RuntimeError("All independent control gradients are zero.")
+        frozen_ok = _no_parameter_grad(
+            pipe.transformer,
+            pipe.vae,
+            pipe.text_encoder,
+            pipe.text_encoder_2,
+            objective.feature_encoder.model,
+            objective.dreamsim.model,
+        )
+        if not frozen_ok:
+            raise RuntimeError("A frozen inference/reward parameter unexpectedly received a gradient.")
+        before_step = _objective_summary(result, controls, inputs.prior)
+        if args.grad_clip is not None:
+            torch.nn.utils.clip_grad_norm_(controls, args.grad_clip)
+        optimizer.step()
+        trace.append(
+            {
+                "iteration": iteration,
+                "elapsed_seconds": time.perf_counter() - started,
+                "peak_allocated_vram": torch.cuda.max_memory_allocated(args.device),
+                "peak_reserved_vram": torch.cuda.max_memory_reserved(args.device),
+                "frozen_gradient_audit": frozen_ok,
+                **before_step,
+            }
+        )
+        del images, result
+    with torch.no_grad():
+        final_images, final_result = _evaluate(pipe, inputs, controls, objective, checkpointing=False)
+    final_summary = _objective_summary(final_result, controls, inputs.prior)
+    for label, image in zip(("weak", "mid", "strong"), final_images):
+        _to_pil(image).save(run_dir / f"final_{label}.png")
+    _make_grid(
+        run_dir / "trajectory_final.png",
+        objective.source_image,
+        final_images,
+        objective.native_full_image,
+        ["Source", "Weak", "Mid", "Strong", "NativeFull"],
+    )
+    _write_jsonl(run_dir / "optimization_trace.jsonl", trace)
+    _json(
+        run_dir / "summary.json",
+        {
+            "name": name,
+            "iterations": iterations,
+            "weights": weights,
+            "initial": initial_summary,
+            "final": final_summary,
+            "loss_decreased": float(final_result.total) < float(initial_result.total),
+            "nan_detected": False,
+        },
+    )
+    return {"initial": initial_summary, "final": final_summary, "iterations": iterations}
 
 
 def main():
     args = _args()
     if not torch.cuda.is_available():
         raise RuntimeError("The real Kontext diagnostics require CUDA.")
+    device = torch.device(args.device)
+    torch.cuda.set_device(device)
     manifest = json.loads(Path(args.manifest).read_text(encoding="utf-8"))
     case = manifest["cases"][0]
     seed = case["seed"] if args.seed is None else args.seed
     output = Path(args.output_dir)
     output.mkdir(parents=True, exist_ok=True)
-    _json(output / "module_diagnostics.json", _module_diagnostics())
-    _json(output / "config.json", {**vars(args), "case_id": case["case_id"], "source": case["source"], "prompt": case["instruction"], "seed": seed, "git_commit": os.popen("git rev-parse HEAD").read().strip()})
-    device = torch.device(args.device)
-    torch.cuda.set_device(device)
+    _json(
+        output / "config.json",
+        {
+            **vars(args),
+            "case_id": case["case_id"],
+            "source": case["source"],
+            "prompt": case["instruction"],
+            "seed": seed,
+            "git_commit": _commit(),
+        },
+    )
     dtype = torch.bfloat16 if args.dtype == "bfloat16" else torch.float16
     source_pil = Image.open(case["source"]).convert("RGB").resize((args.width, args.height), Image.Resampling.LANCZOS)
     source_pil.save(output / "source.png")
-    pipe = FluxKontextCoupledControlPipeline.from_pretrained(args.model, torch_dtype=dtype, local_files_only=True).to(device)
+    pipe = FluxKontextCoupledControlPipeline.from_pretrained(args.model, torch_dtype=dtype, local_files_only=True).to(
+        device
+    )
     pipe.set_progress_bar_config(disable=True)
-    inputs = pipe.prepare_coupled_control_inputs(num_branches=args.branches, control_steps=args.control_steps, image=source_pil, prompt=case["instruction"], height=args.height, width=args.width, num_inference_steps=args.steps, guidance_scale=args.guidance_scale, generator=torch.Generator(device=device).manual_seed(seed))
+    inputs = pipe.prepare_coupled_control_inputs(
+        num_branches=args.branches,
+        control_steps=args.control_steps,
+        image=source_pil,
+        prompt=case["instruction"],
+        height=args.height,
+        width=args.width,
+        num_inference_steps=args.steps,
+        guidance_scale=args.guidance_scale,
+        generator=torch.Generator(device=device).manual_seed(seed),
+    )
     with torch.no_grad():
         native_image = pipe.decode_terminal_latent(inputs.native.native_final_latent, inputs.native)
     _to_pil(native_image[0]).save(output / "native_full.png")
     _save_relevance(output, inputs)
-    zero = initialize_independent_coupled_controls(inputs.prior.directions, num_branches=args.branches, betas=(0.0,) * args.branches)
-    with torch.no_grad():
-        batched = pipe.unroll_coupled_controls(inputs, zero, use_checkpointing=False)
-        sequential = pipe.unroll_terminal_controls(inputs.native, initialize_velocity_controls(inputs.native.initial_latent, args.control_steps), use_checkpointing=False)
-        batched_images = pipe.decode_coupled_terminal_latent(batched.final_latent, inputs)
-        sequential_image = pipe.decode_terminal_latent(sequential.final_latent, inputs.native)
-    branch_errors = [_errors(batched.final_latent[index:index + 1], sequential.final_latent) for index in range(args.branches)]
-    image_errors = [_errors(batched_images[index:index + 1], sequential_image) for index in range(args.branches)]
-    _json(output / "batched_parity.json", {"K": args.branches, "branch_latent_vs_single": branch_errors, "branch_image_vs_single": image_errors, "max_within_batched_latent": float((batched.final_latent - batched.final_latent[:1]).abs().max())})
-    # Benchmark only zero controls. It is an implementation-cost measurement, not an optimization result.
-    del batched, sequential, batched_images, sequential_image
-    gc.collect()
-    torch.cuda.empty_cache()
-    benchmark_controls = initialize_independent_coupled_controls(
-        inputs.prior.directions, num_branches=args.branches, betas=(0.0,) * args.branches
+    parity = _parity_localization(pipe, inputs, args, output)
+    benchmark = _compute_benchmark(pipe, inputs, args, output)
+    dreamsim = DreamSimAdapter(model_path=args.dreamsim_model, device=device)
+    _json(output / "dreamsim_fidelity.json", dreamsim.fidelity_audit(_pil_tensor(source_pil, device), native_image))
+    scorer = CLIPImageFeatureScorer(args.clip_model, device=device, local_files_only=True)
+    weights = RewardSliderV1LossWeights(
+        rank=args.lambda_rank,
+        gap=args.lambda_gap,
+        second=args.lambda_second,
+        preserve=args.lambda_preserve,
+        ctrl=args.lambda_ctrl,
+        band=args.lambda_band,
+        spatial=args.lambda_spatial,
+        energy=args.lambda_energy,
     )
-    torch.cuda.reset_peak_memory_stats(device)
-    start = time.perf_counter()
-    for _ in range(args.benchmark_repeats):
-        with torch.no_grad():
-            pipe.unroll_coupled_controls(inputs, benchmark_controls, use_checkpointing=args.use_checkpointing)
-    batched_seconds = (time.perf_counter() - start) / args.benchmark_repeats
-    batched_peak = {"allocated": int(torch.cuda.max_memory_allocated(device)), "reserved": int(torch.cuda.max_memory_reserved(device))}
-    torch.cuda.reset_peak_memory_stats(device)
-    start = time.perf_counter()
-    for _ in range(args.benchmark_repeats):
-        for _branch in range(args.branches):
-            with torch.no_grad():
-                pipe.unroll_terminal_controls(
-                    inputs.native,
-                    initialize_velocity_controls(inputs.native.initial_latent, args.control_steps),
-                    use_checkpointing=args.use_checkpointing,
-                )
-    sequential_seconds = (time.perf_counter() - start) / args.benchmark_repeats
-    _json(output / "compute_benchmark.json", {"sequential_seconds": sequential_seconds, "batched_seconds": batched_seconds, "batched_peak_vram": batched_peak, "note": "Batched paths reduce repeated transformer forwards; checkpointing trades memory for recomputation time."})
-    blocker = DreamSimAdapter.availability_reason(model_path=args.dreamsim_model)
-    _json(output / "dreamsim_blocker.json", {"blocked": blocker is not None, "reason": blocker, "consequence": "Experiment D initialization geometry and Experiment E optimization were intentionally not run without official differentiable DreamSim."})
-    print("FINAL_REPORT=" + json.dumps({"output_dir": str(output), "dreamsim_blocked": blocker is not None, "parity": branch_errors, "benchmark_seconds": {"sequential": sequential_seconds, "batched": batched_seconds}}, sort_keys=True))
+    objective = CoupledTrajectoryObjective(
+        feature_encoder=scorer,
+        dreamsim=dreamsim,
+        source_image=_pil_tensor(source_pil, device),
+        native_full_image=native_image,
+        prior=inputs.prior,
+        token_height=inputs.native.sampling_token_height,
+        token_width=inputs.native.sampling_token_width,
+        weights=weights,
+        rank_margin=args.rank_margin,
+        min_gap_fraction=args.min_gap_fraction,
+        max_gap_fraction=args.max_gap_fraction,
+    )
+    initialization = _run_optimization(pipe, inputs, objective, args, output, "initialization", weights, 0)
+    _json(output / "initialization_diagnostics.json", initialization)
+    results = {"initialization": initialization, "parity": parity, "compute_benchmark": benchmark}
+    if parity["gate"]["passed"]:
+        results["full_v1"] = _run_optimization(
+            pipe, inputs, objective, args, output, "full_v1", weights, args.outer_iters
+        )
+        if args.run_ablations:
+            results["no_band"] = _run_optimization(
+                pipe,
+                inputs,
+                objective,
+                args,
+                output,
+                "no_band",
+                RewardSliderV1LossWeights(**{**weights.__dict__, "band": 0.0}),
+                args.ablation_iters,
+            )
+            results["prior_only"] = _run_optimization(
+                pipe,
+                inputs,
+                objective,
+                args,
+                output,
+                "prior_only",
+                RewardSliderV1LossWeights(
+                    rank=0.0,
+                    gap=0.0,
+                    second=0.0,
+                    preserve=0.0,
+                    ctrl=weights.ctrl,
+                    band=weights.band,
+                    spatial=weights.spatial,
+                    energy=weights.energy,
+                ),
+                args.ablation_iters,
+            )
+            results["no_spatial"] = _run_optimization(
+                pipe,
+                inputs,
+                objective,
+                args,
+                output,
+                "no_spatial",
+                RewardSliderV1LossWeights(**{**weights.__dict__, "spatial": 0.0}),
+                args.ablation_iters,
+            )
+    else:
+        results["optimization_blocked"] = (
+            "Numerical parity gate did not pass; diagnostics were retained and no optimization was run."
+        )
+    _json(output / "summary.json", results)
+    print(
+        "FINAL_REPORT="
+        + json.dumps(
+            _jsonable({"output_dir": str(output), "parity_gate": parity["gate"], "runs": list(results)}),
+            sort_keys=True,
+        )
+    )
 
 
 if __name__ == "__main__":

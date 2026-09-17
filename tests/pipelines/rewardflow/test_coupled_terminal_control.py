@@ -5,10 +5,11 @@ import torch
 from diffusers.pipelines.rewardflow.coupled_terminal_control import (
     adjacent_ranking_loss,
     control_band_loss,
-    control_smoothness_loss,
-    gap_bound_loss,
+    control_no_jump_loss,
     initialize_independent_coupled_controls,
     make_coupled_prior,
+    relative_gap_loss,
+    scalar_direction_residual_diagnostics,
     spatial_prior_loss,
     triangle_deficit_loss,
     unroll_coupled_velocity_controls,
@@ -95,25 +96,43 @@ def test_control_band_prefers_in_corridor_and_penalizes_wrong_or_orthogonal():
     assert good_loss < wrong_loss and good_loss < orth_loss
 
 
-def test_second_difference_is_zero_for_linear_control_nodes_and_large_for_zigzag():
-    direction = torch.ones(1, 2, 2)
-    linear = (torch.stack([torch.full((2, 2), 0.75), torch.full((2, 2), 0.5), torch.full((2, 2), 0.25)]),)
-    zigzag = (linear[0] + torch.tensor([[[0.5, 0.5], [0.5, 0.5]], [[-0.5, -0.5], [-0.5, -0.5]], [[0.5, 0.5], [0.5, 0.5]]]),)
-    assert control_smoothness_loss(linear, (direction,)) < 1e-7
-    assert control_smoothness_loss(zigzag, (direction,)) > 0.1
+def test_optional_control_no_jump_uses_no_keep_edit_anchor_or_equal_spacing_target():
+    smooth = (torch.stack([torch.full((2, 2), 0.8), torch.full((2, 2), 0.6), torch.full((2, 2), 0.2)]),)
+    outlier = (torch.stack([torch.full((2, 2), 0.8), torch.full((2, 2), -5.0), torch.full((2, 2), 0.2)]),)
+    assert control_no_jump_loss(smooth, max_jump_ratio=3.0) == 0
+    assert control_no_jump_loss(outlier, max_jump_ratio=1.5) > 0
 
 
 def test_ranking_gap_and_triangle_objectives_have_expected_direction():
     assert adjacent_ranking_loss(torch.tensor([0.0, 0.2, 0.5, 0.8, 1.0]), margin=0.01) == 0
     assert adjacent_ranking_loss(torch.tensor([0.0, 0.5, 0.3]), margin=0.01) > 0
     assert adjacent_ranking_loss(torch.tensor([0.0, 0.005]), margin=0.01) > 0
-    normal, _, _ = gap_bound_loss(torch.tensor([0.25, 0.3, 0.2, 0.25]), torch.tensor(1.0), min_ratio=0.25, max_ratio=2.0)
-    collapse, _, _ = gap_bound_loss(torch.tensor([0.01, 0.25, 0.25, 0.25]), torch.tensor(1.0), min_ratio=0.25, max_ratio=2.0)
-    jump, _, _ = gap_bound_loss(torch.tensor([0.25, 0.25, 0.25, 0.8]), torch.tensor(1.0), min_ratio=0.25, max_ratio=2.0)
+    normal, _, _, fractions = relative_gap_loss(torch.tensor([0.2, 0.2, 0.25, 0.35]))
+    collapse, _, _, _ = relative_gap_loss(torch.tensor([0.01, 0.02, 0.02, 0.95]))
+    jump, _, _, _ = relative_gap_loss(torch.tensor([0.01, 0.02, 0.02, 0.95]))
     assert normal == 0 and collapse > 0 and jump > 0
-    straight, _ = triangle_deficit_loss(torch.tensor([1.0, 1.0]), torch.tensor([2.0]), torch.tensor(2.0))
-    detour, _ = triangle_deficit_loss(torch.tensor([1.0, 1.0]), torch.tensor([0.5]), torch.tensor(2.0))
+    torch.testing.assert_close(fractions, torch.tensor([0.2, 0.2, 0.25, 0.35]))
+    straight, _, _ = triangle_deficit_loss(torch.tensor([1.0, 1.0]), torch.tensor([2.0]))
+    detour, _, _ = triangle_deficit_loss(torch.tensor([1.0, 1.0]), torch.tensor([0.5]))
     assert straight == 0 and detour > 0
+
+
+def test_triangle_deficit_uses_local_skip_distance_for_normalization():
+    loss_small_skip, _, normalized_small = triangle_deficit_loss(torch.tensor([1.0, 1.0]), torch.tensor([1.0]))
+    loss_large_skip, _, normalized_large = triangle_deficit_loss(torch.tensor([2.0, 2.0]), torch.tensor([3.0]))
+    assert normalized_small.item() == 1.0
+    torch.testing.assert_close(normalized_large, torch.tensor([1 / 3]))
+    assert loss_small_skip > loss_large_skip
+
+
+def test_scalar_direction_residual_detects_departure_from_scalar_d_family():
+    direction = torch.tensor([[[1.0, 0.0], [1.0, 0.0]]])
+    scalar = (0.5 * direction.expand(3, -1, -1),)
+    orthogonal = (scalar[0] + torch.tensor([[[0.0, 1.0], [0.0, 1.0]]] * 3),)
+    scalar_diagnostics = scalar_direction_residual_diagnostics(scalar, (direction,))[0]
+    orthogonal_diagnostics = scalar_direction_residual_diagnostics(orthogonal, (direction,))[0]
+    assert scalar_diagnostics["residual_ratio"].max() < 1e-7
+    assert orthogonal_diagnostics["residual_ratio"].min() > 0.5
 
 
 class _FeatureEncoder:
@@ -150,3 +169,22 @@ def test_coupled_trajectory_objective_caches_fixed_endpoints_and_keeps_candidate
     assert source.grad is None and full.grad is None
     assert all(parameter.grad is not None and torch.isfinite(parameter.grad).all() for parameter in controls)
     assert candidates.grad is not None and torch.isfinite(candidates.grad).all() and candidates.grad.abs().sum() > 0
+
+
+def test_joint_objective_updates_independent_branch_controls_differently():
+    source = torch.zeros(1, 3, 4, 4)
+    full = torch.ones_like(source)
+    prior = make_coupled_prior((torch.ones(1, 4, 2),), (torch.ones(1, 4),))
+    objective = CoupledTrajectoryObjective(
+        feature_encoder=_FeatureEncoder(), dreamsim=_Distance(), source_image=source,
+        native_full_image=full, prior=prior, token_height=2, token_width=2,
+    )
+    controls = initialize_independent_coupled_controls(prior.directions, num_branches=3, betas=(0.1, 0.4, 0.8))
+    optimizer = torch.optim.Adam(controls, lr=0.1)
+    candidates = torch.stack([control.mean().expand(3, 4, 4) for control in controls[0]], dim=0)
+    optimizer.zero_grad(set_to_none=True)
+    objective(candidates, controls).total.backward()
+    before = controls[0].detach().clone()
+    optimizer.step()
+    assert not torch.equal(controls[0][0], controls[0][1])
+    assert not torch.equal(controls[0], before)
