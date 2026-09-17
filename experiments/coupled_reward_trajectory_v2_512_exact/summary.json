@@ -1,0 +1,479 @@
+{
+  "compute_benchmark": {
+    "batched": [
+      {
+        "final_latent_norm": 494.1940002441406,
+        "peak_allocated_vram": 34628875776,
+        "peak_reserved_vram": 35651584000,
+        "seconds": 13.462618010998995
+      }
+    ],
+    "description": "K=3 batched versus K separate B=1 zero-control unrolls; timing only, not a FLOP claim.",
+    "repeats": 1,
+    "separate_b1": [
+      {
+        "final_latent_norm": 285.847412109375,
+        "peak_allocated_vram": 34093922304,
+        "peak_reserved_vram": 34443624448,
+        "seconds": 14.214172435000364
+      }
+    ]
+  },
+  "initialization": {
+    "final": {
+      "clip_q": [
+        0.0,
+        0.40305712819099426,
+        0.44601717591285706,
+        0.45627114176750183,
+        1.0
+      ],
+      "coarse_anchor_indices": [
+        0,
+        1,
+        2,
+        3,
+        4
+      ],
+      "coarse_dreamsim_fractions": [
+        0.18916380405426025,
+        0.008956551551818848,
+        0.012685656547546387,
+        0.04127985239028931
+      ],
+      "coarse_dreamsim_gaps": [
+        0.18916380405426025,
+        0.008956551551818848,
+        0.012685656547546387,
+        0.04127985239028931
+      ],
+      "coarse_semantic_gaps": [
+        0.40305712819099426,
+        0.04296004772186279,
+        0.010253965854644775,
+        0.5437288284301758
+      ],
+      "controls": {
+        "steps": [
+          {
+            "aggregate": {
+              "above_one_fraction": 0.0,
+              "coefficient_mean": 0.5,
+              "coefficient_std": 0.20412415266036987,
+              "control_to_direction_norm": 0.5,
+              "cosine_to_direction": 1.0,
+              "negative_fraction": 0.0,
+              "orthogonal_energy_ratio": 6.604841050169077e-16
+            },
+            "branches": [
+              {
+                "branch": 0,
+                "coefficient_mean": 0.75,
+                "coefficient_std": 3.218120525616541e-08,
+                "control_norm": 222.0990753173828,
+                "control_to_D_norm": 0.75,
+                "cosine_to_D": 1.0000001192092896,
+                "grad_norm": null,
+                "high_relevance_energy": 1.3308966159820557,
+                "low_relevance_energy": 0.17221152782440186,
+                "orthogonal_ratio": 6.104735916778736e-08,
+                "scalar_D_residual_ratio": 8.768206782860943e-08,
+                "scalar_beta_star": 0.7499999403953552
+              },
+              {
+                "branch": 1,
+                "coefficient_mean": 0.5,
+                "coefficient_std": 0.0,
+                "control_norm": 148.06605529785156,
+                "control_to_D_norm": 0.5,
+                "cosine_to_D": 1.0,
+                "grad_norm": null,
+                "high_relevance_energy": 0.5915095806121826,
+                "low_relevance_energy": 0.07653845846652985,
+                "orthogonal_ratio": 0.0,
+                "scalar_D_residual_ratio": 0.0,
+                "scalar_beta_star": 0.5
+              },
+              {
+                "branch": 2,
+                "coefficient_mean": 0.25,
+                "coefficient_std": 0.0,
+                "control_norm": 74.03302764892578,
+                "control_to_D_norm": 0.25,
+                "cosine_to_D": 1.0,
+                "grad_norm": null,
+                "high_relevance_energy": 0.14787739515304565,
+                "low_relevance_energy": 0.01913461461663246,
+                "orthogonal_ratio": 0.0,
+                "scalar_D_residual_ratio": 0.0,
+                "scalar_beta_star": 0.25
+              }
+            ],
+            "step": 0
+          },
+          {
+            "aggregate": {
+              "above_one_fraction": 0.0,
+              "coefficient_mean": 0.5,
+              "coefficient_std": 0.20412415266036987,
+              "control_to_direction_norm": 0.5,
+              "cosine_to_direction": 1.0,
+              "negative_fraction": 0.0,
+              "orthogonal_energy_ratio": 6.084961873297542e-16
+            },
+            "branches": [
+              {
+                "branch": 0,
+                "coefficient_mean": 0.75,
+                "coefficient_std": 2.9155009073633664e-08,
+                "control_norm": 129.80889892578125,
+                "control_to_D_norm": 0.75,
+                "cosine_to_D": 1.0,
+                "grad_norm": null,
+                "high_relevance_energy": 0.4631962776184082,
+                "low_relevance_energy": 0.050229042768478394,
+                "orthogonal_ratio": 6.258540707904103e-08,
+                "scalar_D_residual_ratio": 8.840056864301005e-08,
+                "scalar_beta_star": 0.7500000596046448
+              },
+              {
+                "branch": 1,
+                "coefficient_mean": 0.5,
+                "coefficient_std": 0.0,
+                "control_norm": 86.53926849365234,
+                "control_to_D_norm": 0.5,
+                "cosine_to_D": 1.0,
+                "grad_norm": null,
+                "high_relevance_energy": 0.2058650255203247,
+                "low_relevance_energy": 0.02232401818037033,
+                "orthogonal_ratio": 0.0,
+                "scalar_D_residual_ratio": 0.0,
+                "scalar_beta_star": 0.5
+              },
+              {
+                "branch": 2,
+                "coefficient_mean": 0.25,
+                "coefficient_std": 0.0,
+                "control_norm": 43.26963424682617,
+                "control_to_D_norm": 0.25,
+                "cosine_to_D": 1.0,
+                "grad_norm": null,
+                "high_relevance_energy": 0.05146625638008118,
+                "low_relevance_energy": 0.005581004545092583,
+                "orthogonal_ratio": 0.0,
+                "scalar_D_residual_ratio": 0.0,
+                "scalar_beta_star": 0.25
+              }
+            ],
+            "step": 1
+          }
+        ]
+      },
+      "dreamsim_gap_fractions": [
+        0.750394344329834,
+        0.035529766231775284,
+        0.0503227598965168,
+        0.16375313699245453
+      ],
+      "dreamsim_gaps": [
+        0.18916380405426025,
+        0.008956551551818848,
+        0.012685656547546387,
+        0.04127985239028931
+      ],
+      "dreamsim_worst_jump": 0.750394344329834,
+      "dreamsim_worst_jump_index": 0.0,
+      "losses": {
+        "band": 6.770344405919871e-16,
+        "coarse_collapse": 0.014470234513282776,
+        "coarse_gap": 0.2148645669221878,
+        "coarse_jump": 0.20039433240890503,
+        "control_no_jump": 0.0,
+        "energy": 0.2618004083633423,
+        "fine_jump": 0.20039433240890503,
+        "preserve": 0.018181465566158295,
+        "second": 0.0,
+        "semantic_collapse": 0.039746034890413284,
+        "semantic_coverage": 0.039746034890413284,
+        "semantic_jump": 0.0,
+        "semantic_order": 0.0,
+        "spatial": 0.45146989822387695
+      },
+      "nondecreasing_semantic_order": true,
+      "semantic_gaps": [
+        0.40305712819099426,
+        0.04296004772186279,
+        0.010253965854644775,
+        0.5437288284301758
+      ],
+      "strict_semantic_order": true,
+      "total": 0.49575990438461304,
+      "triangle_max": 0.0,
+      "triangle_mean": 0.0,
+      "triangle_normalized_deficits": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "triangle_raw_deficits": [
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    "initial": {
+      "clip_q": [
+        0.0,
+        0.40305712819099426,
+        0.44601717591285706,
+        0.45627114176750183,
+        1.0
+      ],
+      "coarse_anchor_indices": [
+        0,
+        1,
+        2,
+        3,
+        4
+      ],
+      "coarse_dreamsim_fractions": [
+        0.18916380405426025,
+        0.008956551551818848,
+        0.012685656547546387,
+        0.04127985239028931
+      ],
+      "coarse_dreamsim_gaps": [
+        0.18916380405426025,
+        0.008956551551818848,
+        0.012685656547546387,
+        0.04127985239028931
+      ],
+      "coarse_semantic_gaps": [
+        0.40305712819099426,
+        0.04296004772186279,
+        0.010253965854644775,
+        0.5437288284301758
+      ],
+      "controls": {
+        "steps": [
+          {
+            "aggregate": {
+              "above_one_fraction": 0.0,
+              "coefficient_mean": 0.5,
+              "coefficient_std": 0.20412415266036987,
+              "control_to_direction_norm": 0.5,
+              "cosine_to_direction": 1.0,
+              "negative_fraction": 0.0,
+              "orthogonal_energy_ratio": 6.604841050169077e-16
+            },
+            "branches": [
+              {
+                "branch": 0,
+                "coefficient_mean": 0.75,
+                "coefficient_std": 3.218120525616541e-08,
+                "control_norm": 222.0990753173828,
+                "control_to_D_norm": 0.75,
+                "cosine_to_D": 1.0000001192092896,
+                "grad_norm": null,
+                "high_relevance_energy": 1.3308966159820557,
+                "low_relevance_energy": 0.17221152782440186,
+                "orthogonal_ratio": 6.104735916778736e-08,
+                "scalar_D_residual_ratio": 8.768206782860943e-08,
+                "scalar_beta_star": 0.7499999403953552
+              },
+              {
+                "branch": 1,
+                "coefficient_mean": 0.5,
+                "coefficient_std": 0.0,
+                "control_norm": 148.06605529785156,
+                "control_to_D_norm": 0.5,
+                "cosine_to_D": 1.0,
+                "grad_norm": null,
+                "high_relevance_energy": 0.5915095806121826,
+                "low_relevance_energy": 0.07653845846652985,
+                "orthogonal_ratio": 0.0,
+                "scalar_D_residual_ratio": 0.0,
+                "scalar_beta_star": 0.5
+              },
+              {
+                "branch": 2,
+                "coefficient_mean": 0.25,
+                "coefficient_std": 0.0,
+                "control_norm": 74.03302764892578,
+                "control_to_D_norm": 0.25,
+                "cosine_to_D": 1.0,
+                "grad_norm": null,
+                "high_relevance_energy": 0.14787739515304565,
+                "low_relevance_energy": 0.01913461461663246,
+                "orthogonal_ratio": 0.0,
+                "scalar_D_residual_ratio": 0.0,
+                "scalar_beta_star": 0.25
+              }
+            ],
+            "step": 0
+          },
+          {
+            "aggregate": {
+              "above_one_fraction": 0.0,
+              "coefficient_mean": 0.5,
+              "coefficient_std": 0.20412415266036987,
+              "control_to_direction_norm": 0.5,
+              "cosine_to_direction": 1.0,
+              "negative_fraction": 0.0,
+              "orthogonal_energy_ratio": 6.084961873297542e-16
+            },
+            "branches": [
+              {
+                "branch": 0,
+                "coefficient_mean": 0.75,
+                "coefficient_std": 2.9155009073633664e-08,
+                "control_norm": 129.80889892578125,
+                "control_to_D_norm": 0.75,
+                "cosine_to_D": 1.0,
+                "grad_norm": null,
+                "high_relevance_energy": 0.4631962776184082,
+                "low_relevance_energy": 0.050229042768478394,
+                "orthogonal_ratio": 6.258540707904103e-08,
+                "scalar_D_residual_ratio": 8.840056864301005e-08,
+                "scalar_beta_star": 0.7500000596046448
+              },
+              {
+                "branch": 1,
+                "coefficient_mean": 0.5,
+                "coefficient_std": 0.0,
+                "control_norm": 86.53926849365234,
+                "control_to_D_norm": 0.5,
+                "cosine_to_D": 1.0,
+                "grad_norm": null,
+                "high_relevance_energy": 0.2058650255203247,
+                "low_relevance_energy": 0.02232401818037033,
+                "orthogonal_ratio": 0.0,
+                "scalar_D_residual_ratio": 0.0,
+                "scalar_beta_star": 0.5
+              },
+              {
+                "branch": 2,
+                "coefficient_mean": 0.25,
+                "coefficient_std": 0.0,
+                "control_norm": 43.26963424682617,
+                "control_to_D_norm": 0.25,
+                "cosine_to_D": 1.0,
+                "grad_norm": null,
+                "high_relevance_energy": 0.05146625638008118,
+                "low_relevance_energy": 0.005581004545092583,
+                "orthogonal_ratio": 0.0,
+                "scalar_D_residual_ratio": 0.0,
+                "scalar_beta_star": 0.25
+              }
+            ],
+            "step": 1
+          }
+        ]
+      },
+      "dreamsim_gap_fractions": [
+        0.750394344329834,
+        0.035529766231775284,
+        0.0503227598965168,
+        0.16375313699245453
+      ],
+      "dreamsim_gaps": [
+        0.18916380405426025,
+        0.008956551551818848,
+        0.012685656547546387,
+        0.04127985239028931
+      ],
+      "dreamsim_worst_jump": 0.750394344329834,
+      "dreamsim_worst_jump_index": 0.0,
+      "losses": {
+        "band": 6.770344405919871e-16,
+        "coarse_collapse": 0.014470234513282776,
+        "coarse_gap": 0.2148645669221878,
+        "coarse_jump": 0.20039433240890503,
+        "control_no_jump": 0.0,
+        "energy": 0.2618004083633423,
+        "fine_jump": 0.20039433240890503,
+        "preserve": 0.018181465566158295,
+        "second": 0.0,
+        "semantic_collapse": 0.039746034890413284,
+        "semantic_coverage": 0.039746034890413284,
+        "semantic_jump": 0.0,
+        "semantic_order": 0.0,
+        "spatial": 0.45146989822387695
+      },
+      "nondecreasing_semantic_order": true,
+      "semantic_gaps": [
+        0.40305712819099426,
+        0.04296004772186279,
+        0.010253965854644775,
+        0.5437288284301758
+      ],
+      "strict_semantic_order": true,
+      "total": 0.49575990438461304,
+      "triangle_max": 0.0,
+      "triangle_mean": 0.0,
+      "triangle_normalized_deficits": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "triangle_raw_deficits": [
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    "iterations": 0
+  },
+  "optimization_blocked": "Numerical parity gate did not pass; diagnostics were retained and no optimization was run.",
+  "parity": {
+    "final_B3_branch0_vs_B1": {
+      "cosine": 0.9994573593139648,
+      "max_abs": 1.431640625,
+      "mean_abs": 0.012033307924866676,
+      "rms": 0.03680727258324623
+    },
+    "first_transformer_forward": {
+      "B3_branch0_vs_B1": {
+        "cosine": 0.9999354481697083,
+        "max_abs": 0.1875,
+        "mean_abs": 0.015568663366138935,
+        "rms": 0.02173652872443199
+      },
+      "B3_branch_vs_branch": {
+        "cosine": 1.0000001192092896,
+        "max_abs": 0.0,
+        "mean_abs": 0.0,
+        "rms": 0.0
+      }
+    },
+    "fp32_first_step": {
+      "attempted": false,
+      "available": false
+    },
+    "gate": {
+      "B3_vs_B1_cosine_pass": true,
+      "B3_vs_B1_mean_error_pass": false,
+      "branch_identity": true,
+      "maximum_mean_error": 0.01,
+      "minimum_cosine": 0.999,
+      "passed": false
+    },
+    "legacy_k_batched_path": {
+      "initial_latent_vs_coupled": {
+        "cosine": 1.0,
+        "max_abs": 0.0,
+        "mean_abs": 0.0,
+        "rms": 0.0
+      },
+      "materialization": "FluxKontextStrengthTrajectoryPipeline._materialize_kontext_strength_batch",
+      "note": "This explicitly re-executes the legacy materialization helper; image_ids and text_ids remain shared sequence tensors.",
+      "velocity_vs_coupled": {
+        "cosine": 1.0000001192092896,
+        "max_abs": 0.0,
+        "mean_abs": 0.0,
+        "rms": 0.0
+      }
+    },
+    "zero_control_branch_max_difference": 0.0
+  }
+}

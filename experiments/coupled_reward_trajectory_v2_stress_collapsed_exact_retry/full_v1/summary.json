@@ -1,0 +1,420 @@
+{
+  "final": {
+    "clip_q": [
+      0.0,
+      0.877331018447876,
+      0.8579509854316711,
+      0.8836438655853271,
+      1.0
+    ],
+    "coarse_anchor_indices": [
+      0,
+      1,
+      2,
+      3,
+      4
+    ],
+    "coarse_dreamsim_fractions": [
+      0.24983930587768555,
+      0.0011782050132751465,
+      0.0014581680297851562,
+      0.019341111183166504
+    ],
+    "coarse_dreamsim_gaps": [
+      0.24983930587768555,
+      0.0011782050132751465,
+      0.0014581680297851562,
+      0.019341111183166504
+    ],
+    "coarse_semantic_gaps": [
+      0.877331018447876,
+      -0.019380033016204834,
+      0.025692880153656006,
+      0.11635613441467285
+    ],
+    "controls": {
+      "steps": [
+        {
+          "aggregate": {
+            "above_one_fraction": 0.0,
+            "coefficient_mean": 0.49827536940574646,
+            "coefficient_std": 0.056774236261844635,
+            "control_to_direction_norm": 0.5360717177391052,
+            "cosine_to_direction": 0.934938907623291,
+            "negative_fraction": 0.0,
+            "orthogonal_energy_ratio": 0.12668673694133759
+          },
+          "branches": [
+            {
+              "branch": 0,
+              "coefficient_mean": 0.5019519329071045,
+              "coefficient_std": 0.06219127029180527,
+              "control_norm": 35.32222366333008,
+              "control_to_D_norm": 0.5378760099411011,
+              "cosine_to_D": 0.932282030582428,
+              "grad_norm": 0.9470949172973633,
+              "high_relevance_energy": 0.5059056282043457,
+              "low_relevance_energy": 0.09031595289707184,
+              "orthogonal_ratio": 0.3575749397277832,
+              "scalar_D_residual_ratio": 0.36173227429389954,
+              "scalar_beta_star": 0.5014522075653076
+            },
+            {
+              "branch": 1,
+              "coefficient_mean": 0.4914867579936981,
+              "coefficient_std": 0.05186866596341133,
+              "control_norm": 34.950679779052734,
+              "control_to_D_norm": 0.5322182774543762,
+              "cosine_to_D": 0.9420690536499023,
+              "grad_norm": 0.9383679032325745,
+              "high_relevance_energy": 0.5033138990402222,
+              "low_relevance_energy": 0.07991483062505722,
+              "orthogonal_ratio": 0.33207833766937256,
+              "scalar_D_residual_ratio": 0.33541879057884216,
+              "scalar_beta_star": 0.5013864040374756
+            },
+            {
+              "branch": 2,
+              "coefficient_mean": 0.5013874769210815,
+              "coefficient_std": 0.05515921860933304,
+              "control_norm": 35.33829879760742,
+              "control_to_D_norm": 0.5381208062171936,
+              "cosine_to_D": 0.9304656982421875,
+              "grad_norm": 0.6784895062446594,
+              "high_relevance_energy": 0.5053089261054993,
+              "low_relevance_energy": 0.091523677110672,
+              "orthogonal_ratio": 0.3632347583770752,
+              "scalar_D_residual_ratio": 0.3663789629936218,
+              "scalar_beta_star": 0.5007030367851257
+            }
+          ],
+          "step": 0
+        },
+        {
+          "aggregate": {
+            "above_one_fraction": 0.0,
+            "coefficient_mean": 0.5008546113967896,
+            "coefficient_std": 0.0840546190738678,
+            "control_to_direction_norm": 0.6030229926109314,
+            "cosine_to_direction": 0.8378042578697205,
+            "negative_fraction": 0.0,
+            "orthogonal_energy_ratio": 0.2375348061323166
+          },
+          "branches": [
+            {
+              "branch": 0,
+              "coefficient_mean": 0.5119803547859192,
+              "coefficient_std": 0.0814390629529953,
+              "control_norm": 22.99509620666504,
+              "control_to_D_norm": 0.6035314798355103,
+              "cosine_to_D": 0.837832510471344,
+              "grad_norm": 0.742590069770813,
+              "high_relevance_energy": 0.18834587931632996,
+              "low_relevance_energy": 0.0660221204161644,
+              "orthogonal_ratio": 0.5385422706604004,
+              "scalar_D_residual_ratio": 0.5459274053573608,
+              "scalar_beta_star": 0.5056582093238831
+            },
+            {
+              "branch": 1,
+              "coefficient_mean": 0.5063608288764954,
+              "coefficient_std": 0.07870212942361832,
+              "control_norm": 22.838237762451172,
+              "control_to_D_norm": 0.5994145274162292,
+              "cosine_to_D": 0.8500757217407227,
+              "grad_norm": 0.6968575716018677,
+              "high_relevance_energy": 0.1902618557214737,
+              "low_relevance_energy": 0.060358885675668716,
+              "orthogonal_ratio": 0.5203902125358582,
+              "scalar_D_residual_ratio": 0.5266605615615845,
+              "scalar_beta_star": 0.5095476508140564
+            },
+            {
+              "branch": 2,
+              "coefficient_mean": 0.484222412109375,
+              "coefficient_std": 0.08909803628921509,
+              "control_norm": 23.093833923339844,
+              "control_to_D_norm": 0.6061229705810547,
+              "cosine_to_D": 0.8255045413970947,
+              "grad_norm": 0.5386880040168762,
+              "high_relevance_energy": 0.1943516582250595,
+              "low_relevance_energy": 0.061922602355480194,
+              "orthogonal_ratio": 0.5552366971969604,
+              "scalar_D_residual_ratio": 0.564395546913147,
+              "scalar_beta_star": 0.5003572106361389
+            }
+          ],
+          "step": 1
+        }
+      ]
+    },
+    "dreamsim_gap_fractions": [
+      0.919145941734314,
+      0.004334555473178625,
+      0.005364525131881237,
+      0.07115495204925537
+    ],
+    "dreamsim_gaps": [
+      0.24983930587768555,
+      0.0011782050132751465,
+      0.0014581680297851562,
+      0.019341111183166504
+    ],
+    "dreamsim_worst_jump": 0.919145941734314,
+    "dreamsim_worst_jump_index": 0.0,
+    "losses": {
+      "band": 0.12022484838962555,
+      "coarse_collapse": 0.045665446668863297,
+      "coarse_gap": 0.414811372756958,
+      "coarse_jump": 0.369145929813385,
+      "control_no_jump": 0.0,
+      "energy": 0.2157263159751892,
+      "fine_jump": 0.369145929813385,
+      "preserve": 0.030065029859542847,
+      "second": 0.4731921851634979,
+      "semantic_collapse": 0.0693800300359726,
+      "semantic_coverage": 0.3967110514640808,
+      "semantic_jump": 0.327331006526947,
+      "semantic_order": 0.0048450082540512085,
+      "spatial": 0.4185766577720642
+    },
+    "nondecreasing_semantic_order": false,
+    "semantic_gaps": [
+      0.877331018447876,
+      -0.019380033016204834,
+      0.025692880153656006,
+      0.11635613441467285
+    ],
+    "strict_semantic_order": false,
+    "total": 1.3560075759887695,
+    "triangle_max": 1.3948779106140137,
+    "triangle_mean": 0.4731921851634979,
+    "triangle_normalized_deficits": [
+      0.024698609486222267,
+      1.3948779106140137,
+      0.0
+    ],
+    "triangle_raw_deficits": [
+      0.0060503482818603516,
+      0.0015355348587036133,
+      0.0
+    ]
+  },
+  "initial": {
+    "clip_q": [
+      0.0,
+      0.8763749003410339,
+      0.8765873908996582,
+      0.8709038496017456,
+      1.0
+    ],
+    "coarse_anchor_indices": [
+      0,
+      1,
+      2,
+      3,
+      4
+    ],
+    "coarse_dreamsim_fractions": [
+      0.24513095617294312,
+      0.0009947419166564941,
+      0.0009021162986755371,
+      0.020466268062591553
+    ],
+    "coarse_dreamsim_gaps": [
+      0.24513095617294312,
+      0.0009947419166564941,
+      0.0009021162986755371,
+      0.020466268062591553
+    ],
+    "coarse_semantic_gaps": [
+      0.8763749003410339,
+      0.00021249055862426758,
+      -0.005683541297912598,
+      0.1290961503982544
+    ],
+    "controls": {
+      "steps": [
+        {
+          "aggregate": {
+            "above_one_fraction": 0.0,
+            "coefficient_mean": 0.500000536441803,
+            "coefficient_std": 2.072568349831272e-05,
+            "control_to_direction_norm": 0.5000002384185791,
+            "cosine_to_direction": 1.0,
+            "negative_fraction": 0.0,
+            "orthogonal_energy_ratio": 3.665784475970213e-08
+          },
+          "branches": [
+            {
+              "branch": 0,
+              "coefficient_mean": 0.5000004768371582,
+              "coefficient_std": 1.8146745787817053e-05,
+              "control_norm": 32.83495330810547,
+              "control_to_D_norm": 0.5000006556510925,
+              "cosine_to_D": 1.0,
+              "grad_norm": null,
+              "high_relevance_energy": 0.4617277979850769,
+              "low_relevance_energy": 0.051897794008255005,
+              "orthogonal_ratio": 0.00019621943647507578,
+              "scalar_D_residual_ratio": 0.0001970624434761703,
+              "scalar_beta_star": 0.5000006556510925
+            },
+            {
+              "branch": 1,
+              "coefficient_mean": 0.5000005960464478,
+              "coefficient_std": 1.95974025700707e-05,
+              "control_norm": 32.83496856689453,
+              "control_to_D_norm": 0.5000008940696716,
+              "cosine_to_D": 1.0,
+              "grad_norm": null,
+              "high_relevance_energy": 0.46172797679901123,
+              "low_relevance_energy": 0.05189812555909157,
+              "orthogonal_ratio": 0.00019773177336901426,
+              "scalar_D_residual_ratio": 0.0001990015443880111,
+              "scalar_beta_star": 0.5000008940696716
+            },
+            {
+              "branch": 2,
+              "coefficient_mean": 0.5000004172325134,
+              "coefficient_std": 2.4000246412470005e-05,
+              "control_norm": 32.834861755371094,
+              "control_to_D_norm": 0.4999992549419403,
+              "cosine_to_D": 1.0,
+              "grad_norm": null,
+              "high_relevance_energy": 0.4617238938808441,
+              "low_relevance_energy": 0.05189887806773186,
+              "orthogonal_ratio": 0.00019968491687905043,
+              "scalar_D_residual_ratio": 0.00020128385222051293,
+              "scalar_beta_star": 0.4999992549419403
+            }
+          ],
+          "step": 0
+        },
+        {
+          "aggregate": {
+            "above_one_fraction": 0.0,
+            "coefficient_mean": 0.49999985098838806,
+            "coefficient_std": 1.952575439645443e-05,
+            "control_to_direction_norm": 0.5000002384185791,
+            "cosine_to_direction": 1.0,
+            "negative_fraction": 0.0,
+            "orthogonal_energy_ratio": 2.2767492779962595e-08
+          },
+          "branches": [
+            {
+              "branch": 0,
+              "coefficient_mean": 0.5000016689300537,
+              "coefficient_std": 1.903765405586455e-05,
+              "control_norm": 19.050460815429688,
+              "control_to_D_norm": 0.5000001788139343,
+              "cosine_to_D": 1.0000001192092896,
+              "grad_norm": null,
+              "high_relevance_energy": 0.14754801988601685,
+              "low_relevance_energy": 0.025856198742985725,
+              "orthogonal_ratio": 0.00019464775687083602,
+              "scalar_D_residual_ratio": 0.00019636859360616654,
+              "scalar_beta_star": 0.5000001788139343
+            },
+            {
+              "branch": 1,
+              "coefficient_mean": 0.4999999403953552,
+              "coefficient_std": 2.0998619220335968e-05,
+              "control_norm": 19.05051040649414,
+              "control_to_D_norm": 0.5000014901161194,
+              "cosine_to_D": 0.9999999403953552,
+              "grad_norm": null,
+              "high_relevance_energy": 0.14755001664161682,
+              "low_relevance_energy": 0.025855006650090218,
+              "orthogonal_ratio": 0.00020090567704755813,
+              "scalar_D_residual_ratio": 0.00020267664513085037,
+              "scalar_beta_star": 0.5000014305114746
+            },
+            {
+              "branch": 2,
+              "coefficient_mean": 0.4999980628490448,
+              "coefficient_std": 1.82521889655618e-05,
+              "control_norm": 19.050416946411133,
+              "control_to_D_norm": 0.4999990463256836,
+              "cosine_to_D": 1.0,
+              "grad_norm": null,
+              "high_relevance_energy": 0.14754854142665863,
+              "low_relevance_energy": 0.025854792445898056,
+              "orthogonal_ratio": 0.00019665493164211512,
+              "scalar_D_residual_ratio": 0.00019818685541395098,
+              "scalar_beta_star": 0.4999990463256836
+            }
+          ],
+          "step": 1
+        }
+      ]
+    },
+    "dreamsim_gap_fractions": [
+      0.9163976907730103,
+      0.0037187435664236546,
+      0.0033724720124155283,
+      0.07651110738515854
+    ],
+    "dreamsim_gaps": [
+      0.24513095617294312,
+      0.0009947419166564941,
+      0.0009021162986755371,
+      0.020466268062591553
+    ],
+    "dreamsim_worst_jump": 0.9163976907730103,
+    "dreamsim_worst_jump_index": 0.0,
+    "losses": {
+      "band": 1.8741038942948762e-08,
+      "coarse_collapse": 0.046627528965473175,
+      "coarse_gap": 0.4130252003669739,
+      "coarse_jump": 0.3663976788520813,
+      "control_no_jump": 0.0,
+      "energy": 0.17590977251529694,
+      "fine_jump": 0.3663976788520813,
+      "preserve": 0.030069056898355484,
+      "second": 0.9929785132408142,
+      "semantic_collapse": 0.05568354204297066,
+      "semantic_coverage": 0.38205844163894653,
+      "semantic_jump": 0.326374888420105,
+      "semantic_order": 0.0014208853244781494,
+      "spatial": 0.36731329560279846
+    },
+    "nondecreasing_semantic_order": false,
+    "semantic_gaps": [
+      0.8763749003410339,
+      0.00021249055862426758,
+      -0.005683541297912598,
+      0.1290961503982544
+    ],
+    "strict_semantic_order": false,
+    "total": 1.4595814943313599,
+    "triangle_max": 2.844406843185425,
+    "triangle_mean": 0.9929785132408142,
+    "triangle_normalized_deficits": [
+      0.0,
+      2.844406843185425,
+      0.1345287263393402
+    ],
+    "triangle_raw_deficits": [
+      0.0,
+      0.0014034509658813477,
+      0.0025337934494018555
+    ]
+  },
+  "iterations": 8,
+  "loss_decreased": true,
+  "name": "full_v1",
+  "nan_detected": false,
+  "weights": {
+    "band": 0.01,
+    "coarse_gap": 1.0,
+    "ctrl": 0.0,
+    "energy": 0.0,
+    "fine_jump": 1.0,
+    "preserve": 1.0,
+    "second": 0.25,
+    "semantic_coverage": 1.0,
+    "semantic_order": 1.0,
+    "spatial": 0.05
+  }
+}
