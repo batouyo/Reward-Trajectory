@@ -55,6 +55,12 @@ def _args():
     parser.add_argument("--dtype", choices=("bfloat16", "float16"), default="bfloat16")
     parser.add_argument("--device", default="cuda:0")
     parser.add_argument("--control-init-noise", type=float, default=0.0)
+    parser.add_argument(
+        "--collapsed-init-noise-rms",
+        type=float,
+        default=1e-4,
+        help="Deterministic symmetry-breaking noise as a fraction of RMS(D), capped at 1e-4.",
+    )
     parser.add_argument("--outer-iters", type=int, default=8)
     parser.add_argument("--ablation-iters", type=int, default=6)
     parser.add_argument("--control-lr", type=float, default=0.05)
@@ -114,6 +120,8 @@ def _args():
         parser.error("Require branches/control-steps >= 1 and steps >= control-steps.")
     if args.outer_iters < 0 or args.ablation_iters < 0 or args.control_lr <= 0:
         parser.error("Iteration counts must be non-negative and --control-lr must be positive.")
+    if not 0 <= args.collapsed_init_noise_rms <= 1e-4:
+        parser.error("`--collapsed-init-noise-rms` must lie in [0, 1e-4].")
     if not 1 <= args.vjp_microbatch_size <= args.branches:
         parser.error("`--vjp-microbatch-size` must lie in [1, branches].")
     if args.backward_mode == "two_pass_vjp" and args.outer_iters > 0 and args.vjp_microbatch_size != args.branches:
@@ -309,12 +317,25 @@ def _initial_betas(args) -> tuple[float, ...]:
 
 
 def _make_independent_controls(inputs, args):
-    return initialize_independent_coupled_controls(
+    controls = initialize_independent_coupled_controls(
         inputs.prior.directions,
         num_branches=args.branches,
         betas=_initial_betas(args),
         noise_std=args.control_init_noise,
     )
+    if args.init_mode == "collapsed_D" and args.collapsed_init_noise_rms:
+        # ASSUMPTION: the exact zero-difference trajectory makes some frozen
+        # reward derivatives singular. This deterministic perturbation is at
+        # most 1e-4 RMS(D), as prescribed for symmetry breaking only.
+        with torch.no_grad():
+            for step, (control, direction) in enumerate(zip(controls, inputs.prior.directions)):
+                rms = direction.float().square().mean().sqrt()
+                generator = torch.Generator(device=control.device).manual_seed(1729 + step)
+                control.add_(
+                    torch.randn(control.shape, device=control.device, dtype=control.dtype, generator=generator)
+                    * (args.collapsed_init_noise_rms * rms)
+                )
+    return controls
 
 
 def _two_pass_backward(pipe, inputs, controls, objective, args):
