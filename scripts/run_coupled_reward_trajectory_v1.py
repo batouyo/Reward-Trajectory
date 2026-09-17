@@ -13,6 +13,7 @@ import json
 import os
 import subprocess
 import time
+from dataclasses import asdict, is_dataclass
 from pathlib import Path
 
 import numpy as np
@@ -91,6 +92,8 @@ def _commit() -> str:
 
 
 def _jsonable(value):
+    if is_dataclass(value):
+        return _jsonable(asdict(value))
     if torch.is_tensor(value):
         return value.detach().float().cpu().tolist() if value.ndim else float(value.detach().float().cpu())
     if isinstance(value, dict):
