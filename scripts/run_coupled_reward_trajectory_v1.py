@@ -29,6 +29,7 @@ from diffusers.pipelines.rewardflow.dreamsim_adapter import DreamSimAdapter
 from diffusers.pipelines.rewardflow.pipeline_flux_kontext_coupled_control import FluxKontextCoupledControlPipeline
 from diffusers.pipelines.rewardflow.semantic_feature_scorers import CLIPImageFeatureScorer
 from diffusers.pipelines.rewardflow.terminal_control import initialize_velocity_controls
+from diffusers.pipelines.rewardflow.reward_scheduler import TrajectoryRewardScheduler, TrajectoryRewardSchedulerConfig
 from diffusers.pipelines.rewardflow.trajectory_objectives import CoupledTrajectoryObjective, RewardSliderV1LossWeights
 
 
@@ -92,6 +93,13 @@ def _args():
     parser.add_argument("--lambda-spatial", type=float, default=0.05)
     parser.add_argument("--lambda-energy", type=float, default=0.0)
     parser.add_argument("--rank-margin", type=float, default=0.0, help="Fine semantic numerical order margin.")
+    parser.add_argument("--reward-scheduler", choices=("fixed", "dynamic"), default="fixed")
+    parser.add_argument("--compare-reward-scheduler", action=argparse.BooleanOptionalAction, default=False)
+    parser.add_argument("--order-tol", type=float, default=0.0)
+    parser.add_argument("--semantic-patience", type=int, default=2)
+    parser.add_argument("--transition-iters", type=int, default=2)
+    parser.add_argument("--recovery-preserve-weight", type=float, default=0.05)
+    parser.add_argument("--audit-reward-gradients", action=argparse.BooleanOptionalAction, default=False)
     parser.add_argument("--sem-min-fraction", type=float, default=0.05)
     parser.add_argument("--sem-max-fraction", type=float, default=0.55)
     parser.add_argument("--fine-max-jump-fraction", type=float, default=0.55)
@@ -118,6 +126,10 @@ def _args():
         args.vjp_microbatch_size = args.branches
     if args.branches < 1 or args.control_steps < 1 or args.steps < args.control_steps:
         parser.error("Require branches/control-steps >= 1 and steps >= control-steps.")
+    if args.semantic_patience < 1 or args.transition_iters < 1 or args.order_tol < 0 or args.recovery_preserve_weight < 0:
+        parser.error("Scheduler parameters must be non-negative, with positive patience and transition iterations.")
+    if args.compare_reward_scheduler and args.reward_scheduler != "fixed":
+        parser.error("--compare-reward-scheduler owns both fixed and dynamic runs; leave --reward-scheduler=fixed.")
     if args.outer_iters < 0 or args.ablation_iters < 0 or args.control_lr <= 0:
         parser.error("Iteration counts must be non-negative and --control-lr must be positive.")
     if not 0 <= args.collapsed_init_noise_rms <= 1e-4:
@@ -628,12 +640,77 @@ def _compute_benchmark(pipe, inputs, args, output: Path) -> dict:
     return payload
 
 
+def _weight_dict(weights: RewardSliderV1LossWeights) -> dict[str, float]:
+    return {name: float(value) for name, value in weights.__dict__.items()}
+
+
+def _reward_gradient_diagnostics(images, result, *, iteration: int, reason: str, schedule) -> dict:
+    rows = {}
+    for name in ("semantic_order", "semantic_coverage", "fine_jump", "coarse_gap", "second", "preserve"):
+        loss = result.components[name]
+        if not loss.requires_grad:
+            rows[name] = {"gradient_l2": 0.0, "gradient_rms": 0.0, "gradient_nonzero": False}
+            continue
+        gradient = torch.autograd.grad(loss, images, retain_graph=True, allow_unused=True)[0]
+        if gradient is None:
+            rows[name] = {"gradient_l2": 0.0, "gradient_rms": 0.0, "gradient_nonzero": False}
+            continue
+        value = gradient.detach().float()
+        rows[name] = {
+            "gradient_l2": value.norm(),
+            "gradient_rms": value.square().mean().sqrt(),
+            "gradient_nonzero": bool(value.abs().sum() > 0),
+            "gradient_finite": bool(torch.isfinite(value).all()),
+        }
+    payload = {"iteration": iteration, "reason": reason, "image_reward_gradients": rows}
+    if schedule is not None:
+        payload.update(schedule.as_log_dict())
+    return payload
+
+
+def _scalar_residual_summary(summary: dict) -> list[list[float]]:
+    return [
+        [float(branch["scalar_D_residual_ratio"]) for branch in step["branches"]]
+        for step in summary["controls"]["steps"]
+    ]
+
+
+def _scheduler_comparison_row(run: dict) -> dict:
+    initial, final = run["initial"], run["final"]
+    return {
+        "initial_q": initial["clip_q"],
+        "final_q": final["clip_q"],
+        "initial_semantic_order": initial["losses"]["semantic_order"],
+        "final_semantic_order": final["losses"]["semantic_order"],
+        "initial_semantic_coverage": initial["losses"]["semantic_coverage"],
+        "final_semantic_coverage": final["losses"]["semantic_coverage"],
+        "final_nondecreasing_semantic_order": final["nondecreasing_semantic_order"],
+        "iterations_per_phase": run["iterations_per_phase"],
+        "final_dreamsim_second": final["losses"]["second"],
+        "final_preservation": final["losses"]["preserve"],
+        "scalar_D_residual_ratio": _scalar_residual_summary(final),
+        "nan_detected": run["nan_detected"],
+    }
+
+
 def _run_optimization(
-    pipe, inputs, objective, args, output: Path, name: str, weights: RewardSliderV1LossWeights, iterations: int
+    pipe,
+    inputs,
+    objective,
+    args,
+    output: Path,
+    name: str,
+    weights: RewardSliderV1LossWeights,
+    iterations: int,
+    scheduler: TrajectoryRewardScheduler | None = None,
 ):
+    if scheduler is not None and args.backward_mode != "one_pass":
+        raise ValueError("Dynamic reward scheduling currently requires one_pass backward mode.")
     run_dir = output / name
     run_dir.mkdir(parents=True, exist_ok=True)
     objective.weights = weights
+    if scheduler is not None:
+        scheduler.reset()
     controls = _make_independent_controls(inputs, args)
     optimizer = torch.optim.Adam(controls, lr=args.control_lr)
     if {id(parameter) for parameter in optimizer.param_groups[0]["params"]} != {id(control) for control in controls}:
@@ -650,16 +727,45 @@ def _run_optimization(
     )
     for label, image in enumerate(initial_images):
         _to_pil(image).save(run_dir / f"initial_{label + 1}.png")
-    trace = []
+    trace, gradient_trace = [], []
+    phase_counts = {phase: 0 for phase in ("semantic_recovery", "transition", "trajectory_refinement")}
+    previous_phase = None
+    last_schedule = None
     for iteration in range(1, iterations + 1):
         optimizer.zero_grad(set_to_none=True)
         torch.cuda.reset_peak_memory_stats(args.device)
         started = time.perf_counter()
         if args.backward_mode == "one_pass":
             images, result = _evaluate(pipe, inputs, controls, objective, checkpointing=args.use_checkpointing)
-            result.total.backward()
+            if scheduler is None:
+                effective_weights, effective_total = _weight_dict(weights), result.total
+                schedule_log = {"scheduler_phase": "fixed_weight", "effective_weights": effective_weights}
+            else:
+                last_schedule = scheduler.step(
+                    base_weights=_weight_dict(weights),
+                    adjacent_semantic_gaps=result.adjacent_semantic_gaps,
+                    coarse_semantic_gaps=result.coarse_semantic_gaps,
+                )
+                phase_counts[last_schedule.phase] += 1
+                effective_weights = last_schedule.effective_weights
+                effective_total = objective.total_from_components(result.components, effective_weights)
+                schedule_log = last_schedule.as_log_dict()
+            if args.audit_reward_gradients and (iteration == 1 or schedule_log["scheduler_phase"] != previous_phase):
+                gradient_trace.append(
+                    _reward_gradient_diagnostics(
+                        images,
+                        result,
+                        iteration=iteration,
+                        reason="initial_or_phase_transition",
+                        schedule=last_schedule,
+                    )
+                )
+            effective_total.backward()
         else:
             images, result = _two_pass_backward(pipe, inputs, controls, objective, args)
+            effective_total = result.total
+            effective_weights = _weight_dict(weights)
+            schedule_log = {"scheduler_phase": "fixed_weight", "effective_weights": effective_weights}
         gradients = [control.grad for control in controls]
         present_gradients = [gradient for gradient in gradients if gradient is not None]
         if any(not torch.isfinite(gradient).all() for gradient in present_gradients):
@@ -688,17 +794,30 @@ def _run_optimization(
                 "peak_reserved_vram": torch.cuda.max_memory_reserved(args.device),
                 "frozen_gradient_audit": frozen_ok,
                 "backward_mode": args.backward_mode,
-                "vjp_microbatch_size": args.vjp_microbatch_size,
-                "missing_control_gradient_steps": [
-                    index for index, gradient in enumerate(gradients) if gradient is None
-                ],
+                "effective_total": effective_total.detach(),
+                "missing_control_gradient_steps": [index for index, gradient in enumerate(gradients) if gradient is None],
+                **schedule_log,
                 **before_step,
             }
         )
+        previous_phase = schedule_log["scheduler_phase"]
         del images, result
     with torch.no_grad():
         final_images, final_result = _evaluate(pipe, inputs, controls, objective, checkpointing=False)
     final_summary = _objective_summary(final_result, controls, inputs.prior)
+    if args.audit_reward_gradients:
+        optimizer.zero_grad(set_to_none=True)
+        final_audit_images, final_audit_result = _evaluate(pipe, inputs, controls, objective, checkpointing=False)
+        gradient_trace.append(
+            _reward_gradient_diagnostics(
+                final_audit_images,
+                final_audit_result,
+                iteration=iterations,
+                reason="final",
+                schedule=last_schedule,
+            )
+        )
+        del final_audit_images, final_audit_result
     for label, image in enumerate(final_images):
         _to_pil(image).save(run_dir / f"final_{label + 1}.png")
     _make_grid(
@@ -709,19 +828,41 @@ def _run_optimization(
         ["Source", *[f"Interior-{index + 1}" for index in range(args.branches)], "NativeFull"],
     )
     _write_jsonl(run_dir / "optimization_trace.jsonl", trace)
-    _json(
-        run_dir / "summary.json",
-        {
-            "name": name,
-            "iterations": iterations,
-            "weights": weights,
-            "initial": initial_summary,
-            "final": final_summary,
-            "loss_decreased": float(final_result.total) < float(initial_result.total),
-            "nan_detected": False,
-        },
+    if args.audit_reward_gradients:
+        _write_jsonl(run_dir / "reward_gradient_diagnostics.jsonl", gradient_trace)
+    summary = {
+        "name": name,
+        "iterations": iterations,
+        "weights": weights,
+        "scheduler": None if scheduler is None else scheduler.config,
+        "iterations_per_phase": phase_counts,
+        "initial": initial_summary,
+        "final": final_summary,
+        "loss_decreased": float(final_result.total) < float(initial_result.total),
+        "nan_detected": False,
+    }
+    _json(run_dir / "summary.json", summary)
+    return {**summary, "reward_gradient_diagnostics": str(run_dir / "reward_gradient_diagnostics.jsonl")}
+
+
+def _run_scheduler_comparison(pipe, inputs, objective, args, output, weights):
+    fixed = _run_optimization(pipe, inputs, objective, args, output, "fixed_weight", weights, args.outer_iters)
+    scheduler = TrajectoryRewardScheduler(
+        TrajectoryRewardSchedulerConfig(
+            order_tol=args.order_tol,
+            sem_min_fraction=args.sem_min_fraction,
+            sem_max_fraction=args.sem_max_fraction,
+            semantic_patience=args.semantic_patience,
+            transition_iters=args.transition_iters,
+            recovery_preserve_weight=args.recovery_preserve_weight,
+        )
     )
-    return {"initial": initial_summary, "final": final_summary, "iterations": iterations}
+    dynamic = _run_optimization(
+        pipe, inputs, objective, args, output, "scheduler", weights, args.outer_iters, scheduler=scheduler
+    )
+    comparison = {"fixed_weight": _scheduler_comparison_row(fixed), "scheduler": _scheduler_comparison_row(dynamic)}
+    _json(output / "reward_scheduler_comparison.json", comparison)
+    return {"fixed_weight": fixed, "scheduler": dynamic, "comparison": comparison}
 
 
 def main():
@@ -768,8 +909,15 @@ def main():
         native_image = pipe.decode_terminal_latent(inputs.native.native_final_latent, inputs.native)
     _to_pil(native_image[0]).save(output / "native_full.png")
     _save_relevance(output, inputs)
-    parity = _parity_localization(pipe, inputs, args, output)
-    benchmark = _compute_benchmark(pipe, inputs, args, output)
+    # A scheduler comparison must isolate the reward trajectory optimization.
+    # The legacy parity and throughput probes add unrelated forward passes and
+    # memory pressure, so retain them only for the legacy single-run path.
+    if args.compare_reward_scheduler:
+        parity = {"skipped": "scheduler comparison isolates reward optimization"}
+        benchmark = {"skipped": "scheduler comparison isolates reward optimization"}
+    else:
+        parity = _parity_localization(pipe, inputs, args, output)
+        benchmark = _compute_benchmark(pipe, inputs, args, output)
     dreamsim = DreamSimAdapter(model_path=args.dreamsim_model, device=device)
     _json(output / "dreamsim_fidelity.json", dreamsim.fidelity_audit(_pil_tensor(source_pil, device), native_image))
     scorer = CLIPImageFeatureScorer(args.clip_model, device=device, local_files_only=True)
@@ -804,66 +952,69 @@ def main():
     vjp_parity = None
     if args.run_vjp_parity:
         vjp_parity = _real_two_pass_vjp_parity(pipe, inputs, objective, args, output)
-    initialization = _run_optimization(pipe, inputs, objective, args, output, "initialization", weights, 0)
-    _json(output / "initialization_diagnostics.json", initialization)
-    results = {"initialization": initialization, "parity": parity, "compute_benchmark": benchmark}
-    if vjp_parity is not None:
-        results["real_two_pass_vjp_parity"] = vjp_parity
-    if parity["gate"]["passed"]:
-        results["full_v1"] = _run_optimization(
-            pipe, inputs, objective, args, output, "full_v1", weights, args.outer_iters
-        )
-        if args.run_ablations:
-            results["no_band"] = _run_optimization(
-                pipe,
-                inputs,
-                objective,
-                args,
-                output,
-                "no_band",
-                RewardSliderV1LossWeights(**{**weights.__dict__, "band": 0.0}),
-                args.ablation_iters,
-            )
-            results["prior_only"] = _run_optimization(
-                pipe,
-                inputs,
-                objective,
-                args,
-                output,
-                "prior_only",
-                RewardSliderV1LossWeights(
-                    semantic_order=0.0,
-                    semantic_coverage=0.0,
-                    fine_jump=0.0,
-                    coarse_gap=0.0,
-                    second=0.0,
-                    preserve=0.0,
-                    ctrl=weights.ctrl,
-                    band=weights.band,
-                    spatial=weights.spatial,
-                    energy=weights.energy,
-                ),
-                args.ablation_iters,
-            )
-            results["no_spatial"] = _run_optimization(
-                pipe,
-                inputs,
-                objective,
-                args,
-                output,
-                "no_spatial",
-                RewardSliderV1LossWeights(**{**weights.__dict__, "spatial": 0.0}),
-                args.ablation_iters,
-            )
+    if args.compare_reward_scheduler:
+        results = _run_scheduler_comparison(pipe, inputs, objective, args, output, weights)
     else:
-        results["optimization_blocked"] = (
-            "Numerical parity gate did not pass; diagnostics were retained and no optimization was run."
-        )
+        initialization = _run_optimization(pipe, inputs, objective, args, output, "initialization", weights, 0)
+        _json(output / "initialization_diagnostics.json", initialization)
+        results = {"initialization": initialization, "parity": parity, "compute_benchmark": benchmark}
+        if vjp_parity is not None:
+            results["real_two_pass_vjp_parity"] = vjp_parity
+        if parity.get("gate", {}).get("passed", False):
+            results["full_v1"] = _run_optimization(
+                pipe, inputs, objective, args, output, "full_v1", weights, args.outer_iters
+            )
+            if args.run_ablations:
+                results["no_band"] = _run_optimization(
+                    pipe,
+                    inputs,
+                    objective,
+                    args,
+                    output,
+                    "no_band",
+                    RewardSliderV1LossWeights(**{**weights.__dict__, "band": 0.0}),
+                    args.ablation_iters,
+                )
+                results["prior_only"] = _run_optimization(
+                    pipe,
+                    inputs,
+                    objective,
+                    args,
+                    output,
+                    "prior_only",
+                    RewardSliderV1LossWeights(
+                        semantic_order=0.0,
+                        semantic_coverage=0.0,
+                        fine_jump=0.0,
+                        coarse_gap=0.0,
+                        second=0.0,
+                        preserve=0.0,
+                        ctrl=weights.ctrl,
+                        band=weights.band,
+                        spatial=weights.spatial,
+                        energy=weights.energy,
+                    ),
+                    args.ablation_iters,
+                )
+                results["no_spatial"] = _run_optimization(
+                    pipe,
+                    inputs,
+                    objective,
+                    args,
+                    output,
+                    "no_spatial",
+                    RewardSliderV1LossWeights(**{**weights.__dict__, "spatial": 0.0}),
+                    args.ablation_iters,
+                )
+        else:
+            results["optimization_blocked"] = (
+                "Numerical parity gate did not pass; diagnostics were retained and no optimization was run."
+            )
     _json(output / "summary.json", results)
     print(
         "FINAL_REPORT="
         + json.dumps(
-            _jsonable({"output_dir": str(output), "parity_gate": parity["gate"], "runs": list(results)}),
+            _jsonable({"output_dir": str(output), "parity_gate": parity.get("gate", parity), "runs": list(results)}),
             sort_keys=True,
         )
     )

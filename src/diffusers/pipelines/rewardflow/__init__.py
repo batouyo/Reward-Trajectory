@@ -145,6 +145,7 @@ else:
         "control_no_jump_loss",
         "initialize_independent_coupled_controls",
         "make_coupled_prior",
+        "per_interval_semantic_coverage_loss",
         "relative_gap_loss",
         "scalar_direction_residual_diagnostics",
         "soft_relevance_from_velocity_scores",
@@ -152,6 +153,11 @@ else:
         "triangle_deficit_loss",
         "unroll_coupled_velocity_controls",
         "weighted_source_preservation",
+    ]
+    _import_structure["reward_scheduler"] = [
+        "TrajectoryRewardSchedule",
+        "TrajectoryRewardScheduler",
+        "TrajectoryRewardSchedulerConfig",
     ]
     _import_structure["trajectory_objectives"] = [
         "CoupledTrajectoryObjective",

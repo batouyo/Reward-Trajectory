@@ -287,6 +287,34 @@ def coarse_anchor_indices(num_nodes: int, *, max_anchors: int = 5) -> tuple[int,
     return unique
 
 
+def per_interval_semantic_coverage_loss(
+    progress: torch.Tensor,
+    *,
+    anchor_indices: Sequence[int] | None = None,
+    min_fraction: float = 0.05,
+    max_fraction: float = 0.55,
+) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
+    """Penalize every coarse semantic interval outside a wide feasible range.
+
+    Every collapsed or oversized interval receives its own squared-hinge
+    gradient. Fine adjacent nodes remain unconstrained except by order.
+    """
+
+    if progress.ndim != 1 or progress.numel() < 2:
+        raise ValueError("Progress must be a one-dimensional trajectory.")
+    if not 0 <= min_fraction <= max_fraction <= 1:
+        raise ValueError("Semantic fractions must satisfy 0 <= min <= max <= 1.")
+    indices = tuple(anchor_indices or coarse_anchor_indices(progress.numel()))
+    if len(indices) < 2 or indices[0] != 0 or indices[-1] != progress.numel() - 1:
+        raise ValueError("Anchors must be ordered and include both endpoints.")
+    gaps = progress[list(indices)][1:] - progress[list(indices)][:-1]
+    collapse = F.relu(float(min_fraction) - gaps)
+    jump = F.relu(gaps - float(max_fraction))
+    collapse_loss = collapse.square().mean()
+    jump_loss = jump.square().mean()
+    return collapse_loss + jump_loss, collapse_loss, jump_loss, gaps
+
+
 def semantic_coverage_loss(
     progress: torch.Tensor,
     *,

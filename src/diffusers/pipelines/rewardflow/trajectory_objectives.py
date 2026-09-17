@@ -7,7 +7,7 @@ they are never treated as calibrated semantic percentages.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Protocol, Sequence
+from typing import Mapping, Protocol, Sequence
 
 import torch
 import torch.nn.functional as F
@@ -21,6 +21,7 @@ from .coupled_terminal_control import (
     control_no_jump_loss,
     endpoint_progress_batch,
     fine_jump_loss,
+    per_interval_semantic_coverage_loss,
     scalar_direction_residual_diagnostics,
     semantic_coverage_loss,
     spatial_prior_loss,
@@ -128,11 +129,15 @@ class CoupledTrajectoryObjective:
     def _pair_distances(images: torch.Tensor, distance: DreamSimDistance, offset: int) -> torch.Tensor:
         return distance.distance(images[:-offset], images[offset:])
 
-    def image_total(self, components: dict[str, torch.Tensor]) -> torch.Tensor:
+    def _weight(self, weights: RewardSliderV1LossWeights | Mapping[str, float] | None, name: str) -> float:
+        weights = self.weights if weights is None else weights
+        return float(weights[name]) if isinstance(weights, Mapping) else float(getattr(weights, name))
+
+    def image_total(self, components: dict[str, torch.Tensor], weights=None) -> torch.Tensor:
         """Image-only objective used by Pass A of exact two-pass VJP."""
 
         return sum(
-            getattr(self.weights, name) * components[key]
+            self._weight(weights, name) * components[key]
             for name, key in (
                 ("semantic_order", "semantic_order"),
                 ("semantic_coverage", "semantic_coverage"),
@@ -144,7 +149,7 @@ class CoupledTrajectoryObjective:
         )
 
     def control_total(
-        self, controls: Sequence[torch.Tensor]
+        self, controls: Sequence[torch.Tensor], weights=None
     ) -> tuple[torch.Tensor, dict[str, torch.Tensor], list[dict[str, torch.Tensor]]]:
         """Control-only terms, evaluated after the image reward graph is freed."""
 
@@ -156,7 +161,7 @@ class CoupledTrajectoryObjective:
             "energy": control_energy_loss(controls),
         }
         total = sum(
-            getattr(self.weights, name) * components[key]
+            self._weight(weights, name) * components[key]
             for name, key in (
                 ("ctrl", "control_no_jump"),
                 ("band", "band"),
@@ -165,6 +170,19 @@ class CoupledTrajectoryObjective:
             )
         )
         return total, components, diagnostics
+
+    def total_from_components(self, components: dict[str, torch.Tensor], weights=None) -> torch.Tensor:
+        """Combine raw components with explicit effective weights."""
+
+        return self.image_total(components, weights) + sum(
+            self._weight(weights, name) * components[key]
+            for name, key in (
+                ("ctrl", "control_no_jump"),
+                ("band", "band"),
+                ("spatial", "spatial"),
+                ("energy", "energy"),
+            )
+        )
 
     def __call__(self, candidates: torch.Tensor, controls: Sequence[torch.Tensor]) -> RewardSliderV1ObjectiveOutput:
         if candidates.ndim != 4 or candidates.shape[0] < 1 or candidates.shape[1:] != self.source_image.shape[1:]:
@@ -183,7 +201,7 @@ class CoupledTrajectoryObjective:
         )
         anchor_indices = coarse_anchor_indices(progress.numel())
         semantic_order = adjacent_ranking_loss(progress, margin=self.order_margin)
-        semantic_coverage, semantic_collapse, semantic_jump, coarse_semantic_gaps = semantic_coverage_loss(
+        semantic_coverage, semantic_collapse, semantic_jump, coarse_semantic_gaps = per_interval_semantic_coverage_loss(
             progress,
             anchor_indices=anchor_indices,
             min_fraction=self.sem_min_fraction,
@@ -218,7 +236,7 @@ class CoupledTrajectoryObjective:
             "preserve": preserve,
             **control_components,
         }
-        total = self.image_total(components) + control_total
+        total = self.total_from_components(components)
         return RewardSliderV1ObjectiveOutput(
             total=total,
             components=components,
