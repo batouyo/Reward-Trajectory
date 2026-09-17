@@ -511,9 +511,10 @@ def _run_optimization(
         else:
             images, result = _two_pass_backward(pipe, inputs, controls, objective, args)
         gradients = [control.grad for control in controls]
-        if any(gradient is None or not torch.isfinite(gradient).all() for gradient in gradients):
-            raise RuntimeError("Independent controls have a missing or non-finite gradient.")
-        if not any(gradient.abs().sum() > 0 for gradient in gradients):
+        present_gradients = [gradient for gradient in gradients if gradient is not None]
+        if any(not torch.isfinite(gradient).all() for gradient in present_gradients):
+            raise RuntimeError("An independent control received a non-finite gradient.")
+        if not present_gradients or not any(gradient.abs().sum() > 0 for gradient in present_gradients):
             raise RuntimeError("All independent control gradients are zero.")
         frozen_ok = _no_parameter_grad(
             pipe.transformer,
@@ -538,6 +539,9 @@ def _run_optimization(
                 "frozen_gradient_audit": frozen_ok,
                 "backward_mode": args.backward_mode,
                 "vjp_microbatch_size": args.vjp_microbatch_size,
+                "missing_control_gradient_steps": [
+                    index for index, gradient in enumerate(gradients) if gradient is None
+                ],
                 **before_step,
             }
         )
