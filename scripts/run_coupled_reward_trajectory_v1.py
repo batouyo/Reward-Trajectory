@@ -62,6 +62,12 @@ def _args():
     parser.add_argument("--use-checkpointing", action=argparse.BooleanOptionalAction, default=True)
     parser.add_argument("--backward-mode", choices=("one_pass", "two_pass_vjp"), default="one_pass")
     parser.add_argument("--vjp-microbatch-size", type=int, default=1)
+    parser.add_argument(
+        "--run-vjp-parity",
+        action=argparse.BooleanOptionalAction,
+        default=False,
+        help="Measure real one-pass versus exact two-pass control gradients before optimization.",
+    )
     parser.add_argument("--run-ablations", action=argparse.BooleanOptionalAction, default=True)
     parser.add_argument("--benchmark-repeats", type=int, default=1)
     parser.add_argument("--lambda-rank", type=float, default=1.0, help="Legacy alias for semantic-order weight.")
@@ -280,6 +286,24 @@ def _evaluate(pipe, inputs, controls, objective, *, checkpointing: bool):
     return candidates, result
 
 
+def _initial_betas(args) -> tuple[float, ...]:
+    linear = tuple(1 - (index + 1) / (args.branches + 1) for index in range(args.branches))
+    if args.init_mode == "linear_D":
+        return linear
+    if args.init_mode == "collapsed_D":
+        return (0.5,) * args.branches
+    return tuple(reversed(linear))
+
+
+def _make_independent_controls(inputs, args):
+    return initialize_independent_coupled_controls(
+        inputs.prior.directions,
+        num_branches=args.branches,
+        betas=_initial_betas(args),
+        noise_std=args.control_init_noise,
+    )
+
+
 def _two_pass_backward(pipe, inputs, controls, objective, args):
     """Exact frozen-Kontext image VJP, replayed branchwise after reward Pass A."""
     with torch.no_grad():
@@ -303,6 +327,75 @@ def _two_pass_backward(pipe, inputs, controls, objective, args):
     control_total, _, _ = objective.control_total(controls)
     control_total.backward()
     return detached, reward_result
+
+
+def _gradient_difference(reference: torch.Tensor, candidate: torch.Tensor) -> dict[str, float | bool]:
+    difference = reference.float() - candidate.float()
+    reference_norm = reference.float().norm()
+    candidate_norm = candidate.float().norm()
+    return {
+        "reference_norm": float(reference_norm),
+        "candidate_norm": float(candidate_norm),
+        "difference_l2": float(difference.norm()),
+        "relative_l2": float(difference.norm() / reference_norm.clamp_min(1e-12)),
+        "max_abs": float(difference.abs().max()),
+        "cosine": float(
+            torch.nn.functional.cosine_similarity(reference.float().flatten()[None], candidate.float().flatten()[None])
+        ),
+        "all_finite": bool(torch.isfinite(reference).all() and torch.isfinite(candidate).all()),
+    }
+
+
+def _real_two_pass_vjp_parity(pipe, inputs, objective, args, output: Path) -> dict:
+    """Compare full real-backbone control gradients without changing optimization.
+
+    This is deliberately an observation, not a gate: activation checkpointing
+    and BF16 may introduce small replay differences, which must be reported
+    rather than hidden by a made-up tolerance.
+    """
+    one_pass_controls = _make_independent_controls(inputs, args)
+    two_pass_controls = [torch.nn.Parameter(control.detach().clone()) for control in one_pass_controls]
+    torch.cuda.empty_cache()
+    torch.cuda.reset_peak_memory_stats(args.device)
+    torch.cuda.synchronize(args.device)
+    started = time.perf_counter()
+    one_images, one_result = _evaluate(
+        pipe, inputs, one_pass_controls, objective, checkpointing=args.use_checkpointing
+    )
+    one_result.total.backward()
+    torch.cuda.synchronize(args.device)
+    one_pass_seconds = time.perf_counter() - started
+    one_pass_peak = torch.cuda.max_memory_allocated(args.device)
+    one_pass_gradients = [control.grad.detach().clone() for control in one_pass_controls]
+    one_total = one_result.total.detach()
+    del one_images, one_result
+
+    torch.cuda.empty_cache()
+    torch.cuda.reset_peak_memory_stats(args.device)
+    torch.cuda.synchronize(args.device)
+    started = time.perf_counter()
+    two_images, two_result = _two_pass_backward(pipe, inputs, two_pass_controls, objective, args)
+    torch.cuda.synchronize(args.device)
+    two_pass_seconds = time.perf_counter() - started
+    two_pass_peak = torch.cuda.max_memory_allocated(args.device)
+    two_pass_gradients = [control.grad.detach().clone() for control in two_pass_controls]
+    two_total = two_result.total.detach()
+    payload = {
+        "description": "Exact real FLUX-Kontext replay comparison; no tolerance is used to mask differences.",
+        "checkpointing": bool(args.use_checkpointing),
+        "vjp_microbatch_size": args.vjp_microbatch_size,
+        "one_pass": {"seconds": one_pass_seconds, "peak_allocated_vram": one_pass_peak, "total": one_total},
+        "two_pass_vjp": {"seconds": two_pass_seconds, "peak_allocated_vram": two_pass_peak, "total": two_total},
+        "total_difference": float((one_total.float() - two_total.float()).abs()),
+        "per_control_step": [
+            _gradient_difference(reference, candidate)
+            for reference, candidate in zip(one_pass_gradients, two_pass_gradients)
+        ],
+    }
+    _json(output / "real_two_pass_vjp_parity.json", payload)
+    del two_images, two_result
+    torch.cuda.empty_cache()
+    return payload
 
 
 def _parity_localization(pipe, inputs, args, output: Path) -> dict:
@@ -476,15 +569,7 @@ def _run_optimization(
     run_dir = output / name
     run_dir.mkdir(parents=True, exist_ok=True)
     objective.weights = weights
-    linear = tuple(1 - (index + 1) / (args.branches + 1) for index in range(args.branches))
-    betas = (
-        linear
-        if args.init_mode == "linear_D"
-        else ((0.5,) * args.branches if args.init_mode == "collapsed_D" else tuple(reversed(linear)))
-    )
-    controls = initialize_independent_coupled_controls(
-        inputs.prior.directions, num_branches=args.branches, betas=betas, noise_std=args.control_init_noise
-    )
+    controls = _make_independent_controls(inputs, args)
     optimizer = torch.optim.Adam(controls, lr=args.control_lr)
     if {id(parameter) for parameter in optimizer.param_groups[0]["params"]} != {id(control) for control in controls}:
         raise RuntimeError("Only independent velocity controls may enter the optimizer.")
@@ -651,9 +736,14 @@ def main():
         coarse_min_fraction=args.coarse_min_fraction,
         coarse_max_fraction=args.coarse_max_fraction,
     )
+    vjp_parity = None
+    if args.run_vjp_parity:
+        vjp_parity = _real_two_pass_vjp_parity(pipe, inputs, objective, args, output)
     initialization = _run_optimization(pipe, inputs, objective, args, output, "initialization", weights, 0)
     _json(output / "initialization_diagnostics.json", initialization)
     results = {"initialization": initialization, "parity": parity, "compute_benchmark": benchmark}
+    if vjp_parity is not None:
+        results["real_two_pass_vjp_parity"] = vjp_parity
     if parity["gate"]["passed"]:
         results["full_v1"] = _run_optimization(
             pipe, inputs, objective, args, output, "full_v1", weights, args.outer_iters
