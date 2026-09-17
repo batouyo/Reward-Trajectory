@@ -1,0 +1,34 @@
+{
+  "clip": {
+    "candidate": "v6 stored probe_0.5 image",
+    "crop_operation": "tensor slicing of original candidate image",
+    "progress": 0.8826477527618408,
+    "gradient_finite": true,
+    "gradient_nonzero": true,
+    "gradient_rms_full_image": 0.01887691766023636,
+    "gradient_rms_inside_crop": 0.01887691766023636,
+    "gradient_l1_inside_crop": 978.0864868164062,
+    "gradient_l1_outside_crop": 0.0,
+    "gradient_l1_fraction_inside_crop": 1.0,
+    "gradient_outside_crop_max_abs": 0.0,
+    "gradient_spatial_localization_informative": false,
+    "gradient_concentrated_in_crop": null,
+    "interpretation": "The bbox is the full image: gradient localization cannot be assessed, only finiteness/nonzero."
+  },
+  "siglip": {
+    "candidate": "v6 stored probe_0.5 image",
+    "crop_operation": "tensor slicing of original candidate image",
+    "progress": 0.8277897834777832,
+    "gradient_finite": true,
+    "gradient_nonzero": true,
+    "gradient_rms_full_image": 0.020982002839446068,
+    "gradient_rms_inside_crop": 0.020982002839446068,
+    "gradient_l1_inside_crop": 1153.840087890625,
+    "gradient_l1_outside_crop": 0.0,
+    "gradient_l1_fraction_inside_crop": 1.0,
+    "gradient_outside_crop_max_abs": 0.0,
+    "gradient_spatial_localization_informative": false,
+    "gradient_concentrated_in_crop": null,
+    "interpretation": "The bbox is the full image: gradient localization cannot be assessed, only finiteness/nonzero."
+  }
+}

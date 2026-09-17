@@ -1,0 +1,93 @@
+{
+  "scope": "Fixed region for one v6 formal ball diagnostic; not a paper method component or segmentation model.",
+  "case_id": "ball_color_seed_20260914",
+  "git_head_before_experiment": "b9b0850ff0929a25606d1457909cce56f8f16910",
+  "manifest": "/home/hyp/Code/RewardFlow/experiments/semantic_embedding_geometry_v6/suite_manifest.json",
+  "image_paths": {
+    "source": "/home/hyp/Code/RewardFlow/experiments/semantic_embedding_geometry_v6/suite_inputs/ball_color_seed_20260914/source_INPUT.png",
+    "oracle_0.2": "/home/hyp/Code/RewardFlow/experiments/semantic_embedding_geometry_v6/suite_inputs/ball_color_seed_20260914/probe_0p2_PIXEL_ORACLE_MODEL_GENERATED.png",
+    "oracle_0.5": "/home/hyp/Code/RewardFlow/experiments/semantic_embedding_geometry_v6/suite_inputs/ball_color_seed_20260914/probe_0p5_PIXEL_ORACLE_MODEL_GENERATED.png",
+    "oracle_0.8": "/home/hyp/Code/RewardFlow/experiments/semantic_embedding_geometry_v6/suite_inputs/ball_color_seed_20260914/probe_0p8_PIXEL_ORACLE_MODEL_GENERATED.png",
+    "full": "/home/hyp/Code/RewardFlow/experiments/semantic_embedding_geometry_v6/suite_inputs/ball_color_seed_20260914/native_full_MODEL_GENERATED.png"
+  },
+  "image_sha256": {
+    "source": "b406f99da00489b01035d33be3dfd68ecdd1ca7a7bf591972fa9722e772621fe",
+    "oracle_0.2": "8aaf3f4ee5ae114d9c73e1512da4348aa6a899251bddf027b1204d4c89f963cc",
+    "oracle_0.5": "3099647d2358334fa1e36acbc3ae5ac55f233a1068c478b2cdc5b4b8f48b22cd",
+    "oracle_0.8": "fc075337ed4634ebd67d63f3377144664d10e39378eb943e001f2a0af5cc47ce",
+    "full": "c812a4b7e20cc5b580ae8f3faf20a43b8f0134319156c4665607599a0ad29da7"
+  },
+  "image_provenance": {
+    "source": "SOURCE INPUT — reused from v6 manifest",
+    "oracle_0.2": "MODEL-GENERATED PIXEL-ORACLE DIAGNOSTIC — reused from v6",
+    "oracle_0.5": "MODEL-GENERATED PIXEL-ORACLE DIAGNOSTIC — reused from v6",
+    "oracle_0.8": "MODEL-GENERATED PIXEL-ORACLE DIAGNOSTIC — reused from v6",
+    "full": "MODEL-GENERATED NATIVE FULL — reused from v6 manifest"
+  },
+  "kontext_model": "/data15/hyp/weight/FLUX.1-Kontext-dev",
+  "generation_config": {
+    "seed": 20260914,
+    "instruction": "Make the weighted training ball blue while preserving its shape, texture, lighting, and background.",
+    "height": 256,
+    "width": 256,
+    "num_inference_steps": 12,
+    "guidance_scale": 2.5,
+    "dtype": "bfloat16"
+  },
+  "native_zero_control_parity": {
+    "max_abs_diff": 0.0,
+    "mean_abs_diff": 0.0
+  },
+  "timestep_count": 4,
+  "topk_fraction": 0.25,
+  "aggregation_rule": "DIAGNOSTIC ASSUMPTION: independently min-max normalize each of the first four existing velocity discrepancy token-score maps, average them, then use the existing stable velocity_topk_mask at 25%. This fixed-region aggregation is not a paper-defined method component.",
+  "per_step_score_min_max": [
+    [
+      0.2510519027709961,
+      3.5294313430786133
+    ],
+    [
+      0.09490420669317245,
+      1.6891955137252808
+    ],
+    [
+      0.09447211772203445,
+      1.8926706314086914
+    ],
+    [
+      0.10164806246757507,
+      2.093334436416626
+    ]
+  ],
+  "token_grid_shape_hw": [
+    16,
+    16
+  ],
+  "image_resolution_hw": [
+    256,
+    256
+  ],
+  "token_to_pixel_mapping": "nearest-neighbor upsampling of the fixed binary token mask",
+  "raw_bbox_xyxy_exclusive": [
+    16,
+    0,
+    256,
+    256
+  ],
+  "bbox_xyxy_exclusive": [
+    0,
+    0,
+    256,
+    256
+  ],
+  "padding_rule": "ceil(10% of raw bbox width/height) on each side, clamped to image bounds",
+  "padding_fraction_each_side": 0.1,
+  "requested_padding_xy_px": [
+    24,
+    26
+  ],
+  "active_token_fraction": 0.25,
+  "bbox_area_fraction_of_image": 1.0,
+  "same_bbox_for_all_five_images": true,
+  "crop_not_blackout": true
+}

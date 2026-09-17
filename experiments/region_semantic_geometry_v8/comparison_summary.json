@@ -1,0 +1,267 @@
+{
+  "case_id": "ball_color_seed_20260914",
+  "hypothesis": "Whole-image unedited background may dilute local Source-to-Full feature change.",
+  "metric": "Unchanged v6 CachedEndpointEmbeddingGeometry; progress is not a semantic percentage.",
+  "probes_regenerated": false,
+  "same_fixed_bbox_for_every_image_and_encoder": true,
+  "region_crop_is_strict_subregion": false,
+  "hypothesis_test_informative": false,
+  "status": "NO_REGION_CONTRAST_FULL_IMAGE_BBOX",
+  "region_definition": "region_definition.json",
+  "encoder_metadata": {
+    "clip": {
+      "model": {
+        "model_id": "/data15/hyp/weight/reward_models/clip-vit-large-patch14",
+        "local_path": "/data15/hyp/weight/reward_models/clip-vit-large-patch14",
+        "revision": "unavailable_local_snapshot",
+        "parameter_count": 427616513,
+        "dtype": "float32",
+        "native_image_resolution": {
+          "height": 224,
+          "width": 224
+        },
+        "parameters_frozen": true
+      },
+      "processor_fidelity": {
+        "official_pixel_shape": [
+          1,
+          3,
+          224,
+          224
+        ],
+        "differentiable_pixel_shape": [
+          1,
+          3,
+          224,
+          224
+        ],
+        "pixel_cosine": 0.9999986886978149,
+        "pixel_mse": 1.7194709016621346e-06,
+        "pixel_max_abs_difference": 0.03001558780670166,
+        "embedding_cosine": 0.9998669624328613,
+        "embedding_mse": 3.463559039573738e-07,
+        "engineering_gate_embedding_cosine_at_least_0p999": true
+      }
+    },
+    "siglip": {
+      "model": {
+        "model_id": "/data15/hyp/weight/reward_models/siglip-so400m-patch14-384",
+        "local_path": "/data15/hyp/weight/reward_models/siglip-so400m-patch14-384",
+        "revision": "unavailable_local_snapshot",
+        "parameter_count": 877960498,
+        "dtype": "float32",
+        "native_image_resolution": {
+          "height": 384,
+          "width": 384
+        },
+        "parameters_frozen": true
+      },
+      "processor_fidelity": {
+        "official_pixel_shape": [
+          1,
+          3,
+          384,
+          384
+        ],
+        "differentiable_pixel_shape": [
+          1,
+          3,
+          384,
+          384
+        ],
+        "pixel_cosine": 1.000008225440979,
+        "pixel_mse": 7.993044164322782e-07,
+        "pixel_max_abs_difference": 0.015686392784118652,
+        "embedding_cosine": 0.9998360276222229,
+        "embedding_mse": 2.847274345185724e-07,
+        "engineering_gate_embedding_cosine_at_least_0p999": true
+      }
+    }
+  },
+  "comparisons": {
+    "clip": {
+      "whole": {
+        "p_0.2": 0.8494728207588196,
+        "p_0.5": 0.8826477527618408,
+        "p_0.8": 0.8946577310562134,
+        "strict_order": true,
+        "gap_0.2_to_0.5": 0.03317493200302124,
+        "gap_0.5_to_0.8": 0.012009978294372559,
+        "minimum_adjacent_gap": 0.012009978294372559,
+        "probe_span_0.2_to_0.8": 0.0451849102973938,
+        "mean_probe_off_axis": 0.3105597992738088
+      },
+      "crop": {
+        "p_0.2": 0.8494728207588196,
+        "p_0.5": 0.8826477527618408,
+        "p_0.8": 0.8946577310562134,
+        "strict_order": true,
+        "gap_0.2_to_0.5": 0.03317493200302124,
+        "gap_0.5_to_0.8": 0.012009978294372559,
+        "minimum_adjacent_gap": 0.012009978294372559,
+        "probe_span_0.2_to_0.8": 0.0451849102973938,
+        "mean_probe_off_axis": 0.3105597992738088
+      },
+      "crop_minus_whole": {
+        "gap_0.2_to_0.5": 0.0,
+        "gap_0.5_to_0.8": 0.0,
+        "minimum_adjacent_gap": 0.0,
+        "probe_span_0.2_to_0.8": 0.0,
+        "mean_probe_off_axis": 0.0
+      },
+      "v6_whole_alignment": {
+        "baseline_csv": "/home/hyp/Code/RewardFlow/experiments/semantic_embedding_geometry_v6/formal_ball_geometry.csv",
+        "max_abs_difference_across_v6_geometry_fields": 0.0,
+        "per_image_field_abs_differences": {
+          "source": {
+            "progress": 0.0,
+            "off_axis": 0.0,
+            "source_distance": 0.0,
+            "full_distance": 0.0,
+            "axis_norm": 0.0,
+            "cosine_to_source": 0.0,
+            "cosine_to_full": 0.0,
+            "cosine_distance_source": 0.0,
+            "cosine_distance_full": 0.0
+          },
+          "oracle_0.2": {
+            "progress": 0.0,
+            "off_axis": 0.0,
+            "source_distance": 0.0,
+            "full_distance": 0.0,
+            "axis_norm": 0.0,
+            "cosine_to_source": 0.0,
+            "cosine_to_full": 0.0,
+            "cosine_distance_source": 0.0,
+            "cosine_distance_full": 0.0
+          },
+          "oracle_0.5": {
+            "progress": 0.0,
+            "off_axis": 0.0,
+            "source_distance": 0.0,
+            "full_distance": 0.0,
+            "axis_norm": 0.0,
+            "cosine_to_source": 0.0,
+            "cosine_to_full": 0.0,
+            "cosine_distance_source": 0.0,
+            "cosine_distance_full": 0.0
+          },
+          "oracle_0.8": {
+            "progress": 0.0,
+            "off_axis": 0.0,
+            "source_distance": 0.0,
+            "full_distance": 0.0,
+            "axis_norm": 0.0,
+            "cosine_to_source": 0.0,
+            "cosine_to_full": 0.0,
+            "cosine_distance_source": 0.0,
+            "cosine_distance_full": 0.0
+          },
+          "full": {
+            "progress": 0.0,
+            "off_axis": 0.0,
+            "source_distance": 0.0,
+            "full_distance": 0.0,
+            "axis_norm": 0.0,
+            "cosine_to_source": 0.0,
+            "cosine_to_full": 0.0,
+            "cosine_distance_source": 0.0,
+            "cosine_distance_full": 0.0
+          }
+        }
+      }
+    },
+    "siglip": {
+      "whole": {
+        "p_0.2": 0.7599626779556274,
+        "p_0.5": 0.8277897834777832,
+        "p_0.8": 0.9232953190803528,
+        "strict_order": true,
+        "gap_0.2_to_0.5": 0.06782710552215576,
+        "gap_0.5_to_0.8": 0.09550553560256958,
+        "minimum_adjacent_gap": 0.06782710552215576,
+        "probe_span_0.2_to_0.8": 0.16333264112472534,
+        "mean_probe_off_axis": 0.3540493945280711
+      },
+      "crop": {
+        "p_0.2": 0.7599626779556274,
+        "p_0.5": 0.8277897834777832,
+        "p_0.8": 0.9232953190803528,
+        "strict_order": true,
+        "gap_0.2_to_0.5": 0.06782710552215576,
+        "gap_0.5_to_0.8": 0.09550553560256958,
+        "minimum_adjacent_gap": 0.06782710552215576,
+        "probe_span_0.2_to_0.8": 0.16333264112472534,
+        "mean_probe_off_axis": 0.3540493945280711
+      },
+      "crop_minus_whole": {
+        "gap_0.2_to_0.5": 0.0,
+        "gap_0.5_to_0.8": 0.0,
+        "minimum_adjacent_gap": 0.0,
+        "probe_span_0.2_to_0.8": 0.0,
+        "mean_probe_off_axis": 0.0
+      },
+      "v6_whole_alignment": {
+        "baseline_csv": "/home/hyp/Code/RewardFlow/experiments/semantic_embedding_geometry_v6/formal_ball_geometry.csv",
+        "max_abs_difference_across_v6_geometry_fields": 0.0,
+        "per_image_field_abs_differences": {
+          "source": {
+            "progress": 0.0,
+            "off_axis": 0.0,
+            "source_distance": 0.0,
+            "full_distance": 0.0,
+            "axis_norm": 0.0,
+            "cosine_to_source": 0.0,
+            "cosine_to_full": 0.0,
+            "cosine_distance_source": 0.0,
+            "cosine_distance_full": 0.0
+          },
+          "oracle_0.2": {
+            "progress": 0.0,
+            "off_axis": 0.0,
+            "source_distance": 0.0,
+            "full_distance": 0.0,
+            "axis_norm": 0.0,
+            "cosine_to_source": 0.0,
+            "cosine_to_full": 0.0,
+            "cosine_distance_source": 0.0,
+            "cosine_distance_full": 0.0
+          },
+          "oracle_0.5": {
+            "progress": 0.0,
+            "off_axis": 0.0,
+            "source_distance": 0.0,
+            "full_distance": 0.0,
+            "axis_norm": 0.0,
+            "cosine_to_source": 0.0,
+            "cosine_to_full": 0.0,
+            "cosine_distance_source": 0.0,
+            "cosine_distance_full": 0.0
+          },
+          "oracle_0.8": {
+            "progress": 0.0,
+            "off_axis": 0.0,
+            "source_distance": 0.0,
+            "full_distance": 0.0,
+            "axis_norm": 0.0,
+            "cosine_to_source": 0.0,
+            "cosine_to_full": 0.0,
+            "cosine_distance_source": 0.0,
+            "cosine_distance_full": 0.0
+          },
+          "full": {
+            "progress": 0.0,
+            "off_axis": 0.0,
+            "source_distance": 0.0,
+            "full_distance": 0.0,
+            "axis_norm": 0.0,
+            "cosine_to_source": 0.0,
+            "cosine_to_full": 0.0,
+            "cosine_distance_source": 0.0,
+            "cosine_distance_full": 0.0
+          }
+        }
+      }
+    }
+  }
+}
