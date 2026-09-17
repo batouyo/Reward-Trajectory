@@ -140,6 +140,7 @@ else:
     _import_structure["coupled_terminal_control"] = [
         "CoupledControlPrior",
         "adjacent_ranking_loss",
+        "coarse_pairwise_ranking_loss",
         "control_band_loss",
         "control_energy_loss",
         "control_no_jump_loss",

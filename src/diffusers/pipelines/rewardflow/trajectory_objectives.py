@@ -16,6 +16,7 @@ from .coupled_terminal_control import (
     CoupledControlPrior,
     adjacent_ranking_loss,
     coarse_anchor_indices,
+    coarse_pairwise_ranking_loss,
     control_band_loss,
     control_energy_loss,
     control_no_jump_loss,
@@ -46,6 +47,7 @@ class RewardSliderV1LossWeights:
 
     semantic_order: float = 1.0
     semantic_coverage: float = 1.0
+    semantic_pairwise_order: float = 1.0
     fine_jump: float = 1.0
     coarse_gap: float = 1.0
     second: float = 0.25
@@ -141,6 +143,7 @@ class CoupledTrajectoryObjective:
             for name, key in (
                 ("semantic_order", "semantic_order"),
                 ("semantic_coverage", "semantic_coverage"),
+                ("semantic_pairwise_order", "semantic_pairwise_order"),
                 ("fine_jump", "fine_jump"),
                 ("coarse_gap", "coarse_gap"),
                 ("second", "second"),
@@ -201,6 +204,7 @@ class CoupledTrajectoryObjective:
         )
         anchor_indices = coarse_anchor_indices(progress.numel())
         semantic_order = adjacent_ranking_loss(progress, margin=self.order_margin)
+        semantic_pairwise_order = coarse_pairwise_ranking_loss(progress, anchor_indices=anchor_indices)
         semantic_coverage, semantic_collapse, semantic_jump, coarse_semantic_gaps = per_interval_semantic_coverage_loss(
             progress,
             anchor_indices=anchor_indices,
@@ -226,6 +230,7 @@ class CoupledTrajectoryObjective:
         components = {
             "semantic_order": semantic_order,
             "semantic_coverage": semantic_coverage,
+            "semantic_pairwise_order": semantic_pairwise_order,
             "semantic_collapse": semantic_collapse,
             "semantic_jump": semantic_jump,
             "fine_jump": fine_jump,

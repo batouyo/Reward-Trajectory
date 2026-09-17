@@ -287,6 +287,25 @@ def coarse_anchor_indices(num_nodes: int, *, max_anchors: int = 5) -> tuple[int,
     return unique
 
 
+def coarse_pairwise_ranking_loss(
+    progress: torch.Tensor, *, anchor_indices: Sequence[int] | None = None
+) -> torch.Tensor:
+    """Penalize reversed coarse-anchor pairs without imposing any spacing.
+
+    Coverage expands collapsed anchors. This term instead corrects global
+    Weak/Mid/Strong reversals, including non-adjacent pairs.
+    """
+
+    if progress.ndim != 1 or progress.numel() < 2:
+        raise ValueError("Progress must be a one-dimensional trajectory.")
+    indices = tuple(anchor_indices or coarse_anchor_indices(progress.numel()))
+    if len(indices) < 2 or indices[0] != 0 or indices[-1] != progress.numel() - 1:
+        raise ValueError("Anchors must be ordered and include both endpoints.")
+    anchors = progress[list(indices)]
+    pairs = torch.triu_indices(anchors.numel(), anchors.numel(), offset=1, device=progress.device)
+    return F.relu(anchors[pairs[0]] - anchors[pairs[1]]).square().mean()
+
+
 def per_interval_semantic_coverage_loss(
     progress: torch.Tensor,
     *,

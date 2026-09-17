@@ -84,6 +84,7 @@ def _args():
     parser.add_argument("--benchmark-repeats", type=int, default=1)
     parser.add_argument("--lambda-rank", type=float, default=1.0, help="Legacy alias for semantic-order weight.")
     parser.add_argument("--lambda-sem-coverage", type=float, default=1.0)
+    parser.add_argument("--lambda-sem-pairwise-order", type=float, default=1.0)
     parser.add_argument("--lambda-gap", type=float, default=1.0, help="Legacy alias for fine-jump weight.")
     parser.add_argument("--lambda-coarse-gap", type=float, default=1.0)
     parser.add_argument("--lambda-second", type=float, default=0.25)
@@ -96,6 +97,7 @@ def _args():
     parser.add_argument("--reward-scheduler", choices=("fixed", "dynamic"), default="fixed")
     parser.add_argument("--compare-reward-scheduler", action=argparse.BooleanOptionalAction, default=False)
     parser.add_argument("--order-tol", type=float, default=0.0)
+    parser.add_argument("--scheduler-collapse-tol", type=float, default=0.005)
     parser.add_argument("--semantic-patience", type=int, default=2)
     parser.add_argument("--transition-iters", type=int, default=2)
     parser.add_argument("--recovery-preserve-weight", type=float, default=0.05)
@@ -126,7 +128,13 @@ def _args():
         args.vjp_microbatch_size = args.branches
     if args.branches < 1 or args.control_steps < 1 or args.steps < args.control_steps:
         parser.error("Require branches/control-steps >= 1 and steps >= control-steps.")
-    if args.semantic_patience < 1 or args.transition_iters < 1 or args.order_tol < 0 or args.recovery_preserve_weight < 0:
+    if (
+        args.semantic_patience < 1
+        or args.transition_iters < 1
+        or args.order_tol < 0
+        or args.scheduler_collapse_tol < 0
+        or args.recovery_preserve_weight < 0
+    ):
         parser.error("Scheduler parameters must be non-negative, with positive patience and transition iterations.")
     if args.compare_reward_scheduler and args.reward_scheduler != "fixed":
         parser.error("--compare-reward-scheduler owns both fixed and dynamic runs; leave --reward-scheduler=fixed.")
@@ -644,21 +652,47 @@ def _weight_dict(weights: RewardSliderV1LossWeights) -> dict[str, float]:
     return {name: float(value) for name, value in weights.__dict__.items()}
 
 
-def _reward_gradient_diagnostics(images, result, *, iteration: int, reason: str, schedule) -> dict:
+def _reward_gradient_diagnostics(
+    images, result, *, iteration: int, reason: str, schedule, effective_weights: dict[str, float]
+) -> dict:
     rows = {}
-    for name in ("semantic_order", "semantic_coverage", "fine_jump", "coarse_gap", "second", "preserve"):
+    for name in (
+        "semantic_order",
+        "semantic_pairwise_order",
+        "semantic_coverage",
+        "fine_jump",
+        "coarse_gap",
+        "second",
+        "preserve",
+    ):
         loss = result.components[name]
+        effective_weight = float(effective_weights[name])
         if not loss.requires_grad:
-            rows[name] = {"gradient_l2": 0.0, "gradient_rms": 0.0, "gradient_nonzero": False}
+            rows[name] = {
+                "raw_gradient_l2": 0.0,
+                "raw_gradient_rms": 0.0,
+                "effective_weight": effective_weight,
+                "weighted_gradient_l2": 0.0,
+                "gradient_nonzero": False,
+            }
             continue
         gradient = torch.autograd.grad(loss, images, retain_graph=True, allow_unused=True)[0]
         if gradient is None:
-            rows[name] = {"gradient_l2": 0.0, "gradient_rms": 0.0, "gradient_nonzero": False}
+            rows[name] = {
+                "raw_gradient_l2": 0.0,
+                "raw_gradient_rms": 0.0,
+                "effective_weight": effective_weight,
+                "weighted_gradient_l2": 0.0,
+                "gradient_nonzero": False,
+            }
             continue
         value = gradient.detach().float()
+        raw_l2 = float(value.norm())
         rows[name] = {
-            "gradient_l2": value.norm(),
-            "gradient_rms": value.square().mean().sqrt(),
+            "raw_gradient_l2": raw_l2,
+            "raw_gradient_rms": float(value.square().mean().sqrt()),
+            "effective_weight": effective_weight,
+            "weighted_gradient_l2": abs(effective_weight) * raw_l2,
             "gradient_nonzero": bool(value.abs().sum() > 0),
             "gradient_finite": bool(torch.isfinite(value).all()),
         }
@@ -666,7 +700,6 @@ def _reward_gradient_diagnostics(images, result, *, iteration: int, reason: str,
     if schedule is not None:
         payload.update(schedule.as_log_dict())
     return payload
-
 
 def _scalar_residual_summary(summary: dict) -> list[list[float]]:
     return [
@@ -684,6 +717,8 @@ def _scheduler_comparison_row(run: dict) -> dict:
         "final_semantic_order": final["losses"]["semantic_order"],
         "initial_semantic_coverage": initial["losses"]["semantic_coverage"],
         "final_semantic_coverage": final["losses"]["semantic_coverage"],
+        "initial_semantic_pairwise_order": initial["losses"]["semantic_pairwise_order"],
+        "final_semantic_pairwise_order": final["losses"]["semantic_pairwise_order"],
         "final_nondecreasing_semantic_order": final["nondecreasing_semantic_order"],
         "iterations_per_phase": run["iterations_per_phase"],
         "final_dreamsim_second": final["losses"]["second"],
@@ -758,6 +793,7 @@ def _run_optimization(
                         iteration=iteration,
                         reason="initial_or_phase_transition",
                         schedule=last_schedule,
+                        effective_weights=effective_weights,
                     )
                 )
             effective_total.backward()
@@ -795,6 +831,7 @@ def _run_optimization(
                 "frozen_gradient_audit": frozen_ok,
                 "backward_mode": args.backward_mode,
                 "effective_total": effective_total.detach(),
+                "raw_total": result.total.detach(),
                 "missing_control_gradient_steps": [index for index, gradient in enumerate(gradients) if gradient is None],
                 **schedule_log,
                 **before_step,
@@ -805,6 +842,16 @@ def _run_optimization(
     with torch.no_grad():
         final_images, final_result = _evaluate(pipe, inputs, controls, objective, checkpointing=False)
     final_summary = _objective_summary(final_result, controls, inputs.prior)
+    final_effective_total = objective.total_from_components(final_result.components, effective_weights)
+    effective_weights_comparable = (
+        scheduler is None
+        or (bool(trace) and all(row["effective_weights"] == trace[0]["effective_weights"] for row in trace))
+    )
+    first_effective_total = initial_result.total if scheduler is None else (trace[0]["effective_total"] if trace else None)
+    if effective_weights_comparable and first_effective_total is not None:
+        effective_loss_decreased = float(final_effective_total) < float(first_effective_total)
+    else:
+        effective_loss_decreased = None
     if args.audit_reward_gradients:
         optimizer.zero_grad(set_to_none=True)
         final_audit_images, final_audit_result = _evaluate(pipe, inputs, controls, objective, checkpointing=False)
@@ -815,6 +862,7 @@ def _run_optimization(
                 iteration=iterations,
                 reason="final",
                 schedule=last_schedule,
+                effective_weights=effective_weights,
             )
         )
         del final_audit_images, final_audit_result
@@ -838,7 +886,16 @@ def _run_optimization(
         "iterations_per_phase": phase_counts,
         "initial": initial_summary,
         "final": final_summary,
-        "loss_decreased": float(final_result.total) < float(initial_result.total),
+        "initial_raw_total": initial_result.total,
+        "final_raw_total": final_result.total,
+        "raw_loss_decreased": float(final_result.total) < float(initial_result.total),
+        # Dynamic phase weights are state-dependent; first and last effective
+        # totals are not a single comparable objective across phase changes.
+        "initial_effective_total": first_effective_total,
+        "final_effective_total": final_effective_total,
+        "effective_weights_comparable": effective_weights_comparable,
+        "effective_loss_decreased": effective_loss_decreased,
+        "final_phase": "fixed_weight" if scheduler is None else last_schedule.phase,
         "nan_detected": False,
     }
     _json(run_dir / "summary.json", summary)
@@ -850,8 +907,7 @@ def _run_scheduler_comparison(pipe, inputs, objective, args, output, weights):
     scheduler = TrajectoryRewardScheduler(
         TrajectoryRewardSchedulerConfig(
             order_tol=args.order_tol,
-            sem_min_fraction=args.sem_min_fraction,
-            sem_max_fraction=args.sem_max_fraction,
+            scheduler_collapse_tol=args.scheduler_collapse_tol,
             semantic_patience=args.semantic_patience,
             transition_iters=args.transition_iters,
             recovery_preserve_weight=args.recovery_preserve_weight,
@@ -924,6 +980,7 @@ def main():
     weights = RewardSliderV1LossWeights(
         semantic_order=args.lambda_rank,
         semantic_coverage=args.lambda_sem_coverage,
+        semantic_pairwise_order=args.lambda_sem_pairwise_order,
         fine_jump=args.lambda_gap,
         coarse_gap=args.lambda_coarse_gap,
         second=args.lambda_second,

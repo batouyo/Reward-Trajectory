@@ -16,6 +16,7 @@ import torch
 IMAGE_REWARD_NAMES = (
     "semantic_order",
     "semantic_coverage",
+    "semantic_pairwise_order",
     "fine_jump",
     "coarse_gap",
     "second",
@@ -31,8 +32,7 @@ class TrajectoryRewardSchedulerConfig:
     """Fixed, explicit state-transition parameters."""
 
     order_tol: float = 0.0
-    sem_min_fraction: float = 0.05
-    sem_max_fraction: float = 0.55
+    scheduler_collapse_tol: float = 0.005
     semantic_patience: int = 2
     transition_iters: int = 2
     recovery_preserve_weight: float = 0.05
@@ -40,8 +40,8 @@ class TrajectoryRewardSchedulerConfig:
     def validate(self) -> None:
         if self.order_tol < 0:
             raise ValueError("order_tol must be non-negative.")
-        if not 0 <= self.sem_min_fraction <= self.sem_max_fraction <= 1:
-            raise ValueError("Semantic coverage bounds must satisfy 0 <= min <= max <= 1.")
+        if self.scheduler_collapse_tol < 0:
+            raise ValueError("scheduler_collapse_tol must be non-negative.")
         if self.semantic_patience < 1:
             raise ValueError("semantic_patience must be positive.")
         if self.transition_iters < 1:
@@ -57,7 +57,8 @@ class TrajectoryRewardSchedule:
     phase: str
     effective_weights: dict[str, float]
     semantic_order_ok: bool
-    semantic_coverage_ok: bool
+    coarse_not_collapsed: bool
+    near_zero_coarse_intervals: int
     consecutive_semantic_ok: int
     min_adjacent_semantic_gap: float
     min_coarse_semantic_gap: float
@@ -69,7 +70,8 @@ class TrajectoryRewardSchedule:
             "scheduler_phase": self.phase,
             "effective_weights": self.effective_weights,
             "semantic_order_ok": self.semantic_order_ok,
-            "semantic_coverage_ok": self.semantic_coverage_ok,
+            "collapse_ok": self.coarse_not_collapsed,
+            "near_zero_coarse_intervals": self.near_zero_coarse_intervals,
             "consecutive_semantic_ok": self.consecutive_semantic_ok,
             "min_adjacent_semantic_gap": self.min_adjacent_semantic_gap,
             "min_coarse_semantic_gap": self.min_coarse_semantic_gap,
@@ -109,13 +111,17 @@ class TrajectoryRewardScheduler:
 
     def _semantic_state(
         self, adjacent_semantic_gaps: torch.Tensor, coarse_semantic_gaps: torch.Tensor
-    ) -> tuple[bool, bool, float, float, float]:
+    ) -> tuple[bool, bool, int, float, float, float]:
         min_adjacent = self._scalar_min(adjacent_semantic_gaps, "adjacent_semantic_gaps")
         min_coarse = self._scalar_min(coarse_semantic_gaps, "coarse_semantic_gaps")
         max_coarse = self._scalar_max(coarse_semantic_gaps, "coarse_semantic_gaps")
         order_ok = min_adjacent >= -self.config.order_tol
-        coverage_ok = min_coarse >= self.config.sem_min_fraction and max_coarse <= self.config.sem_max_fraction
-        return order_ok, coverage_ok, min_adjacent, min_coarse, max_coarse
+        # CLIP endpoint-axis values provide ordering, not calibrated distance.
+        # A large Source->Weak gap is healthy; only nearly identical anchors
+        # prevent progression out of semantic recovery.
+        near_zero = int((coarse_semantic_gaps.detach().abs() <= self.config.scheduler_collapse_tol).sum())
+        coarse_not_collapsed = min_coarse >= -self.config.order_tol and near_zero == 0
+        return order_ok, coarse_not_collapsed, near_zero, min_adjacent, min_coarse, max_coarse
 
     @staticmethod
     def _base_weights(base_weights: Mapping[str, float]) -> dict[str, float]:
@@ -152,10 +158,10 @@ class TrajectoryRewardScheduler:
         """Advance state from detached semantic diagnostics and return this step's weights."""
 
         base = self._base_weights(base_weights)
-        order_ok, coverage_ok, min_adjacent, min_coarse, max_coarse = self._semantic_state(
+        order_ok, coarse_not_collapsed, near_zero, min_adjacent, min_coarse, max_coarse = self._semantic_state(
             adjacent_semantic_gaps, coarse_semantic_gaps
         )
-        healthy = order_ok and coverage_ok
+        healthy = order_ok and coarse_not_collapsed
         if not healthy:
             self.phase = "semantic_recovery"
             self.consecutive_semantic_ok = 0
@@ -179,7 +185,8 @@ class TrajectoryRewardScheduler:
             phase=self.phase,
             effective_weights=self._effective_weights(base),
             semantic_order_ok=order_ok,
-            semantic_coverage_ok=coverage_ok,
+            coarse_not_collapsed=coarse_not_collapsed,
+            near_zero_coarse_intervals=near_zero,
             consecutive_semantic_ok=self.consecutive_semantic_ok,
             min_adjacent_semantic_gap=min_adjacent,
             min_coarse_semantic_gap=min_coarse,
