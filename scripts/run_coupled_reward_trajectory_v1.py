@@ -854,7 +854,7 @@ def _run_optimization(
         effective_loss_decreased = None
     if args.audit_reward_gradients:
         optimizer.zero_grad(set_to_none=True)
-        final_audit_images, final_audit_result = _evaluate(pipe, inputs, controls, objective, checkpointing=False)
+        final_audit_images, final_audit_result = _evaluate(pipe, inputs, controls, objective, checkpointing=args.use_checkpointing)
         gradient_trace.append(
             _reward_gradient_diagnostics(
                 final_audit_images,
