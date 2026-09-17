@@ -1,0 +1,51 @@
+{
+  "final_B3_branch0_vs_B1": {
+    "cosine": 0.9998422861099243,
+    "max_abs": 0.265625,
+    "mean_abs": 0.008523024618625641,
+    "rms": 0.014787107706069946
+  },
+  "first_transformer_forward": {
+    "B3_branch0_vs_B1": {
+      "cosine": 0.9999358654022217,
+      "max_abs": 0.109375,
+      "mean_abs": 0.014969070442020893,
+      "rms": 0.020582962781190872
+    },
+    "B3_branch_vs_branch": {
+      "cosine": 1.0,
+      "max_abs": 0.0,
+      "mean_abs": 0.0,
+      "rms": 0.0
+    }
+  },
+  "fp32_first_step": {
+    "attempted": false,
+    "available": false
+  },
+  "gate": {
+    "B3_vs_B1_cosine_pass": true,
+    "B3_vs_B1_mean_error_pass": true,
+    "branch_identity": true,
+    "maximum_mean_error": 0.01,
+    "minimum_cosine": 0.999,
+    "passed": true
+  },
+  "legacy_k_batched_path": {
+    "initial_latent_vs_coupled": {
+      "cosine": 1.0000001192092896,
+      "max_abs": 0.0,
+      "mean_abs": 0.0,
+      "rms": 0.0
+    },
+    "materialization": "FluxKontextStrengthTrajectoryPipeline._materialize_kontext_strength_batch",
+    "note": "This explicitly re-executes the legacy materialization helper; image_ids and text_ids remain shared sequence tensors.",
+    "velocity_vs_coupled": {
+      "cosine": 1.0,
+      "max_abs": 0.0,
+      "mean_abs": 0.0,
+      "rms": 0.0
+    }
+  },
+  "zero_control_branch_max_difference": 0.0
+}

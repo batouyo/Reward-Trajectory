@@ -277,7 +277,7 @@ def _parity_localization(pipe, inputs, args, output: Path) -> dict:
         row = {"step": step, **_errors(batched_state[:1], one_state)}
         rows.append(row)
     with (output / "parity_by_step.csv").open("w", newline="", encoding="utf-8") as handle:
-        writer = csv.DictWriter(handle, fieldnames=rows[0].keys())
+        writer = csv.DictWriter(handle, fieldnames=rows[0].keys(), lineterminator="\n")
         writer.writeheader()
         writer.writerows(rows)
         f = native.forward_kwargs

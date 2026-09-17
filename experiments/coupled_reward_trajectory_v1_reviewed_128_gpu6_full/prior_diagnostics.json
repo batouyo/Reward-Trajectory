@@ -1,0 +1,39 @@
+{
+  "soft_prior": "score / max(score) per timestep; no threshold or hard mask",
+  "steps": [
+    {
+      "direction_l2": 65.6698226928711,
+      "fraction_above_0p25": 0.296875,
+      "fraction_above_0p5": 0.140625,
+      "fraction_above_0p75": 0.078125,
+      "is_binary": false,
+      "raw_max": 2.765704870223999,
+      "raw_mean": 0.8111910820007324,
+      "raw_min": 0.2713327705860138,
+      "raw_std": 0.6283563375473022,
+      "relevance_entropy": 3.9285335540771484,
+      "relevance_max": 1.0,
+      "relevance_mean": 0.29330354928970337,
+      "relevance_min": 0.09810619056224823,
+      "relevance_std": 0.22719572484493256,
+      "step": 0
+    },
+    {
+      "direction_l2": 38.10090637207031,
+      "fraction_above_0p25": 0.640625,
+      "fraction_above_0p5": 0.234375,
+      "fraction_above_0p75": 0.0625,
+      "is_binary": false,
+      "raw_max": 1.3902984857559204,
+      "raw_mean": 0.5290809869766235,
+      "raw_min": 0.22211547195911407,
+      "raw_std": 0.2729234993457794,
+      "relevance_entropy": 4.0393242835998535,
+      "relevance_max": 1.0,
+      "relevance_mean": 0.3805520534515381,
+      "relevance_min": 0.1597609966993332,
+      "relevance_std": 0.19630566239356995,
+      "step": 1
+    }
+  ]
+}

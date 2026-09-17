@@ -1,0 +1,360 @@
+{
+  "final": {
+    "clip_q": [
+      0.0,
+      0.6383931040763855,
+      0.8959822654724121,
+      0.930712103843689,
+      1.0
+    ],
+    "controls": {
+      "steps": [
+        {
+          "aggregate": {
+            "above_one_fraction": 0.0,
+            "coefficient_mean": 0.5016064643859863,
+            "coefficient_std": 0.2098035365343094,
+            "control_to_direction_norm": 0.5277076363563538,
+            "cosine_to_direction": 0.9395928382873535,
+            "negative_fraction": 0.0,
+            "orthogonal_energy_ratio": 0.08789236843585968
+          },
+          "branches": [
+            {
+              "branch": 0,
+              "coefficient_mean": 0.7551172971725464,
+              "coefficient_std": 0.04624607786536217,
+              "control_norm": 50.6258659362793,
+              "control_to_D_norm": 0.7709152102470398,
+              "cosine_to_D": 0.9709586501121521,
+              "grad_norm": 0.07639806717634201,
+              "high_relevance_energy": 1.0701899528503418,
+              "low_relevance_energy": 0.15258915722370148,
+              "orthogonal_ratio": 0.2368198186159134,
+              "scalar_D_residual_ratio": 0.2392473667860031,
+              "scalar_beta_star": 0.7485268712043762
+            },
+            {
+              "branch": 1,
+              "coefficient_mean": 0.49820131063461304,
+              "coefficient_std": 0.04642686992883682,
+              "control_norm": 34.89375686645508,
+              "control_to_D_norm": 0.5313514471054077,
+              "cosine_to_D": 0.9442440271377563,
+              "grad_norm": 0.10649674385786057,
+              "high_relevance_energy": 0.5048622488975525,
+              "low_relevance_energy": 0.07626277208328247,
+              "orthogonal_ratio": 0.3264107406139374,
+              "scalar_D_residual_ratio": 0.32924631237983704,
+              "scalar_beta_star": 0.5017255544662476
+            },
+            {
+              "branch": 2,
+              "coefficient_mean": 0.2515006959438324,
+              "coefficient_std": 0.03043302707374096,
+              "control_norm": 18.443777084350586,
+              "control_to_D_norm": 0.280856192111969,
+              "cosine_to_D": 0.9035757184028625,
+              "grad_norm": 0.4919087290763855,
+              "high_relevance_energy": 0.1347690373659134,
+              "low_relevance_energy": 0.027994304895401,
+              "orthogonal_ratio": 0.4242207705974579,
+              "scalar_D_residual_ratio": 0.4284285008907318,
+              "scalar_beta_star": 0.25377482175827026
+            }
+          ],
+          "step": 0
+        },
+        {
+          "aggregate": {
+            "above_one_fraction": 0.0,
+            "coefficient_mean": 0.501396656036377,
+            "coefficient_std": 0.21449311077594757,
+            "control_to_direction_norm": 0.5810019969940186,
+            "cosine_to_direction": 0.8433988094329834,
+            "negative_fraction": 0.0,
+            "orthogonal_energy_ratio": 0.17660848796367645
+          },
+          "branches": [
+            {
+              "branch": 0,
+              "coefficient_mean": 0.7467960119247437,
+              "coefficient_std": 0.07064533233642578,
+              "control_norm": 30.967985153198242,
+              "control_to_D_norm": 0.8127886652946472,
+              "cosine_to_D": 0.9191914796829224,
+              "grad_norm": 0.07598552852869034,
+              "high_relevance_energy": 0.36661526560783386,
+              "low_relevance_energy": 0.09310721606016159,
+              "orthogonal_ratio": 0.3890247642993927,
+              "scalar_D_residual_ratio": 0.39381110668182373,
+              "scalar_beta_star": 0.7471082806587219
+            },
+            {
+              "branch": 1,
+              "coefficient_mean": 0.5056791305541992,
+              "coefficient_std": 0.08077455312013626,
+              "control_norm": 22.459835052490234,
+              "control_to_D_norm": 0.5894829630851746,
+              "cosine_to_D": 0.8592304587364197,
+              "grad_norm": 0.06738187372684479,
+              "high_relevance_energy": 0.18550144135951996,
+              "low_relevance_energy": 0.056786857545375824,
+              "orthogonal_ratio": 0.5036736130714417,
+              "scalar_D_residual_ratio": 0.5115886926651001,
+              "scalar_beta_star": 0.5065016746520996
+            },
+            {
+              "branch": 2,
+              "coefficient_mean": 0.2517148554325104,
+              "coefficient_std": 0.06266117095947266,
+              "control_norm": 12.982290267944336,
+              "control_to_D_norm": 0.34073442220687866,
+              "cosine_to_D": 0.7517745494842529,
+              "grad_norm": 0.22715876996517181,
+              "high_relevance_energy": 0.05892648175358772,
+              "low_relevance_energy": 0.022221341729164124,
+              "orthogonal_ratio": 0.6463668346405029,
+              "scalar_D_residual_ratio": 0.6594203114509583,
+              "scalar_beta_star": 0.25615543127059937
+            }
+          ],
+          "step": 1
+        }
+      ]
+    },
+    "dreamsim_gap_fractions": [
+      0.19001272320747375,
+      0.7668443918228149,
+      0.027499094605445862,
+      0.015643786638975143
+    ],
+    "dreamsim_gaps": [
+      0.0609438419342041,
+      0.24595427513122559,
+      0.008819937705993652,
+      0.005017518997192383
+    ],
+    "dreamsim_max_fraction": 0.7668443918228149,
+    "dreamsim_min_fraction": 0.015643786638975143,
+    "losses": {
+      "band": 0.08775579929351807,
+      "control_no_jump": 0.0,
+      "energy": 0.2340790182352066,
+      "gap": 0.06842537224292755,
+      "gap_collapse": 0.014214280061423779,
+      "gap_jump": 0.0542110949754715,
+      "preserve": 0.032820411026477814,
+      "rank": 0.0,
+      "second": 0.07596789300441742,
+      "spatial": 0.13239917159080505
+    },
+    "margin_semantic_order": true,
+    "semantic_gaps": [
+      0.6383931040763855,
+      0.2575891613960266,
+      0.034729838371276855,
+      0.06928789615631104
+    ],
+    "strict_semantic_order": true,
+    "total": 0.12688112258911133,
+    "triangle_max": 0.22790366411209106,
+    "triangle_mean": 0.07596789300441742,
+    "triangle_normalized_deficits": [
+      0.22790366411209106,
+      0.0,
+      0.0
+    ],
+    "triangle_raw_deficits": [
+      0.05696147680282593,
+      0.0,
+      0.0
+    ]
+  },
+  "initial": {
+    "clip_q": [
+      0.0,
+      0.6645278334617615,
+      0.8962370157241821,
+      0.9320518970489502,
+      1.0
+    ],
+    "controls": {
+      "steps": [
+        {
+          "aggregate": {
+            "above_one_fraction": 0.0,
+            "coefficient_mean": 0.5,
+            "coefficient_std": 0.20412415266036987,
+            "control_to_direction_norm": 0.5,
+            "cosine_to_direction": 0.9999999403953552,
+            "negative_fraction": 0.0,
+            "orthogonal_energy_ratio": 9.733676995790424e-16
+          },
+          "branches": [
+            {
+              "branch": 0,
+              "coefficient_mean": 0.75,
+              "coefficient_std": 4.214684778958144e-08,
+              "control_norm": 49.25236511230469,
+              "control_to_D_norm": 0.75,
+              "cosine_to_D": 1.0,
+              "grad_norm": null,
+              "high_relevance_energy": 1.0388842821121216,
+              "low_relevance_energy": 0.1167701929807663,
+              "orthogonal_ratio": 6.469952040788485e-08,
+              "scalar_D_residual_ratio": 0.0,
+              "scalar_beta_star": 0.75
+            },
+            {
+              "branch": 1,
+              "coefficient_mean": 0.5,
+              "coefficient_std": 0.0,
+              "control_norm": 32.83491134643555,
+              "control_to_D_norm": 0.5,
+              "cosine_to_D": 0.9999999403953552,
+              "grad_norm": null,
+              "high_relevance_energy": 0.4617263078689575,
+              "low_relevance_energy": 0.051897864788770676,
+              "orthogonal_ratio": 0.0,
+              "scalar_D_residual_ratio": 0.0,
+              "scalar_beta_star": 0.5
+            },
+            {
+              "branch": 2,
+              "coefficient_mean": 0.25,
+              "coefficient_std": 0.0,
+              "control_norm": 16.417455673217773,
+              "control_to_D_norm": 0.25,
+              "cosine_to_D": 0.9999999403953552,
+              "grad_norm": null,
+              "high_relevance_energy": 0.11543157696723938,
+              "low_relevance_energy": 0.012974466197192669,
+              "orthogonal_ratio": 0.0,
+              "scalar_D_residual_ratio": 0.0,
+              "scalar_beta_star": 0.25
+            }
+          ],
+          "step": 0
+        },
+        {
+          "aggregate": {
+            "above_one_fraction": 0.0,
+            "coefficient_mean": 0.5,
+            "coefficient_std": 0.20412415266036987,
+            "control_to_direction_norm": 0.5,
+            "cosine_to_direction": 1.0,
+            "negative_fraction": 0.0,
+            "orthogonal_energy_ratio": 7.068070663528245e-16
+          },
+          "branches": [
+            {
+              "branch": 0,
+              "coefficient_mean": 0.75,
+              "coefficient_std": 3.6118031232490466e-08,
+              "control_norm": 28.575681686401367,
+              "control_to_D_norm": 0.7500000596046448,
+              "cosine_to_D": 1.0,
+              "grad_norm": null,
+              "high_relevance_energy": 0.33198413252830505,
+              "low_relevance_energy": 0.05817495286464691,
+              "orthogonal_ratio": 6.736602387036328e-08,
+              "scalar_D_residual_ratio": 0.0,
+              "scalar_beta_star": 0.75
+            },
+            {
+              "branch": 1,
+              "coefficient_mean": 0.5,
+              "coefficient_std": 0.0,
+              "control_norm": 19.050453186035156,
+              "control_to_D_norm": 0.5,
+              "cosine_to_D": 1.0000001192092896,
+              "grad_norm": null,
+              "high_relevance_energy": 0.14754851162433624,
+              "low_relevance_energy": 0.02585553377866745,
+              "orthogonal_ratio": 0.0,
+              "scalar_D_residual_ratio": 0.0,
+              "scalar_beta_star": 0.5
+            },
+            {
+              "branch": 2,
+              "coefficient_mean": 0.25,
+              "coefficient_std": 0.0,
+              "control_norm": 9.525226593017578,
+              "control_to_D_norm": 0.25,
+              "cosine_to_D": 1.0000001192092896,
+              "grad_norm": null,
+              "high_relevance_energy": 0.03688712790608406,
+              "low_relevance_energy": 0.0064638834446668625,
+              "orthogonal_ratio": 0.0,
+              "scalar_D_residual_ratio": 0.0,
+              "scalar_beta_star": 0.25
+            }
+          ],
+          "step": 1
+        }
+      ]
+    },
+    "dreamsim_gap_fractions": [
+      0.19676467776298523,
+      0.762715220451355,
+      0.026453232392668724,
+      0.014066863805055618
+    ],
+    "dreamsim_gaps": [
+      0.0649949312210083,
+      0.2519386410713196,
+      0.00873798131942749,
+      0.0046465396881103516
+    ],
+    "dreamsim_max_fraction": 0.762715220451355,
+    "dreamsim_min_fraction": 0.014066863805055618,
+    "losses": {
+      "band": 8.312241890245421e-16,
+      "control_no_jump": 0.0,
+      "energy": 0.2052278369665146,
+      "gap": 0.06804877519607544,
+      "gap_collapse": 0.014869976788759232,
+      "gap_jump": 0.053178802132606506,
+      "preserve": 0.03292527049779892,
+      "rank": 0.0,
+      "second": 0.09078864753246307,
+      "spatial": 0.10489499568939209
+    },
+    "margin_semantic_order": true,
+    "semantic_gaps": [
+      0.6645278334617615,
+      0.23170918226242065,
+      0.035814881324768066,
+      0.0679481029510498
+    ],
+    "strict_semantic_order": true,
+    "total": 0.12893648445606232,
+    "triangle_max": 0.272365927696228,
+    "triangle_mean": 0.09078864753246307,
+    "triangle_normalized_deficits": [
+      0.272365927696228,
+      0.0,
+      0.0
+    ],
+    "triangle_raw_deficits": [
+      0.06784361600875854,
+      0.0,
+      0.0
+    ]
+  },
+  "iterations": 6,
+  "loss_decreased": true,
+  "name": "no_band",
+  "nan_detected": false,
+  "weights": {
+    "band": 0.0,
+    "ctrl": 0.0,
+    "energy": 0.0001,
+    "gap": 1.0,
+    "preserve": 1.0,
+    "rank": 1.0,
+    "second": 0.25,
+    "spatial": 0.05
+  }
+}

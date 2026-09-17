@@ -1,0 +1,20 @@
+{
+  "batched": [
+    {
+      "final_latent_norm": 92.24052429199219,
+      "peak_allocated_vram": 34012423680,
+      "peak_reserved_vram": 34290532352,
+      "seconds": 4.805584810001164
+    }
+  ],
+  "description": "K=3 batched versus K separate B=1 zero-control unrolls; timing only, not a FLOP claim.",
+  "repeats": 1,
+  "separate_b1": [
+    {
+      "final_latent_norm": 53.21797180175781,
+      "peak_allocated_vram": 33874937856,
+      "peak_reserved_vram": 33915142144,
+      "seconds": 6.3777862770002685
+    }
+  ]
+}
