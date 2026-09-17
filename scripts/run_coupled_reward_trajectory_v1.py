@@ -46,7 +46,8 @@ def _args():
     parser.add_argument("--output-dir", default="experiments/coupled_reward_trajectory_v1_reviewed")
     parser.add_argument("--steps", type=int, default=12)
     parser.add_argument("--control-steps", type=int, default=2)
-    parser.add_argument("--branches", type=int, default=3)
+    parser.add_argument("--branches", type=int, default=None)
+    parser.add_argument("--num-trajectory-nodes", type=int, default=None)
     parser.add_argument("--seed", type=int, default=None)
     parser.add_argument("--height", type=int, default=256)
     parser.add_argument("--width", type=int, default=256)
@@ -61,29 +62,48 @@ def _args():
     parser.add_argument("--use-checkpointing", action=argparse.BooleanOptionalAction, default=True)
     parser.add_argument("--run-ablations", action=argparse.BooleanOptionalAction, default=True)
     parser.add_argument("--benchmark-repeats", type=int, default=1)
-    parser.add_argument("--lambda-rank", type=float, default=1.0)
-    parser.add_argument("--lambda-gap", type=float, default=1.0)
+    parser.add_argument("--lambda-rank", type=float, default=1.0, help="Legacy alias for semantic-order weight.")
+    parser.add_argument("--lambda-sem-coverage", type=float, default=1.0)
+    parser.add_argument("--lambda-gap", type=float, default=1.0, help="Legacy alias for fine-jump weight.")
+    parser.add_argument("--lambda-coarse-gap", type=float, default=1.0)
     parser.add_argument("--lambda-second", type=float, default=0.25)
     parser.add_argument("--lambda-preserve", type=float, default=1.0)
     parser.add_argument("--lambda-ctrl", type=float, default=0.0)
     parser.add_argument("--lambda-band", type=float, default=0.01)
     parser.add_argument("--lambda-spatial", type=float, default=0.05)
-    parser.add_argument("--lambda-energy", type=float, default=1e-4)
-    parser.add_argument("--rank-margin", type=float, default=0.01)
-    parser.add_argument("--min-gap-fraction", type=float, default=0.05)
-    parser.add_argument("--max-gap-fraction", type=float, default=0.55)
+    parser.add_argument("--lambda-energy", type=float, default=0.0)
+    parser.add_argument("--rank-margin", type=float, default=0.0, help="Fine semantic numerical order margin.")
+    parser.add_argument("--sem-min-fraction", type=float, default=0.05)
+    parser.add_argument("--sem-max-fraction", type=float, default=0.55)
+    parser.add_argument("--fine-max-jump-fraction", type=float, default=0.55)
+    parser.add_argument("--coarse-min-fraction", type=float, default=0.05)
+    parser.add_argument("--coarse-max-fraction", type=float, default=0.55)
+    parser.add_argument("--init-mode", choices=("linear_D", "collapsed_D", "reversed_D"), default="linear_D")
     parser.add_argument("--parity-min-cosine", type=float, default=0.999)
     parser.add_argument("--parity-max-mean-error", type=float, default=0.01)
     parser.add_argument("--try-fp32-first-step", action=argparse.BooleanOptionalAction, default=False)
     args = parser.parse_args()
     if not args.model:
         parser.error("Pass --model or set FLUX_KONTEXT_MODEL_PATH.")
+    if args.num_trajectory_nodes is not None:
+        if args.num_trajectory_nodes < 3:
+            parser.error("`--num-trajectory-nodes` must be at least three.")
+        inferred = args.num_trajectory_nodes - 2
+        if args.branches is not None and args.branches != inferred:
+            parser.error("`--branches` and `--num-trajectory-nodes` disagree.")
+        args.branches = inferred
+    elif args.branches is None:
+        args.branches = 3
+    args.num_trajectory_nodes = args.branches + 2
     if args.branches < 1 or args.control_steps < 1 or args.steps < args.control_steps:
         parser.error("Require branches/control-steps >= 1 and steps >= control-steps.")
     if args.outer_iters < 0 or args.ablation_iters < 0 or args.control_lr <= 0:
         parser.error("Iteration counts must be non-negative and --control-lr must be positive.")
-    if not 0 <= args.min_gap_fraction <= args.max_gap_fraction <= 1:
-        parser.error("Gap fractions must satisfy 0 <= min <= max <= 1.")
+    if not (
+        0 <= args.sem_min_fraction <= args.sem_max_fraction <= 1
+        and 0 <= args.coarse_min_fraction <= args.coarse_max_fraction <= 1
+    ):
+        parser.error("Coverage fractions must satisfy 0 <= min <= max <= 1.")
     return args
 
 
@@ -231,12 +251,16 @@ def _objective_summary(result, controls, prior) -> dict:
         "total": result.total,
         "clip_q": result.progress,
         "semantic_gaps": result.adjacent_semantic_gaps,
+        "coarse_anchor_indices": result.coarse_anchor_indices,
+        "coarse_semantic_gaps": result.coarse_semantic_gaps,
         "strict_semantic_order": bool(torch.all(result.adjacent_semantic_gaps > 0)),
-        "margin_semantic_order": bool(torch.all(result.adjacent_semantic_gaps >= 0.01)),
+        "nondecreasing_semantic_order": bool(torch.all(result.adjacent_semantic_gaps >= 0)),
         "dreamsim_gaps": result.dreamsim_gaps,
         "dreamsim_gap_fractions": result.dreamsim_gap_fractions,
-        "dreamsim_min_fraction": result.dreamsim_gap_fractions.min(),
-        "dreamsim_max_fraction": result.dreamsim_gap_fractions.max(),
+        "dreamsim_worst_jump": result.dreamsim_worst_jump,
+        "dreamsim_worst_jump_index": result.dreamsim_worst_jump_index,
+        "coarse_dreamsim_gaps": result.coarse_dreamsim_gaps,
+        "coarse_dreamsim_fractions": result.coarse_dreamsim_fractions,
         "triangle_raw_deficits": result.triangle_raw_deficits,
         "triangle_normalized_deficits": result.triangle_normalized_deficits,
         "triangle_mean": result.triangle_normalized_deficits.mean(),
@@ -423,7 +447,12 @@ def _run_optimization(
     run_dir = output / name
     run_dir.mkdir(parents=True, exist_ok=True)
     objective.weights = weights
-    betas = tuple(1 - (index + 1) / (args.branches + 1) for index in range(args.branches))
+    linear = tuple(1 - (index + 1) / (args.branches + 1) for index in range(args.branches))
+    betas = (
+        linear
+        if args.init_mode == "linear_D"
+        else ((0.5,) * args.branches if args.init_mode == "collapsed_D" else tuple(reversed(linear)))
+    )
     controls = initialize_independent_coupled_controls(
         inputs.prior.directions, num_branches=args.branches, betas=betas, noise_std=args.control_init_noise
     )
@@ -438,10 +467,10 @@ def _run_optimization(
         objective.source_image,
         initial_images,
         objective.native_full_image,
-        ["Source", "Weak", "Mid", "Strong", "NativeFull"],
+        ["Source", *[f"Interior-{index + 1}" for index in range(args.branches)], "NativeFull"],
     )
-    for label, image in zip(("weak", "mid", "strong"), initial_images):
-        _to_pil(image).save(run_dir / f"initial_{label}.png")
+    for label, image in enumerate(initial_images):
+        _to_pil(image).save(run_dir / f"initial_{label + 1}.png")
     trace = []
     for iteration in range(1, iterations + 1):
         optimizer.zero_grad(set_to_none=True)
@@ -482,14 +511,14 @@ def _run_optimization(
     with torch.no_grad():
         final_images, final_result = _evaluate(pipe, inputs, controls, objective, checkpointing=False)
     final_summary = _objective_summary(final_result, controls, inputs.prior)
-    for label, image in zip(("weak", "mid", "strong"), final_images):
-        _to_pil(image).save(run_dir / f"final_{label}.png")
+    for label, image in enumerate(final_images):
+        _to_pil(image).save(run_dir / f"final_{label + 1}.png")
     _make_grid(
         run_dir / "trajectory_final.png",
         objective.source_image,
         final_images,
         objective.native_full_image,
-        ["Source", "Weak", "Mid", "Strong", "NativeFull"],
+        ["Source", *[f"Interior-{index + 1}" for index in range(args.branches)], "NativeFull"],
     )
     _write_jsonl(run_dir / "optimization_trace.jsonl", trace)
     _json(
@@ -557,8 +586,10 @@ def main():
     _json(output / "dreamsim_fidelity.json", dreamsim.fidelity_audit(_pil_tensor(source_pil, device), native_image))
     scorer = CLIPImageFeatureScorer(args.clip_model, device=device, local_files_only=True)
     weights = RewardSliderV1LossWeights(
-        rank=args.lambda_rank,
-        gap=args.lambda_gap,
+        semantic_order=args.lambda_rank,
+        semantic_coverage=args.lambda_sem_coverage,
+        fine_jump=args.lambda_gap,
+        coarse_gap=args.lambda_coarse_gap,
         second=args.lambda_second,
         preserve=args.lambda_preserve,
         ctrl=args.lambda_ctrl,
@@ -575,9 +606,12 @@ def main():
         token_height=inputs.native.sampling_token_height,
         token_width=inputs.native.sampling_token_width,
         weights=weights,
-        rank_margin=args.rank_margin,
-        min_gap_fraction=args.min_gap_fraction,
-        max_gap_fraction=args.max_gap_fraction,
+        order_margin=args.rank_margin,
+        sem_min_fraction=args.sem_min_fraction,
+        sem_max_fraction=args.sem_max_fraction,
+        fine_max_jump_fraction=args.fine_max_jump_fraction,
+        coarse_min_fraction=args.coarse_min_fraction,
+        coarse_max_fraction=args.coarse_max_fraction,
     )
     initialization = _run_optimization(pipe, inputs, objective, args, output, "initialization", weights, 0)
     _json(output / "initialization_diagnostics.json", initialization)
@@ -605,8 +639,10 @@ def main():
                 output,
                 "prior_only",
                 RewardSliderV1LossWeights(
-                    rank=0.0,
-                    gap=0.0,
+                    semantic_order=0.0,
+                    semantic_coverage=0.0,
+                    fine_jump=0.0,
+                    coarse_gap=0.0,
                     second=0.0,
                     preserve=0.0,
                     ctrl=weights.ctrl,

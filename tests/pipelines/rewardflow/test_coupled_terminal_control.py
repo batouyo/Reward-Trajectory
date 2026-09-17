@@ -4,12 +4,15 @@ import torch
 
 from diffusers.pipelines.rewardflow.coupled_terminal_control import (
     adjacent_ranking_loss,
+    coarse_anchor_indices,
     control_band_loss,
     control_no_jump_loss,
+    fine_jump_loss,
     initialize_independent_coupled_controls,
     make_coupled_prior,
     relative_gap_loss,
     scalar_direction_residual_diagnostics,
+    semantic_coverage_loss,
     spatial_prior_loss,
     triangle_deficit_loss,
     unroll_coupled_velocity_controls,
@@ -84,6 +87,15 @@ def test_soft_spatial_prior_penalizes_low_relevance_without_hard_zero():
     assert high[0][0, 0].item() != 0 and low[0][0, 1].item() != 0
 
 
+def test_spatial_prior_is_scale_invariant_for_nonzero_controls():
+    relevance = (torch.tensor([[1.0, 0.0, 0.5, 0.5]]),)
+    control = (torch.tensor([[[2.0], [1.0], [3.0], [4.0]]]),)
+    baseline = spatial_prior_loss(control, relevance)
+    torch.testing.assert_close(spatial_prior_loss((2 * control[0],), relevance), baseline)
+    torch.testing.assert_close(spatial_prior_loss((0.5 * control[0],), relevance), baseline)
+    assert torch.isfinite(spatial_prior_loss((torch.zeros_like(control[0]),), relevance))
+
+
 def test_control_band_prefers_in_corridor_and_penalizes_wrong_or_orthogonal():
     direction = torch.tensor([[[1.0, 0.0], [1.0, 0.0]]])
     relevance = (torch.ones(1, 2),)
@@ -115,6 +127,43 @@ def test_ranking_gap_and_triangle_objectives_have_expected_direction():
     straight, _, _ = triangle_deficit_loss(torch.tensor([1.0, 1.0]), torch.tensor([2.0]))
     detour, _, _ = triangle_deficit_loss(torch.tensor([1.0, 1.0]), torch.tensor([0.5]))
     assert straight == 0 and detour > 0
+
+
+def test_semantic_order_coverage_and_dense_nodes_are_hierarchical():
+    ordered = torch.tensor([0.0, 0.25, 0.5, 0.75, 1.0])
+    reversed_ = torch.tensor([0.0, 0.8, 0.5, 0.75, 1.0])
+    assert adjacent_ranking_loss(ordered, margin=0) == 0
+    assert adjacent_ranking_loss(reversed_, margin=0) > 0
+    coverage, collapse, jump, gaps = semantic_coverage_loss(ordered)
+    assert coverage == 0 and collapse == 0 and jump == 0
+    concentrated = torch.tensor([0.0, 0.8, 0.9, 0.95, 1.0])
+    assert semantic_coverage_loss(concentrated)[0] > 0
+    dense = torch.linspace(0, 1, 10)
+    assert adjacent_ranking_loss(dense, margin=0) == 0
+    assert semantic_coverage_loss(dense)[0] == 0
+    assert gaps.numel() == 4
+
+
+def test_anchor_selection_is_unique_ordered_and_endpoint_inclusive():
+    assert coarse_anchor_indices(5) == (0, 1, 2, 3, 4)
+    for nodes in (7, 10):
+        anchors = coarse_anchor_indices(nodes)
+        assert anchors[0] == 0 and anchors[-1] == nodes - 1
+        assert len(anchors) == len(set(anchors)) == 5
+        assert tuple(sorted(anchors)) == anchors
+
+
+def test_fine_dreamsim_only_penalizes_worst_jump_not_small_dense_gaps():
+    small_dense = torch.tensor([0.01] * 9)
+    assert fine_jump_loss(small_dense)[0] == 0
+    jump, fractions, worst = fine_jump_loss(torch.tensor([0.01, 0.01, 0.01, 0.97]))
+    assert jump > 0 and worst > 0.55 and fractions.argmax().item() == 3
+
+
+def test_coarse_triangle_detects_detour_without_fine_node_assumption():
+    smooth, _, _ = triangle_deficit_loss(torch.tensor([1.0, 1.0]), torch.tensor([2.0]))
+    detour, _, _ = triangle_deficit_loss(torch.tensor([1.0, 1.0]), torch.tensor([0.5]))
+    assert smooth == 0 and detour > 0
 
 
 def test_triangle_deficit_uses_local_skip_distance_for_normalization():
@@ -181,10 +230,13 @@ def test_joint_objective_updates_independent_branch_controls_differently():
     )
     controls = initialize_independent_coupled_controls(prior.directions, num_branches=3, betas=(0.1, 0.4, 0.8))
     optimizer = torch.optim.Adam(controls, lr=0.1)
-    candidates = torch.stack([control.mean().expand(3, 4, 4) for control in controls[0]], dim=0)
+    # Deliberately reverse semantic coordinates so the semantic-order loss,
+    # rather than an L2-to-zero regularizer, supplies the branch gradients.
+    candidates = torch.stack([-control.mean().expand(3, 4, 4) for control in controls[0]], dim=0)
     optimizer.zero_grad(set_to_none=True)
     objective(candidates, controls).total.backward()
     before = controls[0].detach().clone()
     optimizer.step()
     assert not torch.equal(controls[0][0], controls[0][1])
     assert not torch.equal(controls[0], before)
+    fine_jump_loss,

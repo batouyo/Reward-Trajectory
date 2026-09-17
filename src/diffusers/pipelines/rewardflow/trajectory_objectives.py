@@ -15,12 +15,14 @@ import torch.nn.functional as F
 from .coupled_terminal_control import (
     CoupledControlPrior,
     adjacent_ranking_loss,
+    coarse_anchor_indices,
     control_band_loss,
     control_energy_loss,
     control_no_jump_loss,
     endpoint_progress_batch,
-    relative_gap_loss,
+    fine_jump_loss,
     scalar_direction_residual_diagnostics,
+    semantic_coverage_loss,
     spatial_prior_loss,
     triangle_deficit_loss,
     weighted_source_preservation,
@@ -41,14 +43,16 @@ class DreamSimDistance(Protocol):
 class RewardSliderV1LossWeights:
     """Smoke-test defaults, all intentionally explicit rather than paper values."""
 
-    rank: float = 1.0
-    gap: float = 1.0
+    semantic_order: float = 1.0
+    semantic_coverage: float = 1.0
+    fine_jump: float = 1.0
+    coarse_gap: float = 1.0
     second: float = 0.25
     preserve: float = 1.0
     ctrl: float = 0.0
     band: float = 0.01
     spatial: float = 0.05
-    energy: float = 1e-4
+    energy: float = 0.0
 
 
 @dataclass
@@ -57,8 +61,14 @@ class RewardSliderV1ObjectiveOutput:
     components: dict[str, torch.Tensor]
     progress: torch.Tensor
     adjacent_semantic_gaps: torch.Tensor
+    coarse_anchor_indices: tuple[int, ...]
+    coarse_semantic_gaps: torch.Tensor
     dreamsim_gaps: torch.Tensor
     dreamsim_gap_fractions: torch.Tensor
+    dreamsim_worst_jump: torch.Tensor
+    dreamsim_worst_jump_index: torch.Tensor
+    coarse_dreamsim_gaps: torch.Tensor
+    coarse_dreamsim_fractions: torch.Tensor
     triangle_raw_deficits: torch.Tensor
     triangle_normalized_deficits: torch.Tensor
     control_diagnostics: list[dict[str, torch.Tensor]]
@@ -79,9 +89,12 @@ class CoupledTrajectoryObjective:
         token_height: int,
         token_width: int,
         weights: RewardSliderV1LossWeights = RewardSliderV1LossWeights(),
-        rank_margin: float = 0.01,
-        min_gap_fraction: float = 0.05,
-        max_gap_fraction: float = 0.55,
+        order_margin: float = 0.0,
+        sem_min_fraction: float = 0.05,
+        sem_max_fraction: float = 0.55,
+        fine_max_jump_fraction: float = 0.55,
+        coarse_min_fraction: float = 0.05,
+        coarse_max_fraction: float = 0.55,
     ):
         if source_image.shape != native_full_image.shape or source_image.shape[0] != 1:
             raise ValueError("Fixed source and native-full endpoints must be matching [1,3,H,W] tensors.")
@@ -94,8 +107,10 @@ class CoupledTrajectoryObjective:
         self.prior = prior
         self.token_height, self.token_width = token_height, token_width
         self.weights = weights
-        self.rank_margin = rank_margin
-        self.min_gap_fraction, self.max_gap_fraction = min_gap_fraction, max_gap_fraction
+        self.order_margin = order_margin
+        self.sem_min_fraction, self.sem_max_fraction = sem_min_fraction, sem_max_fraction
+        self.fine_max_jump_fraction = fine_max_jump_fraction
+        self.coarse_min_fraction, self.coarse_max_fraction = coarse_min_fraction, coarse_max_fraction
         with torch.no_grad():
             self.source_feature = feature_encoder.encode_image(self.source_image).detach()
             self.full_feature = feature_encoder.encode_image(self.native_full_image).detach()
@@ -105,7 +120,9 @@ class CoupledTrajectoryObjective:
         # Mean relevance across controlled timesteps is a fixed image-space
         # preservation prior, not a generated image segmentation mask.
         token_map = torch.stack([item[0] for item in prior.relevance]).mean(0).reshape(1, 1, token_height, token_width)
-        self.relevance_image = F.interpolate(token_map, size=source_image.shape[-2:], mode="bilinear", align_corners=False).detach()
+        self.relevance_image = F.interpolate(
+            token_map, size=source_image.shape[-2:], mode="bilinear", align_corners=False
+        ).detach()
 
     @staticmethod
     def _pair_distances(images: torch.Tensor, distance: DreamSimDistance, offset: int) -> torch.Tensor:
@@ -120,30 +137,48 @@ class CoupledTrajectoryObjective:
         progress = torch.cat(
             (
                 features.new_zeros(1),
-                endpoint_progress_batch(self.source_feature.to(features.device), features, self.full_feature.to(features.device)),
+                endpoint_progress_batch(
+                    self.source_feature.to(features.device), features, self.full_feature.to(features.device)
+                ),
                 features.new_ones(1),
             )
         )
-        rank = adjacent_ranking_loss(progress, margin=self.rank_margin)
-        trajectory = torch.cat((self.source_image.to(candidates), candidates, self.native_full_image.to(candidates)), dim=0)
-        gaps = self._pair_distances(trajectory, self.dreamsim, 1)
-        gap, collapse, jump, gap_fractions = relative_gap_loss(
-            gaps,
-            min_gap_fraction=self.min_gap_fraction,
-            max_gap_fraction=self.max_gap_fraction,
+        anchor_indices = coarse_anchor_indices(progress.numel())
+        semantic_order = adjacent_ranking_loss(progress, margin=self.order_margin)
+        semantic_coverage, semantic_collapse, semantic_jump, coarse_semantic_gaps = semantic_coverage_loss(
+            progress,
+            anchor_indices=anchor_indices,
+            min_fraction=self.sem_min_fraction,
+            max_fraction=self.sem_max_fraction,
         )
-        skip = self._pair_distances(trajectory, self.dreamsim, 2)
-        second, raw_deficits, normalized_deficits = triangle_deficit_loss(gaps, skip)
+        trajectory = torch.cat(
+            (self.source_image.to(candidates), candidates, self.native_full_image.to(candidates)), dim=0
+        )
+        gaps = self._pair_distances(trajectory, self.dreamsim, 1)
+        fine_jump, gap_fractions, worst_jump = fine_jump_loss(gaps, max_fraction=self.fine_max_jump_fraction)
+        coarse_trajectory = trajectory[list(anchor_indices)]
+        coarse_gaps = self._pair_distances(coarse_trajectory, self.dreamsim, 1)
+        coarse_gap, coarse_collapse, coarse_jump, coarse_fractions = semantic_coverage_loss(
+            torch.cat((coarse_gaps.new_zeros(1), coarse_gaps.cumsum(0))),
+            min_fraction=self.coarse_min_fraction,
+            max_fraction=self.coarse_max_fraction,
+        )
+        coarse_skip = self._pair_distances(coarse_trajectory, self.dreamsim, 2)
+        second, raw_deficits, normalized_deficits = triangle_deficit_loss(coarse_gaps, coarse_skip)
         preserve = weighted_source_preservation(candidates, self.source_image, self.relevance_image.to(candidates))
         band, diagnostics = control_band_loss(controls, self.prior.directions, self.prior.relevance)
         spatial = spatial_prior_loss(controls, self.prior.relevance)
         control_no_jump = control_no_jump_loss(controls)
         energy = control_energy_loss(controls)
         components = {
-            "rank": rank,
-            "gap": gap,
-            "gap_collapse": collapse,
-            "gap_jump": jump,
+            "semantic_order": semantic_order,
+            "semantic_coverage": semantic_coverage,
+            "semantic_collapse": semantic_collapse,
+            "semantic_jump": semantic_jump,
+            "fine_jump": fine_jump,
+            "coarse_gap": coarse_gap,
+            "coarse_collapse": coarse_collapse,
+            "coarse_jump": coarse_jump,
             "second": second,
             "preserve": preserve,
             "control_no_jump": control_no_jump,
@@ -151,17 +186,34 @@ class CoupledTrajectoryObjective:
             "spatial": spatial,
             "energy": energy,
         }
-        total = sum(getattr(self.weights, name) * components[key] for name, key in (
-            ("rank", "rank"), ("gap", "gap"), ("second", "second"), ("preserve", "preserve"),
-            ("ctrl", "control_no_jump"), ("band", "band"), ("spatial", "spatial"), ("energy", "energy"),
-        ))
+        total = sum(
+            getattr(self.weights, name) * components[key]
+            for name, key in (
+                ("semantic_order", "semantic_order"),
+                ("semantic_coverage", "semantic_coverage"),
+                ("fine_jump", "fine_jump"),
+                ("coarse_gap", "coarse_gap"),
+                ("second", "second"),
+                ("preserve", "preserve"),
+                ("ctrl", "control_no_jump"),
+                ("band", "band"),
+                ("spatial", "spatial"),
+                ("energy", "energy"),
+            )
+        )
         return RewardSliderV1ObjectiveOutput(
             total=total,
             components=components,
             progress=progress,
             adjacent_semantic_gaps=progress[1:] - progress[:-1],
+            coarse_anchor_indices=anchor_indices,
+            coarse_semantic_gaps=coarse_semantic_gaps,
             dreamsim_gaps=gaps,
             dreamsim_gap_fractions=gap_fractions,
+            dreamsim_worst_jump=worst_jump,
+            dreamsim_worst_jump_index=gap_fractions.argmax(),
+            coarse_dreamsim_gaps=coarse_gaps,
+            coarse_dreamsim_fractions=coarse_fractions,
             triangle_raw_deficits=raw_deficits,
             triangle_normalized_deficits=normalized_deficits,
             control_diagnostics=diagnostics,

@@ -203,15 +203,20 @@ def control_band_loss(
 
 
 def spatial_prior_loss(controls: Sequence[torch.Tensor], relevance: Sequence[torch.Tensor], *, eps: float = 1e-8) -> torch.Tensor:
-    """Penalize energy in low-relevance tokens but never force values to zero."""
+    """Penalize only the *fraction* of control energy outside relevance.
+
+    This intentionally does not reward ``U -> 0``: scaling a non-zero control
+    leaves the loss unchanged.  A zero control has a finite zero contribution
+    and is handled by ``eps`` rather than producing a NaN.
+    """
 
     values = []
     for control, map_ in zip(controls, relevance):
         weight = (1 - map_.to(control)).unsqueeze(-1)
-        values.append(
-            (control.float().square() * weight).sum()
-            / (weight.sum() * control.shape[0] * control.shape[-1]).clamp_min(eps)
-        )
+        squared = control.float().square()
+        low_energy = (squared * weight).sum(dim=(1, 2))
+        total_energy = squared.sum(dim=(1, 2))
+        values.append((low_energy / total_energy.clamp_min(eps)).mean())
     return torch.stack(values).mean()
 
 
@@ -263,6 +268,64 @@ def relative_gap_loss(
     collapse = F.relu(min_gap_fraction - fractions).mean()
     jump = F.relu(fractions - max_gap_fraction).mean()
     return collapse + jump, collapse, jump, fractions
+
+
+def coarse_anchor_indices(num_nodes: int, *, max_anchors: int = 5) -> tuple[int, ...]:
+    """Select unique, ordered endpoint-inclusive anchors for a dense path."""
+
+    if num_nodes < 2:
+        raise ValueError("A trajectory needs at least source and native-full nodes.")
+    if max_anchors < 2:
+        raise ValueError("`max_anchors` must be at least two.")
+    count = min(max_anchors, num_nodes)
+    # Python round has banker's behavior. Tensor round gives the documented
+    # linspace-round construction consistently across supported Python builds.
+    indices = torch.linspace(0, num_nodes - 1, count).round().to(torch.int64).tolist()
+    unique = tuple(dict.fromkeys(indices))
+    if unique[0] != 0 or unique[-1] != num_nodes - 1 or len(unique) != count:
+        raise RuntimeError("Anchor construction lost an endpoint or uniqueness.")
+    return unique
+
+
+def semantic_coverage_loss(
+    progress: torch.Tensor,
+    *,
+    anchor_indices: Sequence[int] | None = None,
+    min_fraction: float = 0.05,
+    max_fraction: float = 0.55,
+    eps: float = 1e-8,
+) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
+    """Coarse semantic coverage without imposing equal semantic spacing."""
+
+    if progress.ndim != 1 or progress.numel() < 2:
+        raise ValueError("Progress must be a one-dimensional trajectory.")
+    if not 0 <= min_fraction <= max_fraction <= 1:
+        raise ValueError("Semantic fractions must satisfy 0 <= min <= max <= 1.")
+    indices = tuple(anchor_indices or coarse_anchor_indices(progress.numel()))
+    if len(indices) < 2 or indices[0] != 0 or indices[-1] != progress.numel() - 1:
+        raise ValueError("Anchors must be ordered and include both endpoints.")
+    anchors = progress[list(indices)]
+    gaps = anchors[1:] - anchors[:-1]
+    # Endpoint coordinates are defined as zero and one by this objective, but
+    # normalize defensively for toy diagnostics and numerical auditability.
+    fractions = gaps / gaps.sum().clamp_min(eps)
+    collapse = F.relu(min_fraction - fractions.min())
+    jump = F.relu(fractions.max() - max_fraction)
+    return collapse + jump, collapse, jump, gaps
+
+
+def fine_jump_loss(
+    distances: torch.Tensor, *, max_fraction: float = 0.55, eps: float = 1e-8
+) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+    """Allow tiny dense adjacent gaps; penalize only the single worst jump."""
+
+    if distances.ndim != 1 or distances.numel() < 1:
+        raise ValueError("Adjacent distances must be one-dimensional.")
+    if not 0 <= max_fraction <= 1:
+        raise ValueError("`max_fraction` must lie in [0, 1].")
+    fractions = distances / distances.sum().clamp_min(eps)
+    worst = fractions.max()
+    return F.relu(worst - max_fraction), fractions, worst
 
 
 def triangle_deficit_loss(
