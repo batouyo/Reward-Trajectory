@@ -1,0 +1,9 @@
+{
+  "batched_peak_vram": {
+    "allocated": 34131753984,
+    "reserved": 34424750080
+  },
+  "batched_seconds": 7.466654350999306,
+  "note": "Batched paths reduce repeated transformer forwards; checkpointing trades memory for recomputation time.",
+  "sequential_seconds": 13.836016588000348
+}

@@ -84,6 +84,20 @@ def test_clip_and_siglip_projected_embeddings_are_normalized_frozen_and_differen
         assert torch.isfinite(gradient).all() and gradient.abs().sum() > 0
 
 
+def test_batched_image_encoding_matches_single_image_api_and_keeps_candidate_gradients():
+    for scorer_class in (CLIPImageFeatureScorer, SigLIPImageFeatureScorer):
+        scorer = _scorer(scorer_class)
+        images = torch.rand(3, 3, 6, 8, requires_grad=True)
+        batched = scorer.encode_images(images)
+        singles = torch.stack([scorer.encode_image(images[index : index + 1]) for index in range(3)])
+        # Batched reductions may use a different, still FP32, reduction tree
+        # than three singleton calls. This is a numerical-equivalence check.
+        torch.testing.assert_close(batched, singles, rtol=5e-3, atol=2e-3)
+        gradient = torch.autograd.grad(batched.sum(), images)[0]
+        assert batched.shape == (3, 4)
+        assert torch.isfinite(gradient).all() and gradient.abs().sum() > 0
+
+
 def test_clip_and_siglip_use_official_projected_text_api_and_detach_features():
     for scorer_class in (CLIPImageFeatureScorer, SigLIPImageFeatureScorer):
         scorer = _scorer(scorer_class)

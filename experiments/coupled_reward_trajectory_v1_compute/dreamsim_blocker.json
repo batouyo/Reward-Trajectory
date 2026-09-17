@@ -1,0 +1,5 @@
+{
+  "blocked": true,
+  "consequence": "Experiment D initialization geometry and Experiment E optimization were intentionally not run without official differentiable DreamSim.",
+  "reason": "RewardSlider V1 requires the official `dreamsim` package for trajectory geometry; it is not installed. No LPIPS or other substitute was selected."
+}

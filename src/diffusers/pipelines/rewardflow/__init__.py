@@ -133,6 +133,30 @@ else:
         "FluxKontextTerminalControlPipeline",
         "KontextTerminalControlInputs",
     ]
+    _import_structure["pipeline_flux_kontext_coupled_control"] = [
+        "CoupledKontextControlInputs",
+        "FluxKontextCoupledControlPipeline",
+    ]
+    _import_structure["coupled_terminal_control"] = [
+        "CoupledControlPrior",
+        "adjacent_ranking_loss",
+        "control_band_loss",
+        "control_energy_loss",
+        "control_smoothness_loss",
+        "gap_bound_loss",
+        "initialize_independent_coupled_controls",
+        "make_coupled_prior",
+        "soft_relevance_from_velocity_scores",
+        "spatial_prior_loss",
+        "triangle_deficit_loss",
+        "unroll_coupled_velocity_controls",
+        "weighted_source_preservation",
+    ]
+    _import_structure["trajectory_objectives"] = [
+        "CoupledTrajectoryObjective",
+        "RewardSliderV1LossWeights",
+        "RewardSliderV1ObjectiveOutput",
+    ]
     _import_structure["strength_trajectory"] = [
         "StrengthBranchLayout",
         "StrengthRewardBatchContext",
@@ -311,6 +335,30 @@ if TYPE_CHECKING or DIFFUSERS_SLOW_IMPORT:
         from .pipeline_flux_kontext_terminal_control import (
             FluxKontextTerminalControlPipeline,
             KontextTerminalControlInputs,
+        )
+        from .pipeline_flux_kontext_coupled_control import (
+            CoupledKontextControlInputs,
+            FluxKontextCoupledControlPipeline,
+        )
+        from .coupled_terminal_control import (
+            CoupledControlPrior,
+            adjacent_ranking_loss,
+            control_band_loss,
+            control_energy_loss,
+            control_smoothness_loss,
+            gap_bound_loss,
+            initialize_independent_coupled_controls,
+            make_coupled_prior,
+            soft_relevance_from_velocity_scores,
+            spatial_prior_loss,
+            triangle_deficit_loss,
+            unroll_coupled_velocity_controls,
+            weighted_source_preservation,
+        )
+        from .trajectory_objectives import (
+            CoupledTrajectoryObjective,
+            RewardSliderV1LossWeights,
+            RewardSliderV1ObjectiveOutput,
         )
         from .pipeline_rewardflow_flux import FluxRewardFlowPipeline
         from .relative_endpoint_semantic import (

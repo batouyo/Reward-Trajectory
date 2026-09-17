@@ -175,8 +175,8 @@ class _ProjectedImageFeatureScorer:
     def preprocess_image(self, image: torch.Tensor) -> torch.Tensor:
         if image.ndim == 3:
             image = image.unsqueeze(0)
-        if image.ndim != 4 or image.shape[0] != 1 or image.shape[1] != 3:
-            raise ValueError("Expected one RGB image with shape [1, 3, H, W].")
+        if image.ndim != 4 or image.shape[0] < 1 or image.shape[1] != 3:
+            raise ValueError("Expected RGB image batch with shape [N, 3, H, W].")
         if not image.is_floating_point():
             raise TypeError("Image input must be floating point in [0, 1].")
         image = self._resize(image.float().clamp(0, 1))
@@ -189,11 +189,25 @@ class _ProjectedImageFeatureScorer:
         return (image - mean) / std
 
     def encode_image(self, image: torch.Tensor) -> torch.Tensor:
-        pixels = self.preprocess_image(image).to(self._model_device(), dtype=torch.float32)
+        if image.ndim == 3:
+            image = image.unsqueeze(0)
+        if image.ndim != 4 or image.shape[0] != 1:
+            raise ValueError("`encode_image` preserves its B=1 contract; use `encode_images` for a batch.")
+        return self.encode_images(image)[0]
+
+    def encode_images(self, images: torch.Tensor) -> torch.Tensor:
+        """Encode a differentiable RGB batch as normalized ``[N,D]`` features.
+
+        This extends the V6 B=1 API without changing ``encode_image``.  Model
+        parameters stay frozen but gradients to the candidate image batch are
+        intentionally retained.
+        """
+
+        pixels = self.preprocess_image(images).to(self._model_device(), dtype=torch.float32)
         features = _feature_tensor(self.model.get_image_features(pixel_values=pixels))
-        if features.ndim != 2 or features.shape[0] != 1:
-            raise ValueError("Projected image features must have shape [1, D].")
-        return F.normalize(features[0].float(), dim=0).to(image.device)
+        if features.ndim != 2 or features.shape[0] != images.shape[0]:
+            raise ValueError("Projected image features must have shape [N, D].")
+        return F.normalize(features.float(), dim=-1).to(images.device)
 
     def _text_max_length(self) -> int:
         text_config = getattr(getattr(self.model, "config", None), "text_config", None)

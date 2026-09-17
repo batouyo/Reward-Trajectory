@@ -1,0 +1,37 @@
+{
+  "soft_prior": "score / max(score) per timestep; no threshold or hard mask",
+  "steps": [
+    {
+      "direction_l2": 159.41366577148438,
+      "fraction_above_0p25": 0.25390625,
+      "fraction_above_0p5": 0.14453125,
+      "fraction_above_0p75": 0.09765625,
+      "is_binary": false,
+      "raw_max": 3.5312600135803223,
+      "raw_mean": 0.9613214731216431,
+      "raw_min": 0.25105229020118713,
+      "raw_std": 0.791789174079895,
+      "relevance_max": 1.0,
+      "relevance_mean": 0.2722318768501282,
+      "relevance_min": 0.07109425216913223,
+      "relevance_std": 0.2242228388786316,
+      "step": 0
+    },
+    {
+      "direction_l2": 64.14480590820312,
+      "fraction_above_0p25": 0.1953125,
+      "fraction_above_0p5": 0.109375,
+      "fraction_above_0p75": 0.05859375,
+      "is_binary": false,
+      "raw_max": 1.6891132593154907,
+      "raw_mean": 0.36199048161506653,
+      "raw_min": 0.09489975869655609,
+      "raw_std": 0.3465479612350464,
+      "relevance_max": 1.0,
+      "relevance_mean": 0.2143079936504364,
+      "relevance_min": 0.05618318170309067,
+      "relevance_std": 0.20516560971736908,
+      "step": 1
+    }
+  ]
+}

@@ -1,0 +1,16 @@
+{
+  "band_good": 0.0,
+  "band_orthogonal": 4.0,
+  "band_wrong": 0.25,
+  "control_smooth_linear": 0.0,
+  "control_smooth_zigzag": 1.8133330345153809,
+  "gap_collapse": 0.013125000521540642,
+  "gap_jump": 0.07500000298023224,
+  "gap_normal": 0.0,
+  "rank_inverted": 0.10499999672174454,
+  "rank_ordered": 0.0,
+  "spatial_high_relevance": 0.0,
+  "spatial_low_relevance": 4.0,
+  "triangle_detour": 0.75,
+  "triangle_straight": 0.0
+}
