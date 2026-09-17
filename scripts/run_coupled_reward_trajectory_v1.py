@@ -61,7 +61,12 @@ def _args():
     parser.add_argument("--grad-clip", type=float, default=None)
     parser.add_argument("--use-checkpointing", action=argparse.BooleanOptionalAction, default=True)
     parser.add_argument("--backward-mode", choices=("one_pass", "two_pass_vjp"), default="one_pass")
-    parser.add_argument("--vjp-microbatch-size", type=int, default=1)
+    parser.add_argument(
+        "--vjp-microbatch-size",
+        type=int,
+        default=None,
+        help="Replay batch size. Defaults to all branches because sliced BF16 replay is not gradient-equivalent.",
+    )
     parser.add_argument(
         "--run-vjp-parity",
         action=argparse.BooleanOptionalAction,
@@ -103,12 +108,20 @@ def _args():
     elif args.branches is None:
         args.branches = 3
     args.num_trajectory_nodes = args.branches + 2
+    if args.vjp_microbatch_size is None:
+        args.vjp_microbatch_size = args.branches
     if args.branches < 1 or args.control_steps < 1 or args.steps < args.control_steps:
         parser.error("Require branches/control-steps >= 1 and steps >= control-steps.")
     if args.outer_iters < 0 or args.ablation_iters < 0 or args.control_lr <= 0:
         parser.error("Iteration counts must be non-negative and --control-lr must be positive.")
     if not 1 <= args.vjp_microbatch_size <= args.branches:
         parser.error("`--vjp-microbatch-size` must lie in [1, branches].")
+    if args.backward_mode == "two_pass_vjp" and args.outer_iters > 0 and args.vjp_microbatch_size != args.branches:
+        parser.error(
+            "Exact two-pass optimization currently requires `--vjp-microbatch-size` to equal the branch count. "
+            "Real BF16 audits showed sliced replays are not gradient-equivalent; use --run-vjp-parity with "
+            "--outer-iters 0 only to diagnose a proposed microbatch size."
+        )
     if not (
         0 <= args.sem_min_fraction <= args.sem_max_fraction <= 1
         and 0 <= args.coarse_min_fraction <= args.coarse_max_fraction <= 1
