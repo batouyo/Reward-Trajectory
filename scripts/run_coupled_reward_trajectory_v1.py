@@ -346,6 +346,35 @@ def _gradient_difference(reference: torch.Tensor, candidate: torch.Tensor) -> di
     }
 
 
+def _microbatch_replay_forward_parity(pipe, inputs, controls, args) -> list[dict]:
+    """Audit whether a sliced branch replay has the same forward values.
+
+    A VJP can only be called exact when this audit is numerically stable.  The
+    audit keeps batch-size-dependent FLUX/VAE numerical effects visible rather
+    than silently treating a B=1 replay as equivalent to a B=K forward.
+    """
+    with torch.no_grad():
+        full_unroll = pipe.unroll_coupled_controls(inputs, controls, use_checkpointing=False)
+        full_latent = full_unroll.final_latent.detach()
+        full_image = pipe.decode_coupled_terminal_latent(full_latent, inputs).detach()
+        rows = []
+        for start in range(0, args.branches, args.vjp_microbatch_size):
+            end = min(start + args.vjp_microbatch_size, args.branches)
+            replay_latent = pipe.unroll_coupled_control_microbatch(
+                inputs, controls, slice(start, end), use_checkpointing=False
+            ).final_latent
+            replay_image = pipe.decode_coupled_terminal_latent(replay_latent, inputs)
+            rows.append(
+                {
+                    "start": start,
+                    "end": end,
+                    "latent": _errors(replay_latent, full_latent[start:end]),
+                    "decoded_image": _errors(replay_image, full_image[start:end]),
+                }
+            )
+    return rows
+
+
 def _real_two_pass_vjp_parity(pipe, inputs, objective, args, output: Path) -> dict:
     """Compare full real-backbone control gradients without changing optimization.
 
@@ -355,6 +384,7 @@ def _real_two_pass_vjp_parity(pipe, inputs, objective, args, output: Path) -> di
     """
     one_pass_controls = _make_independent_controls(inputs, args)
     two_pass_controls = [torch.nn.Parameter(control.detach().clone()) for control in one_pass_controls]
+    replay_forward_parity = _microbatch_replay_forward_parity(pipe, inputs, one_pass_controls, args)
     torch.cuda.empty_cache()
     torch.cuda.reset_peak_memory_stats(args.device)
     torch.cuda.synchronize(args.device)
@@ -387,6 +417,7 @@ def _real_two_pass_vjp_parity(pipe, inputs, objective, args, output: Path) -> di
         "one_pass": {"seconds": one_pass_seconds, "peak_allocated_vram": one_pass_peak, "total": one_total},
         "two_pass_vjp": {"seconds": two_pass_seconds, "peak_allocated_vram": two_pass_peak, "total": two_total},
         "total_difference": float((one_total.float() - two_total.float()).abs()),
+        "microbatch_replay_forward_parity": replay_forward_parity,
         "per_control_step": [
             _gradient_difference(reference, candidate)
             for reference, candidate in zip(one_pass_gradients, two_pass_gradients)
