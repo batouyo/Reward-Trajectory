@@ -125,8 +125,47 @@ class FluxKontextCoupledControlPipeline(FluxKontextTerminalControlPipeline):
             use_checkpointing=use_checkpointing,
         )
 
-    def decode_coupled_terminal_latent(self, latent: torch.Tensor, inputs: CoupledKontextControlInputs) -> torch.Tensor:
+    def decode_coupled_terminal_latent(
+        self, latent: torch.Tensor, inputs: CoupledKontextControlInputs
+    ) -> torch.Tensor:
         return self.decode_terminal_latent(latent, inputs.native)
+
+    def unroll_coupled_control_microbatch(
+        self,
+        inputs: CoupledKontextControlInputs,
+        controls: Sequence[torch.Tensor],
+        branch_slice: slice,
+        *,
+        use_checkpointing: bool,
+    ):
+        """Replay an exact subset of independent branches for branchwise VJP."""
+
+        indices = torch.arange(inputs.num_branches, device=inputs.initial_latent.device)[branch_slice]
+        if indices.numel() < 1:
+            raise ValueError("VJP microbatch must contain at least one branch.")
+        kwargs = {}
+        for name, value in inputs.forward_kwargs.items():
+            if torch.is_tensor(value) and value.ndim and value.shape[0] == inputs.num_branches:
+                kwargs[name] = value.index_select(0, indices)
+            elif isinstance(value, list):
+                kwargs[name] = [
+                    item.index_select(0, indices) if item.shape[0] == inputs.num_branches else item for item in value
+                ]
+            else:
+                kwargs[name] = value
+
+        def velocity_fn(latent: torch.Tensor, timestep: torch.Tensor, step_index: int) -> torch.Tensor:
+            del step_index
+            return self._predict_kontext_velocity(latent, timestep, **kwargs)
+
+        return unroll_coupled_velocity_controls(
+            inputs.native.initial_latent,
+            inputs.native.timesteps,
+            inputs.native.sigmas,
+            velocity_fn,
+            [control.index_select(0, indices) for control in controls],
+            use_checkpointing=use_checkpointing,
+        )
 
     @staticmethod
     def expand_native_to_branches(latent: torch.Tensor, num_branches: int) -> torch.Tensor:

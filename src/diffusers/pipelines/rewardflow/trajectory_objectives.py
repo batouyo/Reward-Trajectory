@@ -128,6 +128,44 @@ class CoupledTrajectoryObjective:
     def _pair_distances(images: torch.Tensor, distance: DreamSimDistance, offset: int) -> torch.Tensor:
         return distance.distance(images[:-offset], images[offset:])
 
+    def image_total(self, components: dict[str, torch.Tensor]) -> torch.Tensor:
+        """Image-only objective used by Pass A of exact two-pass VJP."""
+
+        return sum(
+            getattr(self.weights, name) * components[key]
+            for name, key in (
+                ("semantic_order", "semantic_order"),
+                ("semantic_coverage", "semantic_coverage"),
+                ("fine_jump", "fine_jump"),
+                ("coarse_gap", "coarse_gap"),
+                ("second", "second"),
+                ("preserve", "preserve"),
+            )
+        )
+
+    def control_total(
+        self, controls: Sequence[torch.Tensor]
+    ) -> tuple[torch.Tensor, dict[str, torch.Tensor], list[dict[str, torch.Tensor]]]:
+        """Control-only terms, evaluated after the image reward graph is freed."""
+
+        band, diagnostics = control_band_loss(controls, self.prior.directions, self.prior.relevance)
+        components = {
+            "control_no_jump": control_no_jump_loss(controls),
+            "band": band,
+            "spatial": spatial_prior_loss(controls, self.prior.relevance),
+            "energy": control_energy_loss(controls),
+        }
+        total = sum(
+            getattr(self.weights, name) * components[key]
+            for name, key in (
+                ("ctrl", "control_no_jump"),
+                ("band", "band"),
+                ("spatial", "spatial"),
+                ("energy", "energy"),
+            )
+        )
+        return total, components, diagnostics
+
     def __call__(self, candidates: torch.Tensor, controls: Sequence[torch.Tensor]) -> RewardSliderV1ObjectiveOutput:
         if candidates.ndim != 4 or candidates.shape[0] < 1 or candidates.shape[1:] != self.source_image.shape[1:]:
             raise ValueError("Candidates must have shape [K,3,H,W] matching source endpoints.")
@@ -166,10 +204,7 @@ class CoupledTrajectoryObjective:
         coarse_skip = self._pair_distances(coarse_trajectory, self.dreamsim, 2)
         second, raw_deficits, normalized_deficits = triangle_deficit_loss(coarse_gaps, coarse_skip)
         preserve = weighted_source_preservation(candidates, self.source_image, self.relevance_image.to(candidates))
-        band, diagnostics = control_band_loss(controls, self.prior.directions, self.prior.relevance)
-        spatial = spatial_prior_loss(controls, self.prior.relevance)
-        control_no_jump = control_no_jump_loss(controls)
-        energy = control_energy_loss(controls)
+        control_total, control_components, diagnostics = self.control_total(controls)
         components = {
             "semantic_order": semantic_order,
             "semantic_coverage": semantic_coverage,
@@ -181,26 +216,9 @@ class CoupledTrajectoryObjective:
             "coarse_jump": coarse_jump,
             "second": second,
             "preserve": preserve,
-            "control_no_jump": control_no_jump,
-            "band": band,
-            "spatial": spatial,
-            "energy": energy,
+            **control_components,
         }
-        total = sum(
-            getattr(self.weights, name) * components[key]
-            for name, key in (
-                ("semantic_order", "semantic_order"),
-                ("semantic_coverage", "semantic_coverage"),
-                ("fine_jump", "fine_jump"),
-                ("coarse_gap", "coarse_gap"),
-                ("second", "second"),
-                ("preserve", "preserve"),
-                ("ctrl", "control_no_jump"),
-                ("band", "band"),
-                ("spatial", "spatial"),
-                ("energy", "energy"),
-            )
-        )
+        total = self.image_total(components) + control_total
         return RewardSliderV1ObjectiveOutput(
             total=total,
             components=components,

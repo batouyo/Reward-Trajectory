@@ -60,6 +60,8 @@ def _args():
     parser.add_argument("--control-lr", type=float, default=0.05)
     parser.add_argument("--grad-clip", type=float, default=None)
     parser.add_argument("--use-checkpointing", action=argparse.BooleanOptionalAction, default=True)
+    parser.add_argument("--backward-mode", choices=("one_pass", "two_pass_vjp"), default="one_pass")
+    parser.add_argument("--vjp-microbatch-size", type=int, default=1)
     parser.add_argument("--run-ablations", action=argparse.BooleanOptionalAction, default=True)
     parser.add_argument("--benchmark-repeats", type=int, default=1)
     parser.add_argument("--lambda-rank", type=float, default=1.0, help="Legacy alias for semantic-order weight.")
@@ -99,6 +101,8 @@ def _args():
         parser.error("Require branches/control-steps >= 1 and steps >= control-steps.")
     if args.outer_iters < 0 or args.ablation_iters < 0 or args.control_lr <= 0:
         parser.error("Iteration counts must be non-negative and --control-lr must be positive.")
+    if not 1 <= args.vjp_microbatch_size <= args.branches:
+        parser.error("`--vjp-microbatch-size` must lie in [1, branches].")
     if not (
         0 <= args.sem_min_fraction <= args.sem_max_fraction <= 1
         and 0 <= args.coarse_min_fraction <= args.coarse_max_fraction <= 1
@@ -274,6 +278,31 @@ def _evaluate(pipe, inputs, controls, objective, *, checkpointing: bool):
     candidates = pipe.decode_coupled_terminal_latent(unroll.final_latent, inputs)
     result = objective(candidates, controls)
     return candidates, result
+
+
+def _two_pass_backward(pipe, inputs, controls, objective, args):
+    """Exact frozen-Kontext image VJP, replayed branchwise after reward Pass A."""
+    with torch.no_grad():
+        detached = pipe.decode_coupled_terminal_latent(
+            pipe.unroll_coupled_controls(inputs, controls, use_checkpointing=False).final_latent, inputs
+        ).detach()
+    reward_images = detached.requires_grad_(True)
+    reward_result = objective(reward_images, controls)
+    image_total = objective.image_total(reward_result.components)
+    image_grad = torch.autograd.grad(image_total, reward_images)[0].detach()
+    del reward_images, image_total
+    torch.cuda.empty_cache()
+    for start in range(0, args.branches, args.vjp_microbatch_size):
+        end = min(start + args.vjp_microbatch_size, args.branches)
+        unroll = pipe.unroll_coupled_control_microbatch(
+            inputs, controls, slice(start, end), use_checkpointing=args.use_checkpointing
+        )
+        replay = pipe.decode_coupled_terminal_latent(unroll.final_latent, inputs)
+        torch.autograd.backward(replay, grad_tensors=image_grad[start:end])
+        del unroll, replay
+    control_total, _, _ = objective.control_total(controls)
+    control_total.backward()
+    return detached, reward_result
 
 
 def _parity_localization(pipe, inputs, args, output: Path) -> dict:
@@ -476,8 +505,11 @@ def _run_optimization(
         optimizer.zero_grad(set_to_none=True)
         torch.cuda.reset_peak_memory_stats(args.device)
         started = time.perf_counter()
-        images, result = _evaluate(pipe, inputs, controls, objective, checkpointing=args.use_checkpointing)
-        result.total.backward()
+        if args.backward_mode == "one_pass":
+            images, result = _evaluate(pipe, inputs, controls, objective, checkpointing=args.use_checkpointing)
+            result.total.backward()
+        else:
+            images, result = _two_pass_backward(pipe, inputs, controls, objective, args)
         gradients = [control.grad for control in controls]
         if any(gradient is None or not torch.isfinite(gradient).all() for gradient in gradients):
             raise RuntimeError("Independent controls have a missing or non-finite gradient.")
@@ -504,6 +536,8 @@ def _run_optimization(
                 "peak_allocated_vram": torch.cuda.max_memory_allocated(args.device),
                 "peak_reserved_vram": torch.cuda.max_memory_reserved(args.device),
                 "frozen_gradient_audit": frozen_ok,
+                "backward_mode": args.backward_mode,
+                "vjp_microbatch_size": args.vjp_microbatch_size,
                 **before_step,
             }
         )
