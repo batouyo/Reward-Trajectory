@@ -20,6 +20,7 @@ from .rewardslider_v2_lpips import LPIPSDistance
 from .rewardslider_v2_preservation import build_image_space_relevance, masked_lpips_preservation_loss
 from .rewardslider_v2_regularizers import initialize_v_goal_parameters, v_goal_regularizers
 from .rewardslider_v2_coordination import DynamicDeficitCoordinator, DynamicDeficitOutput
+from .rewardslider_v2_quality import DifferentiableQualityReward, audit_quality_reward
 from .rewardslider_v2_scheduler import RewardSliderV2Scheduler
 
 
@@ -56,6 +57,20 @@ def build_rewardslider_v2_parser() -> argparse.ArgumentParser:
 
 
 
+
+
+class _MockQualityScorer(nn.Module):
+    def forward(self, image: torch.Tensor) -> torch.Tensor:
+        return 1 - image.float().square().mean()
+
+def build_quality_reward(spec: str | None, device: torch.device) -> DifferentiableQualityReward | None:
+    if spec is None:
+        return None
+    if spec.lower() == "mock":
+        return DifferentiableQualityReward(_MockQualityScorer()).to(device)
+    raise ValueError(
+        f"Quality reward {spec} is unavailable. Use mock for the tensor-native test scorer or omit it."
+    )
 def _norm(value: torch.Tensor | None) -> float | None:
     return None if value is None else float(value.detach().float().norm().item())
 
@@ -241,6 +256,8 @@ def run_real_flux_smoke(args) -> dict:
     output.parent.mkdir(parents=True, exist_ok=True)
     source_pil = Image.open(args.source).convert("RGB").resize((args.width, args.height), Image.Resampling.LANCZOS)
     source_image = _pil_tensor(source_pil, device)
+    quality_reward = build_quality_reward(args.quality_reward, device)
+    quality_audit = None if quality_reward is None else audit_quality_reward(quality_reward, source_image, require_pass=True)
     pipe = FluxKontextRewardSliderV2Pipeline.from_pretrained(args.model, torch_dtype=dtype, local_files_only=True).to(device)
     pipe.set_progress_bar_config(disable=True)
     inputs = pipe.prepare_rewardslider_v2_inputs(
@@ -321,14 +338,17 @@ def run_real_flux_smoke(args) -> dict:
     for iteration in range(args.local_refine_iters + args.joint_refine_iters):
         unroll, images, stats = evaluate()
         quality_loss = None
+        quality_deficit = None
         control_loss = None
         coordination = None
         trajectory_guard_loss = None
         trajectory_guard_weight = args.trajectory_guard_weight
         if scheduler.phase in ("quality_repair", "joint_refinement"):
             preserve = masked_lpips_preservation_loss(images * 2 - 1, source_image * 2 - 1, relevance_image, lpips)
+            if quality_reward is not None:
+                quality_deficit = F.softplus(-quality_reward(images))
             regularizers = v_goal_regularizers(v_goals, native_directions, relevance)
-            coordination = coordinate_image_deficits(dynamic_coordinator, preserve)
+            coordination = coordinate_image_deficits(dynamic_coordinator, preserve, quality_deficit)
             quality_loss = coordination.total_loss
             control_loss = regularizers.residual + 2.0 * regularizers.parallel + regularizers.spatial
             trajectory_guard_loss = trajectory_guard_weight * torch.relu(
@@ -371,7 +391,14 @@ def run_real_flux_smoke(args) -> dict:
         final_unroll, final_images, final_stats = evaluate()
     record = {
         "trajectory": {"current_number_of_nodes": args.initial_nodes, "max_nodes": args.max_nodes, "alpha": alpha_parameterization.alphas.detach(), "initial_kl": initial_stats.kl_uniform, "final_kl": final_stats.kl_uniform, "adjacent_lpips": final_stats.distances, "normalized_lpips": final_stats.normalized_distances, "max_normalized_gap": final_stats.max_normalized_gap, "worst_interval": final_stats.worst_interval},
-        "reward": {"quality_reward": "not_configured", "formal_trajectory_metric": "LPIPS_KL_uniform"},
+        "reward": {
+            "quality_reward": args.quality_reward,
+            "formal_trajectory_metric": "LPIPS_KL_uniform",
+            "quality_audit": None if quality_audit is None else {
+                "passed": quality_audit.passed,
+                "image_gradient_norm": quality_audit.image_gradient_norm,
+            },
+        },
         "gradient": {"alpha_gradient_norm": alpha_grad_norm, "v_goal_gradient_norms": vgoal_gradient_norms, "alpha_finite": bool(torch.isfinite(alpha_parameterization.interval_logits).all()), "v_goal_finite": all(torch.isfinite(parameter).all().item() for parameter in v_goals)},
         "control": {"v_goal_norms": [parameter.detach().float().norm() for parameter in v_goals]},
         "parity": {"single": {"latent_mae": native_parity.mean(), "latent_cosine": F.cosine_similarity(native_single.final_latent[0].float().flatten()[None], inputs.native.native_final_latent[0].float().flatten()[None]).squeeze(), "image_mae": (native_image - pipe.decode_rewardslider_v2_terminal(native_single.final_latent, inputs)).float().abs().mean()}, "batched": batch_parity},

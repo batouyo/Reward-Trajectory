@@ -1,9 +1,11 @@
+import pytest
 import json
 
 import torch
 
 from diffusers.pipelines.rewardflow.rewardslider_v2_runner import (
     RewardSliderV2Runner,
+    build_quality_reward,
     coordinate_image_deficits,
     build_rewardslider_v2_parser,
     routed_optimization_step,
@@ -104,3 +106,15 @@ def test_quality_coordination_uses_one_preservation_weight_without_quality():
     result.total_loss.backward()
     assert preservation.grad is not None
     assert preservation.grad != 0
+
+
+def test_quality_reward_builder_rejects_unavailable_and_audits_mock():
+    with pytest.raises(ValueError, match="unavailable"):
+        build_quality_reward("missing", torch.device("cpu"))
+    reward = build_quality_reward("mock", torch.device("cpu"))
+    assert reward is not None
+    from diffusers.pipelines.rewardflow.rewardslider_v2_quality import audit_quality_reward
+
+    audit = audit_quality_reward(reward, torch.ones(1, 3, 2, 2), require_pass=True)
+    assert audit.passed
+    assert audit.image_gradient_norm > 0
