@@ -1,3 +1,21 @@
+
+
+def test_routed_optimization_step_routes_trajectory_guard_to_v_goal():
+    alpha = OrderedAlphaParameterization.random(num_interior=3, seed=13)
+    goals = [torch.nn.Parameter(torch.ones(2, 2, 1)) for _ in range(4)]
+    scheduler = RewardSliderV2Scheduler(alpha, goals)
+    scheduler.force_phase("quality_repair")
+    alpha_optimizer = torch.optim.SGD([alpha.interval_logits], lr=0.1)
+    vgoal_optimizer = torch.optim.SGD(goals, lr=0.1)
+    routed_optimization_step(
+        scheduler,
+        alpha_optimizer,
+        vgoal_optimizer,
+        trajectory_loss=alpha.interval_logits.square().sum(),
+        quality_loss=None,
+        trajectory_guard_loss=sum(goal.square().sum() for goal in goals),
+        trajectory_kl=0.2,
+    )
 import json
 
 import torch

@@ -32,6 +32,7 @@ def build_rewardslider_v2_parser() -> argparse.ArgumentParser:
     parser.add_argument("--vgoal-lr", type=float, default=1e-3)
     parser.add_argument("--trajectory-kl-threshold", type=float, default=0.15)
     parser.add_argument("--trajectory-patience", type=int, default=3)
+    parser.add_argument("--trajectory-guard-weight", type=float, default=0.1)
     parser.add_argument("--local-refine-iters", type=int, default=10)
     parser.add_argument("--joint-refine-iters", type=int, default=10)
     parser.add_argument("--enable-prune", action="store_true")
@@ -304,10 +305,15 @@ def run_real_flux_smoke(args) -> dict:
     for iteration in range(args.local_refine_iters + args.joint_refine_iters):
         unroll, images, stats = evaluate()
         quality_loss = None
+        trajectory_guard_loss = None
+        trajectory_guard_weight = args.trajectory_guard_weight
         if scheduler.phase in ("quality_repair", "joint_refinement"):
             preserve = masked_lpips_preservation_loss(images * 2 - 1, source_image * 2 - 1, relevance_image, lpips)
             regularizers = v_goal_regularizers(v_goals, native_directions, relevance)
             quality_loss = preserve + regularizers.residual + 2.0 * regularizers.parallel + regularizers.spatial
+            trajectory_guard_loss = trajectory_guard_weight * torch.relu(
+                stats.kl_uniform - args.trajectory_kl_threshold
+            )
         routed = routed_optimization_step(
             scheduler,
             alpha_optimizer,
@@ -315,6 +321,7 @@ def run_real_flux_smoke(args) -> dict:
             trajectory_loss=stats.kl_uniform,
             quality_loss=quality_loss,
             trajectory_kl=stats.kl_uniform,
+            trajectory_guard_loss=trajectory_guard_loss,
         )
         alpha_grad_norm = routed["alpha_gradient_norm"]
         vgoal_gradient_norms = routed["v_goal_gradient_norms"]
@@ -323,6 +330,9 @@ def run_real_flux_smoke(args) -> dict:
                 "phase": routed["phase_before"],
                 "iteration": iteration,
                 "trajectory_kl": float(stats.kl_uniform.detach()),
+                "trajectory_kl_raw": float(stats.kl_uniform.detach()),
+                "trajectory_guard_loss": None if trajectory_guard_loss is None else float(trajectory_guard_loss.detach()),
+                "trajectory_guard_weight": trajectory_guard_weight,
                 "quality_loss": None if quality_loss is None else float(quality_loss.detach()),
                 "alpha": alpha_parameterization.alphas.detach().cpu().tolist(),
                 "alpha_gradient_norm": alpha_grad_norm,
