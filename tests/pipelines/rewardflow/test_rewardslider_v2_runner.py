@@ -1,27 +1,10 @@
-
-
-def test_routed_optimization_step_routes_trajectory_guard_to_v_goal():
-    alpha = OrderedAlphaParameterization.random(num_interior=3, seed=13)
-    goals = [torch.nn.Parameter(torch.ones(2, 2, 1)) for _ in range(4)]
-    scheduler = RewardSliderV2Scheduler(alpha, goals)
-    scheduler.force_phase("quality_repair")
-    alpha_optimizer = torch.optim.SGD([alpha.interval_logits], lr=0.1)
-    vgoal_optimizer = torch.optim.SGD(goals, lr=0.1)
-    routed_optimization_step(
-        scheduler,
-        alpha_optimizer,
-        vgoal_optimizer,
-        trajectory_loss=alpha.interval_logits.square().sum(),
-        quality_loss=None,
-        trajectory_guard_loss=sum(goal.square().sum() for goal in goals),
-        trajectory_kl=0.2,
-    )
 import json
 
 import torch
 
 from diffusers.pipelines.rewardflow.rewardslider_v2_runner import (
     RewardSliderV2Runner,
+    coordinate_image_deficits,
     build_rewardslider_v2_parser,
     routed_optimization_step,
     summarize_native_parity,
@@ -90,3 +73,34 @@ def test_runner_step_writes_auditable_jsonl_record(tmp_path):
     assert "alpha_gradient_norm" in record["gradient"]
     assert record["trajectory"]["current_number_of_nodes"] == 5
 
+
+def test_routed_optimization_step_routes_trajectory_guard_to_v_goal():
+    alpha = OrderedAlphaParameterization.random(num_interior=3, seed=13)
+    goals = [torch.nn.Parameter(torch.ones(2, 2, 1)) for _ in range(4)]
+    scheduler = RewardSliderV2Scheduler(alpha, goals)
+    scheduler.force_phase("quality_repair")
+    alpha_optimizer = torch.optim.SGD([alpha.interval_logits], lr=0.1)
+    vgoal_optimizer = torch.optim.SGD(goals, lr=0.1)
+    routed_optimization_step(
+        scheduler,
+        alpha_optimizer,
+        vgoal_optimizer,
+        trajectory_loss=alpha.interval_logits.square().sum(),
+        quality_loss=None,
+        trajectory_guard_loss=sum(goal.square().sum() for goal in goals),
+        trajectory_kl=0.2,
+
+    )
+    assert alpha.interval_logits.grad is None
+    assert all(goal.grad is not None and goal.grad.abs().sum() > 0 for goal in goals)
+def test_quality_coordination_uses_one_preservation_weight_without_quality():
+    from diffusers.pipelines.rewardflow.rewardslider_v2_coordination import DynamicDeficitCoordinator
+
+    coordinator = DynamicDeficitCoordinator()
+    preservation = torch.tensor(0.7, requires_grad=True)
+    result = coordinate_image_deficits(coordinator, preservation)
+    torch.testing.assert_close(result.weights, torch.ones(1))
+    torch.testing.assert_close(result.total_loss, preservation)
+    result.total_loss.backward()
+    assert preservation.grad is not None
+    assert preservation.grad != 0

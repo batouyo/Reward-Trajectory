@@ -19,6 +19,7 @@ from .rewardslider_v2_alpha import OrderedAlphaParameterization
 from .rewardslider_v2_lpips import LPIPSDistance
 from .rewardslider_v2_preservation import build_image_space_relevance, masked_lpips_preservation_loss
 from .rewardslider_v2_regularizers import initialize_v_goal_parameters, v_goal_regularizers
+from .rewardslider_v2_coordination import DynamicDeficitCoordinator, DynamicDeficitOutput
 from .rewardslider_v2_scheduler import RewardSliderV2Scheduler
 
 
@@ -53,8 +54,22 @@ def build_rewardslider_v2_parser() -> argparse.ArgumentParser:
     return parser
 
 
+
+
 def _norm(value: torch.Tensor | None) -> float | None:
     return None if value is None else float(value.detach().float().norm().item())
+
+
+def coordinate_image_deficits(
+    coordinator: DynamicDeficitCoordinator,
+    preservation_loss: torch.Tensor,
+    quality_loss: torch.Tensor | None = None,
+) -> DynamicDeficitOutput:
+    """Coordinate only image-level deficits; control penalties remain separate."""
+    values = [preservation_loss.reshape(())]
+    if quality_loss is not None:
+        values.append(quality_loss.reshape(()))
+    return coordinator.coordinate(torch.stack(values))
 
 
 class RewardSliderV2Runner:
@@ -285,6 +300,7 @@ def run_real_flux_smoke(args) -> dict:
         _, _, initial_stats = evaluate()
     alpha_optimizer = torch.optim.Adam([alpha_parameterization.interval_logits], lr=args.alpha_lr)
     vgoal_optimizer = torch.optim.Adam(v_goals, lr=args.vgoal_lr)
+    dynamic_coordinator = DynamicDeficitCoordinator()
     scheduler = RewardSliderV2Scheduler(
         alpha_parameterization,
         v_goals,
@@ -305,12 +321,16 @@ def run_real_flux_smoke(args) -> dict:
     for iteration in range(args.local_refine_iters + args.joint_refine_iters):
         unroll, images, stats = evaluate()
         quality_loss = None
+        control_loss = None
+        coordination = None
         trajectory_guard_loss = None
         trajectory_guard_weight = args.trajectory_guard_weight
         if scheduler.phase in ("quality_repair", "joint_refinement"):
             preserve = masked_lpips_preservation_loss(images * 2 - 1, source_image * 2 - 1, relevance_image, lpips)
             regularizers = v_goal_regularizers(v_goals, native_directions, relevance)
-            quality_loss = preserve + regularizers.residual + 2.0 * regularizers.parallel + regularizers.spatial
+            coordination = coordinate_image_deficits(dynamic_coordinator, preserve)
+            quality_loss = coordination.total_loss
+            control_loss = regularizers.residual + 2.0 * regularizers.parallel + regularizers.spatial
             trajectory_guard_loss = trajectory_guard_weight * torch.relu(
                 stats.kl_uniform - args.trajectory_kl_threshold
             )
@@ -322,6 +342,7 @@ def run_real_flux_smoke(args) -> dict:
             quality_loss=quality_loss,
             trajectory_kl=stats.kl_uniform,
             trajectory_guard_loss=trajectory_guard_loss,
+            control_loss=control_loss,
         )
         alpha_grad_norm = routed["alpha_gradient_norm"]
         vgoal_gradient_norms = routed["v_goal_gradient_norms"]
@@ -330,6 +351,12 @@ def run_real_flux_smoke(args) -> dict:
                 "phase": routed["phase_before"],
                 "iteration": iteration,
                 "trajectory_kl": float(stats.kl_uniform.detach()),
+                "coordination": None if coordination is None else {
+                    "raw_deficits": coordination.raw_deficits,
+                    "normalized_deficits": coordination.normalized_deficits,
+                    "dynamic_weights": coordination.weights,
+                    "direction": coordination.direction,
+                },
                 "trajectory_kl_raw": float(stats.kl_uniform.detach()),
                 "trajectory_guard_loss": None if trajectory_guard_loss is None else float(trajectory_guard_loss.detach()),
                 "trajectory_guard_weight": trajectory_guard_weight,
