@@ -17,7 +17,7 @@ from PIL import Image
 from .pipeline_flux_kontext_rewardslider_v2 import FluxKontextRewardSliderV2Pipeline, RewardSliderV2Inputs
 from .rewardslider_v2_alpha import OrderedAlphaParameterization
 from .rewardslider_v2_lpips import LPIPSDistance
-from .rewardslider_v2_preservation import masked_lpips_preservation_loss
+from .rewardslider_v2_preservation import build_image_space_relevance, masked_lpips_preservation_loss
 from .rewardslider_v2_regularizers import initialize_v_goal_parameters, v_goal_regularizers
 from .rewardslider_v2_scheduler import RewardSliderV2Scheduler
 
@@ -240,7 +240,13 @@ def run_real_flux_smoke(args) -> dict:
     for iteration in range(args.joint_refine_iters):
         quality_optimizer.zero_grad(set_to_none=True)
         unroll, images, stats = evaluate()
-        relevance_image = F.interpolate(relevance[0][None, None], size=(args.height, args.width), mode="bilinear", align_corners=False)
+        relevance_image = build_image_space_relevance(
+            relevance,
+            token_height=inputs.native.sampling_token_height,
+            token_width=inputs.native.sampling_token_width,
+            target_height=args.height,
+            target_width=args.width,
+        )
         preserve = masked_lpips_preservation_loss(images * 2 - 1, source_image * 2 - 1, relevance_image, lpips)
         regularizers = v_goal_regularizers(v_goals, native_directions, relevance)
         quality_loss = preserve + regularizers.residual + 2.0 * regularizers.parallel + regularizers.spatial

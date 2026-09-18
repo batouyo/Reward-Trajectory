@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
-from typing import Protocol
+from typing import Protocol, Sequence
 
 import torch
+import torch.nn.functional as F
 
 from .coupled_terminal_control import weighted_source_preservation
 
@@ -12,6 +13,37 @@ from .coupled_terminal_control import weighted_source_preservation
 class TensorImageDistance(Protocol):
     def distance(self, first: torch.Tensor, second: torch.Tensor) -> torch.Tensor: ...
 
+def build_image_space_relevance(
+    relevance_per_step: Sequence[torch.Tensor],
+    *,
+    token_height: int,
+    token_width: int,
+    target_height: int,
+    target_width: int,
+) -> torch.Tensor:
+    """Aggregate token relevance and reshape the FLUX grid into image space."""
+
+    if not relevance_per_step:
+        raise ValueError("At least one per-step relevance map is required.")
+    if token_height < 1 or token_width < 1 or target_height < 1 or target_width < 1:
+        raise ValueError("Token and target dimensions must be positive.")
+    token_count = token_height * token_width
+    token_maps = []
+    for relevance in relevance_per_step:
+        if relevance.ndim == 1:
+            token_map = relevance
+        elif relevance.ndim == 2 and relevance.shape[0] >= 1:
+            token_map = relevance[0]
+        else:
+            raise ValueError("Each relevance map must have shape [tokens] or [batch, tokens].")
+        if token_map.shape[0] != token_count:
+            raise ValueError("Token relevance length must equal token_height * token_width.")
+        token_maps.append(token_map)
+    token_relevance = torch.stack(token_maps, dim=0).mean(dim=0)
+    grid = token_relevance.reshape(1, 1, token_height, token_width)
+    return F.interpolate(
+        grid.float(), size=(target_height, target_width), mode="bilinear", align_corners=False
+    ).detach()
 
 def masked_lpips_preservation_loss(
     candidate: torch.Tensor,

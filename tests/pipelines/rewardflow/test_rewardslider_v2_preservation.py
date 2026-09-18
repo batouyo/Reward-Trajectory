@@ -1,11 +1,34 @@
 import torch
 
-from diffusers.pipelines.rewardflow.rewardslider_v2_preservation import masked_lpips_preservation_loss
+from diffusers.pipelines.rewardflow.rewardslider_v2_preservation import (
+    build_image_space_relevance,
+    masked_lpips_preservation_loss,
+)
 
 
 class _Distance:
     def distance(self, first, second):
         return (first - second).square().mean(dim=(1, 2, 3)).sqrt()
+def test_image_relevance_uses_two_dimensional_token_grid():
+    relevance = [torch.tensor([[1.0, 0.0, 0.0, 0.0, 0.0, 0.0]])]
+    image_map = build_image_space_relevance(
+        relevance, token_height=2, token_width=3, target_height=8, target_width=12
+    )
+    assert image_map.shape == (1, 1, 8, 12)
+    assert image_map[:, :, :4, :4].mean() > image_map[:, :, 4:, :].mean()
+    assert image_map[:, :, :4, :4].mean() > image_map[:, :, :4, 4:].mean()
+def test_image_relevance_averages_all_controlled_timesteps_before_resize():
+    maps = [
+        torch.tensor([[1.0, 0.0, 0.0, 0.0, 0.0, 0.0]]),
+        torch.tensor([[0.0, 1.0, 0.0, 0.0, 0.0, 0.0]]),
+        torch.tensor([[0.0, 0.0, 1.0, 0.0, 0.0, 0.0]]),
+        torch.tensor([[0.0, 0.0, 0.0, 1.0, 0.0, 0.0]]),
+    ]
+    expected = torch.tensor([[[[0.25, 0.25, 0.25], [0.25, 0.0, 0.0]]]])
+    image_map = build_image_space_relevance(
+        maps, token_height=2, token_width=3, target_height=2, target_width=3
+    )
+    torch.testing.assert_close(image_map, expected)
 
 
 def test_masked_preservation_keeps_candidate_gradient():
