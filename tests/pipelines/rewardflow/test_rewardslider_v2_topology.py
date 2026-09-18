@@ -63,3 +63,16 @@ def test_topology_rebuild_replaces_all_stale_parameters_and_scheduler_references
     torch.testing.assert_close(state.alpha_parameterization.alphas, alphas)
     assert state.scheduler.alpha_parameterization is state.alpha_parameterization
     assert state.scheduler.v_goal_parameters == tuple(state.v_goals)
+
+
+def test_prune_requires_local_redundancy_in_addition_to_global_kl():
+    manager = TopologyManager(max_nodes=10)
+    alphas = torch.tensor([0.0, 0.25, 0.5, 0.75, 1.0])
+    images = torch.linspace(0, 1, 5).reshape(5, 1)
+    distance = lambda first, second: (first - second).abs().mean()
+    with pytest.raises(ValueError, match="local redundancy"):
+        manager.prune_node(alphas, _goals(), 2, images=images, distance=distance)
+    redundant = torch.tensor([0.0, 0.333, 0.334, 0.667, 1.0]).reshape(5, 1)
+    new_alphas, _, event = manager.prune_node(alphas, _goals(), 1, images=redundant, distance=distance)
+    assert event.operation == "prune"
+    assert new_alphas.numel() == 4

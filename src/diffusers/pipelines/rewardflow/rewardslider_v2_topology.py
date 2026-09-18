@@ -104,6 +104,7 @@ class TopologyManager:
         distance: Callable[[torch.Tensor, torch.Tensor], torch.Tensor] | None = None,
         threshold: float = 0.15,
         tolerance: float = 0.0,
+        redundancy_ratio: float = 0.5,
         reason: str = "virtual removal satisfies KL threshold and tolerance",
     ) -> tuple[torch.Tensor, tuple[nn.Parameter, ...], TopologyEvent]:
         _validate_alphas(alphas)
@@ -117,6 +118,17 @@ class TopologyManager:
         if threshold < 0 or tolerance < 0:
             raise ValueError("Threshold and tolerance must be non-negative.")
         before = self.trajectory_kl(images, distance)
+        if not 0 < redundancy_ratio:
+            raise ValueError("Redundancy ratio must be positive.")
+        distances = []
+        for left, right in zip(images[:-1], images[1:]):
+            distances.append(distance(left.unsqueeze(0), right.unsqueeze(0)).reshape(-1).mean())
+        distances = torch.stack(distances).float()
+        probabilities = distances / distances.sum().clamp_min(torch.finfo(distances.dtype).eps)
+        uniform_expected = 1 / (images.shape[0] - 1)
+        local_min = torch.minimum(probabilities[index - 1], probabilities[index])
+        if local_min > redundancy_ratio * uniform_expected:
+            raise ValueError("Virtual removal failed the local redundancy gate.")
         after = self.virtual_removal_kl(images, index, distance)
         if after > threshold or after > before + tolerance:
             raise ValueError("Virtual removal is not safe under the configured KL criteria.")
