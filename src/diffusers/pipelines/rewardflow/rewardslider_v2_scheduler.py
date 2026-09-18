@@ -44,6 +44,19 @@ class RewardSliderV2Scheduler:
         self.topology_events = []
         self._set_parameter_permissions()
 
+    def configure_optimizers(self, alpha_optimizer, v_goal_optimizer) -> None:
+        """Apply phase-specific learning rates without changing optimizer membership."""
+        for group in alpha_optimizer.param_groups:
+            group.setdefault("_rewardslider_v2_base_lr", group["lr"])
+            group["lr"] = (
+                group["_rewardslider_v2_base_lr"] * self.joint_alpha_lr_scale
+                if self.phase == "joint_refinement"
+                else group["_rewardslider_v2_base_lr"]
+            )
+        for group in v_goal_optimizer.param_groups:
+            group.setdefault("_rewardslider_v2_base_lr", group["lr"])
+            group["lr"] = group["_rewardslider_v2_base_lr"]
+
     @property
     def alpha_parameters(self) -> tuple[nn.Parameter, ...]:
         return tuple(parameter for parameter in self.alpha_parameterization.parameters())

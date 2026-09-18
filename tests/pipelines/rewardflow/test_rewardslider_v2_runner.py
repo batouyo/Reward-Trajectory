@@ -5,8 +5,11 @@ import torch
 from diffusers.pipelines.rewardflow.rewardslider_v2_runner import (
     RewardSliderV2Runner,
     build_rewardslider_v2_parser,
+    routed_optimization_step,
     summarize_native_parity,
 )
+from diffusers.pipelines.rewardflow.rewardslider_v2_alpha import OrderedAlphaParameterization
+from diffusers.pipelines.rewardflow.rewardslider_v2_scheduler import RewardSliderV2Scheduler
 
 
 def test_runner_parser_contains_v2_controls():
@@ -24,6 +27,38 @@ def test_batched_native_parity_summary_is_exact_for_identical_branches():
     torch.testing.assert_close(result["per_branch_latent_cosine"], torch.ones(2))
     torch.testing.assert_close(result["per_branch_image_mae"], torch.zeros(2))
     torch.testing.assert_close(result["within_batch_max_latent_difference"], torch.tensor(0.0))
+
+
+def test_routed_optimization_step_respects_scheduler_phase():
+    alpha = OrderedAlphaParameterization.random(num_interior=3, seed=11)
+    goals = [torch.nn.Parameter(torch.ones(2, 2, 1)) for _ in range(4)]
+    scheduler = RewardSliderV2Scheduler(alpha, goals, joint_alpha_lr_scale=0.1)
+    alpha_optimizer = torch.optim.SGD([alpha.interval_logits], lr=0.1)
+    vgoal_optimizer = torch.optim.SGD(goals, lr=0.1)
+    alpha_before = alpha.interval_logits.detach().clone()
+    goals_before = [goal.detach().clone() for goal in goals]
+    routed_optimization_step(
+        scheduler,
+        alpha_optimizer,
+        vgoal_optimizer,
+        trajectory_loss=alpha.interval_logits.square().sum(),
+        quality_loss=sum(goal.square().sum() for goal in goals),
+        trajectory_kl=0.2,
+    )
+    assert not torch.equal(alpha.interval_logits, alpha_before)
+    assert all(torch.equal(goal, before) for goal, before in zip(goals, goals_before))
+    assert all(goal.grad is None for goal in goals)
+    scheduler.force_phase("quality_repair")
+    routed_optimization_step(
+        scheduler,
+        alpha_optimizer,
+        vgoal_optimizer,
+        trajectory_loss=alpha.interval_logits.square().sum(),
+        quality_loss=sum(goal.square().sum() for goal in goals),
+        trajectory_kl=0.2,
+    )
+    assert all(not torch.equal(goal, before) for goal, before in zip(goals, goals_before))
+    assert alpha.interval_logits.grad is None
 
 
 def test_runner_step_writes_auditable_jsonl_record(tmp_path):

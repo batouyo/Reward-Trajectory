@@ -124,6 +124,43 @@ def _write_jsonl(path: Path, record: dict) -> None:
     with path.open("a", encoding="utf-8") as handle:
         handle.write(json.dumps(_jsonable(record)) + "\n")
 
+def routed_optimization_step(
+    scheduler: RewardSliderV2Scheduler,
+    alpha_optimizer: torch.optim.Optimizer,
+    vgoal_optimizer: torch.optim.Optimizer,
+    *,
+    trajectory_loss: torch.Tensor | None,
+    quality_loss: torch.Tensor | None,
+    trajectory_kl: torch.Tensor | float,
+    control_loss: torch.Tensor | None = None,
+    trajectory_guard_loss: torch.Tensor | None = None,
+) -> dict[str, object]:
+    """Route one optimization step through the three-phase scheduler."""
+    phase_before = scheduler.phase
+    alpha_optimizer.zero_grad(set_to_none=True)
+    vgoal_optimizer.zero_grad(set_to_none=True)
+    total = scheduler.backward(
+        trajectory_loss=trajectory_loss,
+        quality_loss=quality_loss,
+        control_loss=control_loss,
+        trajectory_guard_loss=trajectory_guard_loss,
+    )
+    alpha_gradient_norm = _norm(scheduler.alpha_parameters[0].grad) if scheduler.alpha_parameters else None
+    vgoal_gradient_norms = [_norm(parameter.grad) for parameter in scheduler.v_goal_parameters]
+    scheduler.configure_optimizers(alpha_optimizer, vgoal_optimizer)
+    if phase_before in ("trajectory_calibration", "joint_refinement"):
+        alpha_optimizer.step()
+    if phase_before in ("quality_repair", "joint_refinement"):
+        vgoal_optimizer.step()
+    phase_after = scheduler.advance(trajectory_kl)
+    return {
+        "phase_before": phase_before,
+        "phase_after": phase_after,
+        "loss": float(total.detach()),
+        "alpha_gradient_norm": alpha_gradient_norm,
+        "v_goal_gradient_norms": vgoal_gradient_norms,
+    }
+
 
 def summarize_native_parity(batched_latent: torch.Tensor, native_latent: torch.Tensor, batched_image: torch.Tensor, native_image: torch.Tensor) -> dict[str, object]:
     """Summarize single and B=K native parity without hiding batch drift."""
@@ -246,36 +283,53 @@ def run_real_flux_smoke(args) -> dict:
     with torch.no_grad():
         _, _, initial_stats = evaluate()
     alpha_optimizer = torch.optim.Adam([alpha_parameterization.interval_logits], lr=args.alpha_lr)
+    vgoal_optimizer = torch.optim.Adam(v_goals, lr=args.vgoal_lr)
+    scheduler = RewardSliderV2Scheduler(
+        alpha_parameterization,
+        v_goals,
+        trajectory_kl_threshold=args.trajectory_kl_threshold,
+        trajectory_patience=args.trajectory_patience,
+        min_repair_iterations=args.joint_refine_iters,
+    )
+    relevance_image = build_image_space_relevance(
+        relevance,
+        token_height=inputs.native.sampling_token_height,
+        token_width=inputs.native.sampling_token_width,
+        target_height=args.height,
+        target_width=args.width,
+    )
     phase_records = []
     alpha_grad_norm = None
-    for iteration in range(args.local_refine_iters):
-        alpha_optimizer.zero_grad(set_to_none=True)
-        unroll, images, stats = evaluate()
-        stats.kl_uniform.backward()
-        alpha_grad_norm = float(alpha_parameterization.interval_logits.grad.float().norm().item())
-        alpha_optimizer.step()
-        phase_records.append({"phase": "trajectory_calibration", "iteration": iteration, "trajectory_kl": float(stats.kl_uniform), "alpha": alpha_parameterization.alphas.detach().cpu().tolist(), "alpha_gradient_norm": alpha_grad_norm})
-    for parameter in alpha_parameterization.parameters():
-        parameter.requires_grad_(False)
-    quality_optimizer = torch.optim.Adam(v_goals, lr=args.vgoal_lr)
     vgoal_gradient_norms = []
-    for iteration in range(args.joint_refine_iters):
-        quality_optimizer.zero_grad(set_to_none=True)
+    for iteration in range(args.local_refine_iters + args.joint_refine_iters):
         unroll, images, stats = evaluate()
-        relevance_image = build_image_space_relevance(
-            relevance,
-            token_height=inputs.native.sampling_token_height,
-            token_width=inputs.native.sampling_token_width,
-            target_height=args.height,
-            target_width=args.width,
+        quality_loss = None
+        if scheduler.phase in ("quality_repair", "joint_refinement"):
+            preserve = masked_lpips_preservation_loss(images * 2 - 1, source_image * 2 - 1, relevance_image, lpips)
+            regularizers = v_goal_regularizers(v_goals, native_directions, relevance)
+            quality_loss = preserve + regularizers.residual + 2.0 * regularizers.parallel + regularizers.spatial
+        routed = routed_optimization_step(
+            scheduler,
+            alpha_optimizer,
+            vgoal_optimizer,
+            trajectory_loss=stats.kl_uniform,
+            quality_loss=quality_loss,
+            trajectory_kl=stats.kl_uniform,
         )
-        preserve = masked_lpips_preservation_loss(images * 2 - 1, source_image * 2 - 1, relevance_image, lpips)
-        regularizers = v_goal_regularizers(v_goals, native_directions, relevance)
-        quality_loss = preserve + regularizers.residual + 2.0 * regularizers.parallel + regularizers.spatial
-        quality_loss.backward()
-        vgoal_gradient_norms = [float(parameter.grad.float().norm().item()) if parameter.grad is not None else 0.0 for parameter in v_goals]
-        quality_optimizer.step()
-        phase_records.append({"phase": "quality_repair", "iteration": iteration, "trajectory_kl": float(stats.kl_uniform), "quality_loss": float(quality_loss.detach()), "v_goal_gradient_norms": vgoal_gradient_norms})
+        alpha_grad_norm = routed["alpha_gradient_norm"]
+        vgoal_gradient_norms = routed["v_goal_gradient_norms"]
+        phase_records.append(
+            {
+                "phase": routed["phase_before"],
+                "iteration": iteration,
+                "trajectory_kl": float(stats.kl_uniform.detach()),
+                "quality_loss": None if quality_loss is None else float(quality_loss.detach()),
+                "alpha": alpha_parameterization.alphas.detach().cpu().tolist(),
+                "alpha_gradient_norm": alpha_grad_norm,
+                "v_goal_gradient_norms": vgoal_gradient_norms,
+                "phase_after": routed["phase_after"],
+            }
+        )
     with torch.no_grad():
         final_unroll, final_images, final_stats = evaluate()
     record = {

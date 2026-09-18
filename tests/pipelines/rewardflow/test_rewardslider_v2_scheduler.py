@@ -58,3 +58,15 @@ def test_bad_trajectory_can_roll_back_from_quality_phase():
     scheduler.advance(0.2)
     scheduler.advance(0.2)
     assert scheduler.phase == "trajectory_calibration"
+
+
+def test_joint_refinement_scales_alpha_learning_rate_only():
+    scheduler, alpha, goals = _make_scheduler(joint_alpha_lr_scale=0.1)
+    alpha_optimizer = torch.optim.Adam([alpha.interval_logits], lr=0.01)
+    vgoal_optimizer = torch.optim.Adam(goals, lr=0.02)
+    scheduler.configure_optimizers(alpha_optimizer, vgoal_optimizer)
+    assert alpha_optimizer.param_groups[0]["lr"] == 0.01
+    scheduler.force_phase("joint_refinement")
+    scheduler.configure_optimizers(alpha_optimizer, vgoal_optimizer)
+    assert alpha_optimizer.param_groups[0]["lr"] == 0.001
+    assert vgoal_optimizer.param_groups[0]["lr"] == 0.02
