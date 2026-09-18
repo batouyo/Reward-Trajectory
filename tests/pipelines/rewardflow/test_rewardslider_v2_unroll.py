@@ -18,6 +18,16 @@ def test_alpha_one_zero_goal_matches_native_trajectory_exactly():
     expected = unroll_rewardslider_v2(initial, timesteps, sigmas, _native_velocity, alphas, goals, control_steps=0, use_checkpointing=False)
     torch.testing.assert_close(actual.final_latent, expected.final_latent, rtol=0, atol=0)
 
+def test_fp32_zero_goal_preserves_half_precision_native_parity():
+    initial = torch.tensor([[[0.2, -0.1]]], dtype=torch.bfloat16)
+    timesteps = [torch.tensor(1.0), torch.tensor(0.0), torch.tensor(-1.0)]
+    sigmas = torch.tensor([1.0, 0.7, 0.3, 0.0])
+    alphas = torch.ones(1, dtype=torch.float32)
+    goals = [torch.zeros(1, 1, 2, dtype=torch.float32) for _ in range(2)]
+    actual = unroll_rewardslider_v2(initial, timesteps, sigmas, _native_velocity, alphas, goals, control_steps=2, use_checkpointing=False)
+    expected = unroll_rewardslider_v2(initial, timesteps, sigmas, _native_velocity, alphas, goals, control_steps=0, use_checkpointing=False)
+    torch.testing.assert_close(actual.final_latent, expected.final_latent, rtol=0, atol=0)
+
 
 def test_only_first_four_steps_use_v2_scaffold():
     initial = torch.zeros(1, 1, 1)

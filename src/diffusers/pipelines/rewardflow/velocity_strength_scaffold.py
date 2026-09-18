@@ -87,4 +87,6 @@ def build_branch_velocity(
     base_velocity = interpolate_velocity(keep_velocity, edit_velocity, alpha)
     if v_goal is None:
         return base_velocity
-    return base_velocity + v_goal
+    # V_goal is stored in FP32, but the native sampler's velocity/update
+    # dtype must remain unchanged for alpha=1, V_goal=0 native parity.
+    return base_velocity + v_goal.to(dtype=base_velocity.dtype)

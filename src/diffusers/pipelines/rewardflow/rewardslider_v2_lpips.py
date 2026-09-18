@@ -91,7 +91,10 @@ class LPIPSDistance(nn.Module):
     def distance(self, first: torch.Tensor, second: torch.Tensor) -> torch.Tensor:
         if first.ndim != 4 or second.shape != first.shape:
             raise ValueError("LPIPS inputs must have matching [B,3,H,W] shapes.")
-        value = self.model(first, second)
+        # LPIPS checkpoints are normally stored in FP32. Keep the adapter
+        # tensor-only and differentiable while avoiding BF16/FP32 convolution
+        # mismatches in real FLUX runs.
+        value = self.model(first.float(), second.float())
         if not torch.is_tensor(value):
             raise TypeError("The LPIPS model must return a tensor.")
         return value.reshape(value.shape[0], -1).mean(dim=1)
