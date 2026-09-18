@@ -39,11 +39,28 @@ def _validate_goals(goals: Sequence[torch.Tensor], interior: int) -> None:
 
 
 class TopologyManager:
-    def __init__(self, *, max_nodes: int = 10, min_nodes: int = 3):
+    def __init__(self, *, max_nodes: int = 10, min_nodes: int = 3, cooldown_steps: int = 1):
         if min_nodes < 3 or max_nodes < min_nodes:
             raise ValueError("Topology bounds must satisfy 3 <= min_nodes <= max_nodes.")
         self.max_nodes = int(max_nodes)
         self.min_nodes = int(min_nodes)
+
+        if cooldown_steps < 0:
+            raise ValueError("Cooldown steps must be non-negative.")
+        self.cooldown_steps = int(cooldown_steps)
+        self._cooldown_remaining = 0
+
+    @property
+    def topology_change_allowed(self) -> bool:
+        return self._cooldown_remaining == 0
+
+    def advance_cooldown(self) -> None:
+        self._cooldown_remaining = max(0, self._cooldown_remaining - 1)
+
+    def _record_topology_change(self) -> None:
+        if not self.topology_change_allowed:
+            raise ValueError("Topology cooldown is active.")
+        self._cooldown_remaining = self.cooldown_steps
 
     @staticmethod
     def trajectory_kl(images: torch.Tensor, distance: Callable[[torch.Tensor, torch.Tensor], torch.Tensor]) -> torch.Tensor:
@@ -76,6 +93,8 @@ class TopologyManager:
     ) -> tuple[torch.Tensor, tuple[nn.Parameter, ...], TopologyEvent]:
         _validate_alphas(alphas)
         _validate_goals(v_goals, alphas.numel() - 2)
+        if not self.topology_change_allowed:
+            raise ValueError("Topology cooldown is active.")
         if alphas.numel() >= self.max_nodes:
             raise ValueError("Maximum topology node count reached.")
         if normalized_distances.shape != (alphas.numel() - 1,) or not torch.isfinite(normalized_distances).all():
@@ -92,6 +111,7 @@ class TopologyManager:
             operation="insert", old_nodes=alphas.numel(), new_nodes=updated_alphas.numel(),
             affected_interval=interval, alpha_before=tuple(alphas.tolist()), alpha_after=tuple(updated_alphas.tolist()), reason=reason,
         )
+        self._record_topology_change()
         return updated_alphas, tuple(updated_goals), event
 
     def prune_node(
@@ -109,6 +129,8 @@ class TopologyManager:
     ) -> tuple[torch.Tensor, tuple[nn.Parameter, ...], TopologyEvent]:
         _validate_alphas(alphas)
         _validate_goals(v_goals, alphas.numel() - 2)
+        if not self.topology_change_allowed:
+            raise ValueError("Topology cooldown is active.")
         if not 0 < index < alphas.numel() - 1:
             raise ValueError("Only interior nodes can be pruned.")
         if alphas.numel() <= self.min_nodes:
@@ -139,6 +161,7 @@ class TopologyManager:
             affected_interval=index - 1, alpha_before=tuple(alphas.tolist()), alpha_after=tuple(updated_alphas.tolist()), reason=reason,
             kl_before=float(before.item()), kl_after=float(after.item()),
         )
+        self._record_topology_change()
         return updated_alphas, updated_goals, event
 
 

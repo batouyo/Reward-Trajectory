@@ -76,3 +76,27 @@ def test_prune_requires_local_redundancy_in_addition_to_global_kl():
     new_alphas, _, event = manager.prune_node(alphas, _goals(), 1, images=redundant, distance=distance)
     assert event.operation == "prune"
     assert new_alphas.numel() == 4
+
+
+def test_topology_cooldown_blocks_repeated_edits_until_advanced():
+    manager = TopologyManager(max_nodes=10, cooldown_steps=2)
+    alphas, goals, _ = manager.insert_node(
+        torch.tensor([0.0, 0.2, 0.4, 0.9, 1.0]),
+        _goals(),
+        torch.tensor([0.1, 0.1, 0.8, 0.1]),
+    )
+    assert not manager.topology_change_allowed
+    with pytest.raises(ValueError, match="cooldown"):
+        manager.insert_node(alphas, goals, torch.ones(alphas.numel() - 1))
+
+    manager.advance_cooldown()
+    assert not manager.topology_change_allowed
+    manager.advance_cooldown()
+    assert manager.topology_change_allowed
+
+    next_alphas, _, _ = manager.insert_node(
+        alphas,
+        goals,
+        torch.ones(alphas.numel() - 1),
+    )
+    assert next_alphas.numel() == 7
