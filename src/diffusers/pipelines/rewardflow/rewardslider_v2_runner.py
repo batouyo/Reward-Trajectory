@@ -125,6 +125,25 @@ def _write_jsonl(path: Path, record: dict) -> None:
         handle.write(json.dumps(_jsonable(record)) + "\n")
 
 
+def summarize_native_parity(batched_latent: torch.Tensor, native_latent: torch.Tensor, batched_image: torch.Tensor, native_image: torch.Tensor) -> dict[str, object]:
+    """Summarize single and B=K native parity without hiding batch drift."""
+    if batched_latent.ndim != 3 or native_latent.ndim != 3 or native_latent.shape[0] != 1:
+        raise ValueError("Latents must be [branches, tokens, channels] and [1, tokens, channels].")
+    if batched_image.ndim != 4 or native_image.ndim != 4 or native_image.shape[0] != 1:
+        raise ValueError("Images must be [branches, channels, height, width] and [1, channels, height, width].")
+    latent_mae = (batched_latent.float() - native_latent[0].float()).abs().mean(dim=(1, 2))
+    latent_cosine = F.cosine_similarity(batched_latent.float().flatten(1), native_latent[0].float().flatten().unsqueeze(0), dim=1)
+    image_mae = (batched_image.float() - native_image[0].float()).abs().mean(dim=(1, 2, 3))
+    within_batch = (batched_latent.float() - batched_latent[0:1].float()).abs().mean(dim=(1, 2))
+    return {
+        "per_branch_latent_mae": latent_mae,
+        "per_branch_latent_cosine": latent_cosine,
+        "per_branch_image_mae": image_mae,
+        "max_batch_latent_mae": latent_mae.max(),
+        "min_batch_latent_cosine": latent_cosine.min(),
+        "max_batch_image_mae": image_mae.max(),
+        "within_batch_max_latent_difference": within_batch.max(),
+    }
 def _pil_tensor(image: Image.Image, device: torch.device) -> torch.Tensor:
     import numpy as np
 
@@ -194,6 +213,9 @@ def run_real_flux_smoke(args) -> dict:
     )
     native_parity = (native_single.final_latent[0] - inputs.native.native_final_latent[0]).float().abs()
     native_image = pipe.decode_rewardslider_v2_terminal(inputs.native.native_final_latent, inputs).detach()
+    with torch.no_grad():
+        native_batch_images = pipe.decode_rewardslider_v2_terminal(native.final_latent, inputs)
+    batch_parity = summarize_native_parity(native.final_latent, inputs.native.native_final_latent, native_batch_images, native_image)
     lpips = LPIPSDistance(net="vgg").to(device)
     alpha_parameterization = OrderedAlphaParameterization.random(
         num_interior=args.initial_nodes - 2, seed=args.seed, device=device
@@ -261,7 +283,7 @@ def run_real_flux_smoke(args) -> dict:
         "reward": {"quality_reward": "not_configured", "formal_trajectory_metric": "LPIPS_KL_uniform"},
         "gradient": {"alpha_gradient_norm": alpha_grad_norm, "v_goal_gradient_norms": vgoal_gradient_norms, "alpha_finite": bool(torch.isfinite(alpha_parameterization.interval_logits).all()), "v_goal_finite": all(torch.isfinite(parameter).all().item() for parameter in v_goals)},
         "control": {"v_goal_norms": [parameter.detach().float().norm() for parameter in v_goals]},
-        "parity": {"latent_mae": native_parity.mean(), "latent_cosine": F.cosine_similarity(native_single.final_latent[0].float().flatten()[None], inputs.native.native_final_latent[0].float().flatten()[None]).squeeze(), "image_mae": (native_image - pipe.decode_rewardslider_v2_terminal(native_single.final_latent, inputs)).float().abs().mean()},
+        "parity": {"single": {"latent_mae": native_parity.mean(), "latent_cosine": F.cosine_similarity(native_single.final_latent[0].float().flatten()[None], inputs.native.native_final_latent[0].float().flatten()[None]).squeeze(), "image_mae": (native_image - pipe.decode_rewardslider_v2_terminal(native_single.final_latent, inputs)).float().abs().mean()}, "batched": batch_parity},
         "topology": {"operation": None, "old_nodes": args.initial_nodes, "new_nodes": args.initial_nodes},
         "system": {"frozen_model_audit": _frozen_gradient_audit(pipe), "device": str(device), "dtype": str(dtype), "height": args.height, "width": args.width, "steps": args.steps, "control_steps": 4, "phase_records": phase_records},
     }

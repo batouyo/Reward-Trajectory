@@ -5,6 +5,7 @@ import torch
 from diffusers.pipelines.rewardflow.rewardslider_v2_runner import (
     RewardSliderV2Runner,
     build_rewardslider_v2_parser,
+    summarize_native_parity,
 )
 
 
@@ -14,6 +15,15 @@ def test_runner_parser_contains_v2_controls():
     assert args.max_nodes == 10
     assert args.control_steps == 4
     assert args.trajectory_kl_threshold == 0.15
+
+def test_batched_native_parity_summary_is_exact_for_identical_branches():
+    latent = torch.ones(2, 2, 3)
+    image = torch.ones(2, 3, 2, 2)
+    result = summarize_native_parity(latent, latent[:1], image, image[:1])
+    torch.testing.assert_close(result["per_branch_latent_mae"], torch.zeros(2))
+    torch.testing.assert_close(result["per_branch_latent_cosine"], torch.ones(2))
+    torch.testing.assert_close(result["per_branch_image_mae"], torch.zeros(2))
+    torch.testing.assert_close(result["within_batch_max_latent_difference"], torch.tensor(0.0))
 
 
 def test_runner_step_writes_auditable_jsonl_record(tmp_path):
