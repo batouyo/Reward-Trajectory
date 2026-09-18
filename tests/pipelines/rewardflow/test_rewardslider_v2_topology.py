@@ -3,6 +3,7 @@ import torch
 
 from diffusers.pipelines.rewardflow.rewardslider_v2_topology import (
     TopologyManager,
+    rebuild_topology_optimization_state,
     rebuild_topology_optimizer,
 )
 
@@ -47,3 +48,18 @@ def test_optimizer_rebuild_contains_only_current_parameters():
     optimizer = rebuild_topology_optimizer([alpha], goals, alpha_lr=0.01, vgoal_lr=0.01)
     current = {parameter for group in optimizer.param_groups for parameter in group["params"]}
     assert current == {alpha, *goals}
+
+
+def test_topology_rebuild_replaces_all_stale_parameters_and_scheduler_references():
+    manager = TopologyManager(max_nodes=10)
+    alphas, goals, _ = manager.insert_node(
+        torch.tensor([0.0, 0.2, 0.4, 0.9, 1.0]), _goals(), torch.tensor([0.1, 0.1, 0.8, 0.1])
+    )
+    state = rebuild_topology_optimization_state(alphas, goals, alpha_lr=0.01, vgoal_lr=0.02)
+    current = {parameter for group in state.alpha_optimizer.param_groups for parameter in group["params"]}
+    current.update(parameter for group in state.vgoal_optimizer.param_groups for parameter in group["params"])
+    assert current == {state.alpha_parameterization.interval_logits, *state.v_goals}
+    assert all(parameter not in current for parameter in goals)
+    torch.testing.assert_close(state.alpha_parameterization.alphas, alphas)
+    assert state.scheduler.alpha_parameterization is state.alpha_parameterization
+    assert state.scheduler.v_goal_parameters == tuple(state.v_goals)

@@ -8,6 +8,8 @@ from typing import Callable, Sequence
 import torch
 from torch import nn
 
+from .rewardslider_v2_alpha import OrderedAlphaParameterization
+from .rewardslider_v2_scheduler import RewardSliderV2Scheduler
 from .rewardslider_v2_lpips import lpips_uniform_kl
 
 
@@ -148,4 +150,44 @@ def rebuild_topology_optimizer(
             {"params": list(alpha_parameters), "lr": alpha_lr},
             {"params": list(v_goals), "lr": vgoal_lr},
         ]
+    )
+
+@dataclass
+class TopologyOptimizationState:
+    """Fresh V2 parameter/optimizer/scheduler bundle after a topology edit."""
+
+    alpha_parameterization: OrderedAlphaParameterization
+    v_goals: nn.ParameterList
+    alpha_optimizer: torch.optim.Optimizer
+    vgoal_optimizer: torch.optim.Optimizer
+    scheduler: RewardSliderV2Scheduler
+
+
+def rebuild_topology_optimization_state(
+    alphas: torch.Tensor,
+    v_goals: Sequence[torch.Tensor],
+    *,
+    alpha_lr: float = 1e-3,
+    vgoal_lr: float = 1e-3,
+    scheduler_kwargs: dict | None = None,
+) -> TopologyOptimizationState:
+    """Rebuild every learnable object so no stale topology parameter survives."""
+
+    alpha_parameterization = OrderedAlphaParameterization.from_alphas(alphas)
+    current_goals = nn.ParameterList(
+        [nn.Parameter(goal.detach().float().clone()) for goal in v_goals]
+    )
+    alpha_optimizer = torch.optim.Adam([alpha_parameterization.interval_logits], lr=alpha_lr)
+    vgoal_optimizer = torch.optim.Adam(current_goals, lr=vgoal_lr)
+    scheduler = RewardSliderV2Scheduler(
+        alpha_parameterization,
+        current_goals,
+        **(scheduler_kwargs or {}),
+    )
+    return TopologyOptimizationState(
+        alpha_parameterization=alpha_parameterization,
+        v_goals=current_goals,
+        alpha_optimizer=alpha_optimizer,
+        vgoal_optimizer=vgoal_optimizer,
+        scheduler=scheduler,
     )
