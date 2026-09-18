@@ -139,6 +139,7 @@ else:
     ]
     _import_structure["coupled_terminal_control"] = [
         "CoupledControlPrior",
+        "active_adjacent_ranking_loss",
         "adjacent_ranking_loss",
         "coarse_pairwise_ranking_loss",
         "control_band_loss",
@@ -162,6 +163,7 @@ else:
     ]
     _import_structure["trajectory_objectives"] = [
         "CoupledTrajectoryObjective",
+        "dreamsim_first_order_loss",
         "RewardSliderV1LossWeights",
         "RewardSliderV1ObjectiveOutput",
     ]
@@ -350,6 +352,7 @@ if TYPE_CHECKING or DIFFUSERS_SLOW_IMPORT:
         )
         from .coupled_terminal_control import (
             CoupledControlPrior,
+            active_adjacent_ranking_loss,
             adjacent_ranking_loss,
             control_band_loss,
             control_energy_loss,
@@ -366,6 +369,7 @@ if TYPE_CHECKING or DIFFUSERS_SLOW_IMPORT:
         )
         from .trajectory_objectives import (
             CoupledTrajectoryObjective,
+            dreamsim_first_order_loss,
             RewardSliderV1LossWeights,
             RewardSliderV1ObjectiveOutput,
         )

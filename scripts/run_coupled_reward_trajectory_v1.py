@@ -83,10 +83,11 @@ def _args():
     parser.add_argument("--run-ablations", action=argparse.BooleanOptionalAction, default=True)
     parser.add_argument("--benchmark-repeats", type=int, default=1)
     parser.add_argument("--lambda-rank", type=float, default=1.0, help="Legacy alias for semantic-order weight.")
-    parser.add_argument("--lambda-sem-coverage", type=float, default=1.0)
+    parser.add_argument("--lambda-sem-coverage", type=float, default=0.0)
     parser.add_argument("--lambda-sem-pairwise-order", type=float, default=1.0)
-    parser.add_argument("--lambda-gap", type=float, default=1.0, help="Legacy alias for fine-jump weight.")
-    parser.add_argument("--lambda-coarse-gap", type=float, default=1.0)
+    parser.add_argument("--lambda-first-order", type=float, default=1.0)
+    parser.add_argument("--lambda-gap", type=float, default=0.0, help="Legacy diagnostic fine-jump weight.")
+    parser.add_argument("--lambda-coarse-gap", type=float, default=0.0, help="Legacy diagnostic coarse-gap weight.")
     parser.add_argument("--lambda-second", type=float, default=0.25)
     parser.add_argument("--lambda-preserve", type=float, default=1.0)
     parser.add_argument("--lambda-ctrl", type=float, default=0.0)
@@ -97,7 +98,6 @@ def _args():
     parser.add_argument("--reward-scheduler", choices=("fixed", "dynamic"), default="fixed")
     parser.add_argument("--compare-reward-scheduler", action=argparse.BooleanOptionalAction, default=False)
     parser.add_argument("--order-tol", type=float, default=0.0)
-    parser.add_argument("--scheduler-collapse-tol", type=float, default=0.005)
     parser.add_argument("--semantic-patience", type=int, default=2)
     parser.add_argument("--transition-iters", type=int, default=2)
     parser.add_argument("--recovery-preserve-weight", type=float, default=0.05)
@@ -132,7 +132,6 @@ def _args():
         args.semantic_patience < 1
         or args.transition_iters < 1
         or args.order_tol < 0
-        or args.scheduler_collapse_tol < 0
         or args.recovery_preserve_weight < 0
     ):
         parser.error("Scheduler parameters must be non-negative, with positive patience and transition iterations.")
@@ -304,12 +303,19 @@ def _objective_summary(result, controls, prior) -> dict:
         "semantic_gaps": result.adjacent_semantic_gaps,
         "coarse_anchor_indices": result.coarse_anchor_indices,
         "coarse_semantic_gaps": result.coarse_semantic_gaps,
+        "active_adjacent_violation_count": result.active_adjacent_violation_count,
+        "active_pairwise_violation_count": result.active_pairwise_violation_count,
         "strict_semantic_order": bool(torch.all(result.adjacent_semantic_gaps > 0)),
         "nondecreasing_semantic_order": bool(torch.all(result.adjacent_semantic_gaps >= 0)),
+        "dreamsim_adjacent_distances": result.dreamsim_gaps,
         "dreamsim_gaps": result.dreamsim_gaps,
         "dreamsim_gap_fractions": result.dreamsim_gap_fractions,
         "dreamsim_worst_jump": result.dreamsim_worst_jump,
         "dreamsim_worst_jump_index": result.dreamsim_worst_jump_index,
+        "dreamsim_path_length": result.dreamsim_path_length,
+        "dreamsim_first_order": result.dreamsim_first_order_smoothness,
+        "dreamsim_first_order_smoothness": result.dreamsim_first_order_smoothness,
+        "dreamsim_second_order": result.components["second"],
         "coarse_dreamsim_gaps": result.coarse_dreamsim_gaps,
         "coarse_dreamsim_fractions": result.coarse_dreamsim_fractions,
         "triangle_raw_deficits": result.triangle_raw_deficits,
@@ -660,6 +666,7 @@ def _reward_gradient_diagnostics(
         "semantic_order",
         "semantic_pairwise_order",
         "semantic_coverage",
+        "first_order_smoothness",
         "fine_jump",
         "coarse_gap",
         "second",
@@ -766,6 +773,7 @@ def _run_optimization(
     phase_counts = {phase: 0 for phase in ("semantic_recovery", "transition", "trajectory_refinement")}
     previous_phase = None
     last_schedule = None
+    effective_weights = _weight_dict(weights)
     for iteration in range(1, iterations + 1):
         optimizer.zero_grad(set_to_none=True)
         torch.cuda.reset_peak_memory_stats(args.device)
@@ -779,7 +787,6 @@ def _run_optimization(
                 last_schedule = scheduler.step(
                     base_weights=_weight_dict(weights),
                     adjacent_semantic_gaps=result.adjacent_semantic_gaps,
-                    coarse_semantic_gaps=result.coarse_semantic_gaps,
                 )
                 phase_counts[last_schedule.phase] += 1
                 effective_weights = last_schedule.effective_weights
@@ -907,7 +914,6 @@ def _run_scheduler_comparison(pipe, inputs, objective, args, output, weights):
     scheduler = TrajectoryRewardScheduler(
         TrajectoryRewardSchedulerConfig(
             order_tol=args.order_tol,
-            scheduler_collapse_tol=args.scheduler_collapse_tol,
             semantic_patience=args.semantic_patience,
             transition_iters=args.transition_iters,
             recovery_preserve_weight=args.recovery_preserve_weight,
@@ -981,6 +987,7 @@ def main():
         semantic_order=args.lambda_rank,
         semantic_coverage=args.lambda_sem_coverage,
         semantic_pairwise_order=args.lambda_sem_pairwise_order,
+        first_order_smoothness=args.lambda_first_order,
         fine_jump=args.lambda_gap,
         coarse_gap=args.lambda_coarse_gap,
         second=args.lambda_second,
@@ -1018,8 +1025,26 @@ def main():
         if vjp_parity is not None:
             results["real_two_pass_vjp_parity"] = vjp_parity
         if parity.get("gate", {}).get("passed", False):
+            optimization_scheduler = None
+            if args.reward_scheduler == "dynamic":
+                optimization_scheduler = TrajectoryRewardScheduler(
+                    TrajectoryRewardSchedulerConfig(
+                        order_tol=args.order_tol,
+                        semantic_patience=args.semantic_patience,
+                        transition_iters=args.transition_iters,
+                        recovery_preserve_weight=args.recovery_preserve_weight,
+                    )
+                )
             results["full_v1"] = _run_optimization(
-                pipe, inputs, objective, args, output, "full_v1", weights, args.outer_iters
+                pipe,
+                inputs,
+                objective,
+                args,
+                output,
+                "full_v1",
+                weights,
+                args.outer_iters,
+                scheduler=optimization_scheduler,
             )
             if args.run_ablations:
                 results["no_band"] = _run_optimization(
@@ -1042,6 +1067,7 @@ def main():
                     RewardSliderV1LossWeights(
                         semantic_order=0.0,
                         semantic_coverage=0.0,
+                        first_order_smoothness=0.0,
                         fine_jump=0.0,
                         coarse_gap=0.0,
                         second=0.0,

@@ -251,6 +251,26 @@ def adjacent_ranking_loss(progress: torch.Tensor, *, margin: float = 0.01) -> to
     return F.relu(float(margin) - (progress[1:] - progress[:-1])).mean()
 
 
+def active_adjacent_ranking_loss(
+    progress: torch.Tensor, *, tolerance: float = 0.0
+) -> torch.Tensor:
+    """Penalize only adjacent semantic reversals with a linear hinge.
+
+    CLIP endpoint-axis values provide semantic direction only. Ties and
+    arbitrarily small positive gaps are valid and therefore produce zero loss.
+    """
+
+    if progress.ndim != 1 or progress.numel() < 2:
+        raise ValueError("Progress must contain an ordered one-dimensional trajectory.")
+    if tolerance < 0:
+        raise ValueError("Adjacent-order tolerance must be non-negative.")
+    violation = progress[:-1] - progress[1:] - float(tolerance)
+    active = violation > 0
+    if not active.any():
+        return progress.sum() * 0.0
+    return violation[active].mean()
+
+
 def relative_gap_loss(
     distances: torch.Tensor,
     *,
@@ -303,7 +323,13 @@ def coarse_pairwise_ranking_loss(
         raise ValueError("Anchors must be ordered and include both endpoints.")
     anchors = progress[list(indices)]
     pairs = torch.triu_indices(anchors.numel(), anchors.numel(), offset=1, device=progress.device)
-    return F.relu(anchors[pairs[0]] - anchors[pairs[1]]).square().mean()
+    violation = anchors[pairs[0]] - anchors[pairs[1]]
+    active = violation > 0
+    if not active.any():
+        return progress.sum() * 0.0
+    # Linear active-only hinge: every violated pair gets equal corrective
+    # weight, independent of the size of the reversal.
+    return violation[active].mean()
 
 
 def per_interval_semantic_coverage_loss(

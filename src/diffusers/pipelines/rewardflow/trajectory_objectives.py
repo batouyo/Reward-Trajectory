@@ -1,7 +1,7 @@
 """Image-trajectory objective for RewardSlider V1 independent controls.
 
-CLIP endpoint-axis values are used solely in an adjacent ranking objective;
-they are never treated as calibrated semantic percentages.
+CLIP endpoint-axis is used only as an ordering signal, not as a calibrated
+spacing signal or semantic percentage.
 """
 
 from __future__ import annotations
@@ -14,7 +14,7 @@ import torch.nn.functional as F
 
 from .coupled_terminal_control import (
     CoupledControlPrior,
-    adjacent_ranking_loss,
+    active_adjacent_ranking_loss,
     coarse_anchor_indices,
     coarse_pairwise_ranking_loss,
     control_band_loss,
@@ -41,15 +41,30 @@ class DreamSimDistance(Protocol):
     def distance(self, first: torch.Tensor, second: torch.Tensor) -> torch.Tensor: ...
 
 
+def dreamsim_first_order_loss(
+    distances: torch.Tensor, *, eps: float = 1e-8
+) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+    """Return largest normalized DreamSim step, path length, and its fraction."""
+
+    if distances.ndim != 1 or distances.numel() < 1:
+        raise ValueError("Adjacent DreamSim distances must be a non-empty one-dimensional tensor.")
+    if eps <= 0:
+        raise ValueError("`eps` must be positive.")
+    path_length = distances.sum()
+    worst_distance = distances.max()
+    first_order = worst_distance / path_length.clamp_min(eps)
+    return first_order, path_length, worst_distance
+
 @dataclass(frozen=True)
 class RewardSliderV1LossWeights:
     """Smoke-test defaults, all intentionally explicit rather than paper values."""
 
     semantic_order: float = 1.0
-    semantic_coverage: float = 1.0
+    semantic_coverage: float = 0.0
     semantic_pairwise_order: float = 1.0
-    fine_jump: float = 1.0
-    coarse_gap: float = 1.0
+    first_order_smoothness: float = 1.0
+    fine_jump: float = 0.0
+    coarse_gap: float = 0.0
     second: float = 0.25
     preserve: float = 1.0
     ctrl: float = 0.0
@@ -70,6 +85,10 @@ class RewardSliderV1ObjectiveOutput:
     dreamsim_gap_fractions: torch.Tensor
     dreamsim_worst_jump: torch.Tensor
     dreamsim_worst_jump_index: torch.Tensor
+    dreamsim_path_length: torch.Tensor
+    dreamsim_first_order_smoothness: torch.Tensor
+    active_adjacent_violation_count: int
+    active_pairwise_violation_count: int
     coarse_dreamsim_gaps: torch.Tensor
     coarse_dreamsim_fractions: torch.Tensor
     triangle_raw_deficits: torch.Tensor
@@ -144,7 +163,7 @@ class CoupledTrajectoryObjective:
                 ("semantic_order", "semantic_order"),
                 ("semantic_coverage", "semantic_coverage"),
                 ("semantic_pairwise_order", "semantic_pairwise_order"),
-                ("fine_jump", "fine_jump"),
+                ("first_order_smoothness", "first_order_smoothness"),
                 ("coarse_gap", "coarse_gap"),
                 ("second", "second"),
                 ("preserve", "preserve"),
@@ -203,8 +222,18 @@ class CoupledTrajectoryObjective:
             )
         )
         anchor_indices = coarse_anchor_indices(progress.numel())
-        semantic_order = adjacent_ranking_loss(progress, margin=self.order_margin)
+        semantic_order = active_adjacent_ranking_loss(progress, tolerance=self.order_margin)
         semantic_pairwise_order = coarse_pairwise_ranking_loss(progress, anchor_indices=anchor_indices)
+        active_adjacent_violations = int(
+            ((progress[:-1] - progress[1:]) > self.order_margin).detach().sum()
+        )
+        anchor_progress = progress[list(anchor_indices)]
+        anchor_pairs = torch.triu_indices(
+            anchor_progress.numel(), anchor_progress.numel(), offset=1, device=progress.device
+        )
+        active_pairwise_violations = int(
+            (anchor_progress[anchor_pairs[0]] > anchor_progress[anchor_pairs[1]]).detach().sum()
+        )
         semantic_coverage, semantic_collapse, semantic_jump, coarse_semantic_gaps = per_interval_semantic_coverage_loss(
             progress,
             anchor_indices=anchor_indices,
@@ -215,6 +244,7 @@ class CoupledTrajectoryObjective:
             (self.source_image.to(candidates), candidates, self.native_full_image.to(candidates)), dim=0
         )
         gaps = self._pair_distances(trajectory, self.dreamsim, 1)
+        first_order, path_length, _ = dreamsim_first_order_loss(gaps)
         fine_jump, gap_fractions, worst_jump = fine_jump_loss(gaps, max_fraction=self.fine_max_jump_fraction)
         coarse_trajectory = trajectory[list(anchor_indices)]
         coarse_gaps = self._pair_distances(coarse_trajectory, self.dreamsim, 1)
@@ -234,6 +264,7 @@ class CoupledTrajectoryObjective:
             "semantic_collapse": semantic_collapse,
             "semantic_jump": semantic_jump,
             "fine_jump": fine_jump,
+            "first_order_smoothness": first_order,
             "coarse_gap": coarse_gap,
             "coarse_collapse": coarse_collapse,
             "coarse_jump": coarse_jump,
@@ -253,6 +284,10 @@ class CoupledTrajectoryObjective:
             dreamsim_gap_fractions=gap_fractions,
             dreamsim_worst_jump=worst_jump,
             dreamsim_worst_jump_index=gap_fractions.argmax(),
+            dreamsim_path_length=path_length,
+            dreamsim_first_order_smoothness=first_order,
+            active_adjacent_violation_count=active_adjacent_violations,
+            active_pairwise_violation_count=active_pairwise_violations,
             coarse_dreamsim_gaps=coarse_gaps,
             coarse_dreamsim_fractions=coarse_fractions,
             triangle_raw_deficits=raw_deficits,

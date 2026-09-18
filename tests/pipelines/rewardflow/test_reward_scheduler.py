@@ -5,6 +5,7 @@ from types import SimpleNamespace
 import torch
 
 from diffusers.pipelines.rewardflow.coupled_terminal_control import (
+    active_adjacent_ranking_loss,
     adjacent_ranking_loss,
     coarse_pairwise_ranking_loss,
     coarse_anchor_indices,
@@ -18,10 +19,11 @@ from diffusers.pipelines.rewardflow.reward_scheduler import (
 
 BASE_WEIGHTS = {
     "semantic_order": 1.0,
-    "semantic_coverage": 1.0,
+    "semantic_coverage": 0.0,
     "semantic_pairwise_order": 1.0,
-    "fine_jump": 1.0,
-    "coarse_gap": 1.0,
+    "first_order_smoothness": 1.0,
+    "fine_jump": 0.0,
+    "coarse_gap": 0.0,
     "second": 0.25,
     "preserve": 1.0,
     "ctrl": 0.0,
@@ -32,11 +34,7 @@ BASE_WEIGHTS = {
 
 
 def _schedule(scheduler, q):
-    return scheduler.step(
-        base_weights=BASE_WEIGHTS,
-        adjacent_semantic_gaps=q[1:] - q[:-1],
-        coarse_semantic_gaps=q[1:] - q[:-1],
-    )
+    return scheduler.step(base_weights=BASE_WEIGHTS, adjacent_semantic_gaps=q[1:] - q[:-1])
 
 
 def test_per_interval_coverage_penalizes_all_collapsed_middle_intervals():
@@ -83,8 +81,8 @@ def test_scheduler_recovery_disables_geometry_and_keeps_semantics_active():
     schedule = _schedule(scheduler, torch.tensor([0.0, 0.8, 0.6, 0.4, 1.0]))
     assert schedule.phase == "semantic_recovery"
     assert schedule.effective_weights["semantic_order"] == 1.0
-    assert schedule.effective_weights["semantic_coverage"] == 1.0
-    assert schedule.effective_weights["fine_jump"] == 0.0
+    assert schedule.effective_weights["semantic_coverage"] == 0.0
+    assert schedule.effective_weights["first_order_smoothness"] == 0.0
     assert schedule.effective_weights["coarse_gap"] == 0.0
     assert schedule.effective_weights["second"] == 0.0
     assert schedule.effective_weights["preserve"] == 0.05
@@ -96,6 +94,7 @@ def test_scheduler_transitions_then_refines_after_healthy_patience():
     assert _schedule(scheduler, healthy).phase == "semantic_recovery"
     first_transition = _schedule(scheduler, healthy)
     assert first_transition.phase == "transition"
+    assert first_transition.effective_weights["first_order_smoothness"] == 0.5
     assert first_transition.effective_weights["second"] == 0.125
     second_transition = _schedule(scheduler, healthy)
     assert second_transition.phase == "transition"
@@ -121,16 +120,15 @@ def test_scheduler_allows_large_first_clip_gap_to_transition():
     q = torch.tensor([0.0, 0.84, 0.87, 0.92, 1.0])
     first = _schedule(scheduler, q)
     second = _schedule(scheduler, q)
-    assert first.semantic_order_ok and first.coarse_not_collapsed
+    assert first.semantic_order_ok
     assert second.phase == "transition"
     assert second.max_coarse_semantic_gap > 0.55
 
 
-def test_scheduler_keeps_genuine_collapse_in_recovery():
+def test_scheduler_allows_compressed_clip_intervals_in_recovery():
     schedule = _schedule(TrajectoryRewardScheduler(), torch.tensor([0.0, 0.8, 0.8, 0.8, 1.0]))
     assert schedule.phase == "semantic_recovery"
-    assert not schedule.coarse_not_collapsed
-    assert schedule.near_zero_coarse_intervals == 2
+    assert schedule.semantic_order_ok
 
 
 def test_pairwise_order_penalizes_reversed_anchors_with_endpoint_gradients():
@@ -152,9 +150,10 @@ def test_dense_pairwise_order_does_not_impose_equal_spacing():
     assert coarse_pairwise_ranking_loss(q, anchor_indices=coarse_anchor_indices(q.numel())) == 0
 
 
-def test_scheduler_log_contains_effective_weights_and_collapse_health():
+def test_scheduler_log_contains_effective_weights_and_order_health():
     row = _schedule(TrajectoryRewardScheduler(), torch.tensor([0.0, 0.84, 0.87, 0.92, 1.0])).as_log_dict()
-    assert {"effective_weights", "collapse_ok", "scheduler_phase"} <= row.keys()
+    assert {"effective_weights", "semantic_order_ok", "scheduler_phase"} <= row.keys()
+    assert "collapse_ok" not in row
 
 
 def test_gradient_audit_logs_raw_effective_and_weighted_norms():
@@ -168,6 +167,7 @@ def test_gradient_audit_logs_raw_effective_and_weighted_norms():
         "semantic_order",
         "semantic_pairwise_order",
         "semantic_coverage",
+        "first_order_smoothness",
         "fine_jump",
         "coarse_gap",
         "second",
