@@ -51,6 +51,14 @@ class DynamicDeficitCoordinator:
         self.dynamic = bool(dynamic)
         self._steps = 0
 
+    @property
+    def steps(self) -> int:
+        return self._steps
+
+    @property
+    def ema_mean(self) -> torch.Tensor | None:
+        return self._guidance._ema_mean
+
     def coordinate(self, deficits: torch.Tensor) -> DynamicDeficitOutput:
         if deficits.ndim != 1 or deficits.numel() < 1:
             raise ValueError("Deficits must be a non-empty one-dimensional tensor.")
@@ -66,8 +74,6 @@ class DynamicDeficitCoordinator:
                 normalized_deficits=torch.zeros_like(raw), weights=weights,
                 mode="warmup" if self._steps <= self.warmup_steps else "uniform",
             )
-        raw = deficits.float()
-        self._guidance._update_ema(raw)
         mean = self._guidance._ema_mean.to(raw)
         variance = self._guidance._ema_var.to(raw)
         normalized = torch.where(

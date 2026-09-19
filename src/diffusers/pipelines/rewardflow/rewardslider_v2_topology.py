@@ -237,6 +237,7 @@ def apply_topology_update(
     enable_insert: bool,
     enable_prune: bool,
     trajectory_kl: float,
+    plateau: bool = False,
     threshold: float = 0.15,
     tolerance: float = 0.0,
 ) -> tuple[TopologyOptimizationState, TopologyEvent | None]:
@@ -246,7 +247,7 @@ def apply_topology_update(
     if not manager.topology_change_allowed:
         manager.advance_cooldown()
         return state, None
-    if enable_insert and trajectory_kl > threshold and alphas.numel() < manager.max_nodes:
+    if enable_insert and plateau and trajectory_kl > threshold and alphas.numel() < manager.max_nodes:
         updated_alphas, updated_goals, event = manager.insert_node(
             alphas, goals, normalized_distances, reason="plateaued trajectory remains above KL threshold"
         )
@@ -255,7 +256,7 @@ def apply_topology_update(
             alpha_lr=state.alpha_optimizer.param_groups[0]["lr"],
             vgoal_lr=state.vgoal_optimizer.param_groups[0]["lr"],
         ), event
-    if enable_prune and alphas.numel() > manager.min_nodes and trajectory_kl <= threshold:
+    if enable_prune and plateau and alphas.numel() > manager.min_nodes and trajectory_kl <= threshold:
         for index in range(1, alphas.numel() - 1):
             try:
                 updated_alphas, updated_goals, event = manager.prune_node(

@@ -37,6 +37,15 @@ def predict_kontext_velocity_branchwise(
             raise ValueError("Branchwise prediction must return a B=1 tensor for every branch.")
         outputs.append(output)
     return torch.cat(outputs, dim=0)
+
+
+def decode_rewardslider_v2_terminal_branchwise(
+    decode_fn: Callable[[torch.Tensor], torch.Tensor], latent: torch.Tensor
+) -> torch.Tensor:
+    """Decode every terminal branch independently with a B=1 VAE call."""
+    if latent.ndim < 1 or latent.shape[0] < 1:
+        raise ValueError("`latent` must have a non-empty batch dimension.")
+    return torch.cat([decode_fn(latent[index : index + 1]) for index in range(latent.shape[0])], dim=0)
 @dataclass(frozen=True)
 class RewardSliderV2Inputs:
     native: KontextTerminalControlInputs
@@ -105,4 +114,6 @@ class FluxKontextRewardSliderV2Pipeline(FluxKontextTerminalControlPipeline):
 
     def decode_rewardslider_v2_terminal(self, latent: torch.Tensor, inputs: RewardSliderV2Inputs) -> torch.Tensor:
         vae_dtype = next(self.vae.parameters()).dtype
-        return self.decode_terminal_latent(latent.to(dtype=vae_dtype), inputs.native)
+        return decode_rewardslider_v2_terminal_branchwise(
+            lambda branch: self.decode_terminal_latent(branch.to(dtype=vae_dtype), inputs.native), latent
+        )

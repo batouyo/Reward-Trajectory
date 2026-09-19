@@ -1,6 +1,6 @@
 import torch
 
-from diffusers.pipelines.rewardflow.rewardslider_v2_unroll import unroll_rewardslider_v2
+from diffusers.pipelines.rewardflow.rewardslider_v2_unroll import _branch_value, unroll_rewardslider_v2
 
 
 def _native_velocity(latent, timestep, step_index):
@@ -71,3 +71,49 @@ def test_frozen_native_model_receives_no_gradient_while_inputs_do():
     assert alphas.grad is not None
     assert all(parameter.grad is None for parameter in model.parameters())
     assert all(goal.grad is not None for goal in goals)
+
+
+def test_branch_value_keeps_fp32_control_precision_against_bf16_reference():
+    reference = torch.zeros(2, 1, 1, dtype=torch.bfloat16)
+    alpha = torch.tensor(0.4599, dtype=torch.float32)
+    actual = _branch_value(alpha, reference)
+    assert actual.dtype == torch.float32
+    assert actual.item() == alpha.item()
+
+
+def test_through_unroll_preserves_distinct_fp32_alphas_with_bf16_latent():
+    initial = torch.zeros(1, 1, 1, dtype=torch.bfloat16)
+    timesteps = [torch.tensor(1.0)]
+    sigmas = torch.tensor([1.0, 0.0])
+    alphas = torch.tensor([0.4596, 0.4599], dtype=torch.float32)
+    goals = [torch.zeros(2, 1, 1, dtype=torch.float32)]
+    result = unroll_rewardslider_v2(
+        initial, timesteps, sigmas, lambda latent, timestep, step: torch.ones_like(latent),
+        alphas, goals, source_clean_latent=initial, control_steps=1, use_checkpointing=False,
+    )
+    assert result.effective_alphas[0].dtype == torch.float32
+    assert result.actual_velocities[0][0].item() != result.actual_velocities[0][1].item()
+
+
+def test_bf16_unroll_optimizer_step_changes_effective_velocity_and_terminal_state():
+    initial = torch.zeros(1, 1, 1, dtype=torch.bfloat16)
+    timesteps = [torch.tensor(1.0)]
+    sigmas = torch.tensor([1.0, 0.0])
+    alpha = torch.nn.Parameter(torch.tensor([0.4596], dtype=torch.float32))
+    goals = [torch.zeros(1, 1, 1, dtype=torch.float32)]
+    optimizer = torch.optim.SGD([alpha], lr=3e-4)
+    before = unroll_rewardslider_v2(
+        initial, timesteps, sigmas, lambda latent, timestep, step: torch.ones_like(latent),
+        alpha, goals, source_clean_latent=initial, control_steps=1, use_checkpointing=False,
+    )
+    before_velocity = before.actual_velocities[0].detach().clone()
+    before_final = before.final_latent.detach().clone()
+    before.final_latent.sum().backward()
+    optimizer.step()
+    after = unroll_rewardslider_v2(
+        initial, timesteps, sigmas, lambda latent, timestep, step: torch.ones_like(latent),
+        alpha, goals, source_clean_latent=initial, control_steps=1, use_checkpointing=False,
+    )
+    assert alpha.detach().item() != 0.4596
+    assert not torch.equal(before_velocity, after.actual_velocities[0])
+    assert not torch.equal(before_final, after.final_latent)

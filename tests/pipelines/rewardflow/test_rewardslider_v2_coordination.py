@@ -22,3 +22,11 @@ def test_deficit_protocol_keeps_direction_explicit_and_logs_normalized_values():
     assert torch.isfinite(result.weights).all()
     torch.testing.assert_close(result.weights.sum(), torch.tensor(1.0))
 
+
+def test_dynamic_coordinator_updates_ema_once_per_coordinate_call():
+    coordinator = DynamicDeficitCoordinator(ema_decay=0.5, warmup_steps=0)
+    coordinator.coordinate(torch.tensor([0.0, 2.0]))
+    torch.testing.assert_close(coordinator.ema_mean, torch.tensor([0.0, 2.0]))
+    coordinator.coordinate(torch.tensor([2.0, 0.0]))
+    torch.testing.assert_close(coordinator.ema_mean, torch.tensor([1.0, 1.0]))
+    assert coordinator.steps == 2

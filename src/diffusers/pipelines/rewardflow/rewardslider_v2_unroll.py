@@ -29,10 +29,11 @@ class RewardSliderV2UnrollOutput:
     native_edit_velocities: tuple[torch.Tensor, ...]
     actual_velocities: tuple[torch.Tensor, ...]
     controlled_step_indices: tuple[int, ...]
+    effective_alphas: tuple[torch.Tensor, ...]
 
 
 def _branch_value(value: torch.Tensor | float, reference: torch.Tensor) -> torch.Tensor:
-    value = torch.as_tensor(value, device=reference.device, dtype=reference.dtype)
+    value = torch.as_tensor(value, device=reference.device, dtype=torch.float32)
     if value.ndim == 0:
         return value
     if value.ndim == 1 and value.shape[0] == reference.shape[0]:
@@ -82,6 +83,12 @@ def unroll_rewardslider_v2(
     latent = expand_shared_initial_latents(initial_latent, _infer_num_branches(alphas, v_goals))
     source = source_clean_latent.expand_as(latent)
     alpha_value = _branch_value(alphas, latent)
+    native_fast_path = bool(torch.all(alpha_value == 1).item()) and all(
+        torch.count_nonzero(goal).item() == 0 for goal in v_goals[:control_steps]
+    )
+    if control_steps > 0 and not native_fast_path:
+        latent = latent.float()
+        source = source.float()
     expected_shape = latent.shape
     for goal in v_goals[:control_steps]:
         if goal.shape != expected_shape:
@@ -90,6 +97,7 @@ def unroll_rewardslider_v2(
     states = [latent]
     native_velocities = []
     actual_velocities = []
+    effective_alphas = []
     for step_index, timestep in enumerate(timesteps):
         timestep = torch.as_tensor(timestep, device=latent.device)
 
@@ -101,6 +109,7 @@ def unroll_rewardslider_v2(
             raise ValueError("Native velocity must match the current branch latent shape.")
         native_velocities.append(native)
         if step_index < control_steps:
+            effective_alphas.append(alpha_value.detach().clone())
             actual = build_branch_velocity(
                 latent, source, native, sigmas[step_index], alpha_value,
                 v_goals[step_index], step_index=step_index, controlled_steps=control_steps,
@@ -116,6 +125,7 @@ def unroll_rewardslider_v2(
         native_edit_velocities=tuple(native_velocities),
         actual_velocities=tuple(actual_velocities),
         controlled_step_indices=tuple(range(control_steps)),
+        effective_alphas=tuple(effective_alphas),
     )
 
 

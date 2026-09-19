@@ -10,6 +10,7 @@ from diffusers.pipelines.rewardflow.rewardslider_v2_runner import (
     build_rewardslider_v2_parser,
     routed_optimization_step,
     summarize_native_parity,
+    TrajectoryPlateauTracker,
 )
 from diffusers.pipelines.rewardflow.rewardslider_v2_alpha import OrderedAlphaParameterization
 from diffusers.pipelines.rewardflow.rewardslider_v2_scheduler import RewardSliderV2Scheduler
@@ -96,6 +97,34 @@ def test_routed_optimization_step_routes_trajectory_guard_to_v_goal():
     )
     assert alpha.interval_logits.grad is None
     assert all(goal.grad is not None and goal.grad.abs().sum() > 0 for goal in goals)
+
+
+def test_local_refinement_masks_v_goal_gradients_to_relevant_branches():
+    alpha = OrderedAlphaParameterization.random(num_interior=4, seed=17)
+    goals = [torch.nn.Parameter(torch.ones(4, 2, 1)) for _ in range(4)]
+    scheduler = RewardSliderV2Scheduler(alpha, goals)
+    scheduler.force_phase("quality_repair")
+    alpha_optimizer = torch.optim.SGD([alpha.interval_logits], lr=0.1)
+    vgoal_optimizer = torch.optim.SGD(goals, lr=0.1)
+    routed_optimization_step(
+        scheduler, alpha_optimizer, vgoal_optimizer,
+        trajectory_loss=None,
+        quality_loss=sum(goal.square().sum() for goal in goals),
+        trajectory_kl=0.2,
+        vgoal_indices=(1, 2),
+        optimize_alpha=False,
+    )
+    assert all(goals[index].grad is not None for index in (1, 2))
+    assert all(goals[index].grad is None for index in (0, 3))
+    assert alpha.interval_logits.grad is None
+
+
+def test_trajectory_plateau_tracker_requires_stale_calibration_steps():
+    tracker = TrajectoryPlateauTracker(delta=0.01, patience=2)
+    assert not tracker.update(1.0, phase="trajectory_calibration")
+    assert not tracker.update(0.995, phase="trajectory_calibration")
+    assert tracker.update(0.996, phase="trajectory_calibration")
+    assert not tracker.update(0.9, phase="quality_repair")
 def test_quality_coordination_uses_one_preservation_weight_without_quality():
     from diffusers.pipelines.rewardflow.rewardslider_v2_coordination import DynamicDeficitCoordinator
 

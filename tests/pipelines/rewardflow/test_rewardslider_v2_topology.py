@@ -1,6 +1,8 @@
 import pytest
 import torch
 
+from diffusers.pipelines.rewardflow.rewardslider_v2_regularizers import v_goal_regularizers
+
 from diffusers.pipelines.rewardflow.rewardslider_v2_topology import (
     TopologyManager,
     apply_topology_update,
@@ -111,7 +113,7 @@ def test_apply_topology_update_rebuilds_real_runner_state_after_insert():
     distance = lambda first, second: (first - second).abs().mean()
     updated, event = apply_topology_update(
         manager, state, images, torch.tensor([0.1, 0.1, 0.8, 0.1]), distance,
-        enable_insert=True, enable_prune=False, trajectory_kl=0.5, threshold=0.15,
+        enable_insert=True, enable_prune=False, trajectory_kl=0.5, threshold=0.15, plateau=True,
     )
     assert event.operation == "insert"
     assert updated.alpha_parameterization.alphas.numel() == 6
@@ -119,3 +121,25 @@ def test_apply_topology_update_rebuilds_real_runner_state_after_insert():
     current.update(parameter for group in updated.vgoal_optimizer.param_groups for parameter in group["params"])
     assert current == {updated.alpha_parameterization.interval_logits, *updated.v_goals}
     assert updated.scheduler.alpha_parameterization is updated.alpha_parameterization
+
+
+def test_topology_insert_keeps_shared_b_one_native_priors_broadcastable():
+    manager = TopologyManager(max_nodes=7, cooldown_steps=0)
+    state = rebuild_topology_optimization_state(
+        torch.tensor([0.0, 0.2, 0.4, 0.9, 1.0]), _goals(), alpha_lr=0.01, vgoal_lr=0.02
+    )
+    images = torch.zeros(5, 1)
+    distance = lambda first, second: (first - second).abs().mean()
+    updated, event = apply_topology_update(
+        manager, state, images, torch.tensor([0.1, 0.8, 0.1, 0.1]), distance,
+        enable_insert=True, enable_prune=False, trajectory_kl=0.5, threshold=0.15, plateau=True,
+    )
+    assert event.operation == "insert"
+    assert updated.v_goals[0].shape[0] == 4
+    for goal in updated.v_goals:
+        goal.requires_grad_(True)
+    direction = torch.ones(1, 2, 1)
+    relevance = torch.ones(1, 2)
+    regularized = v_goal_regularizers(updated.v_goals, [direction] * 4, [relevance] * 4)
+    regularized.residual.backward()
+    assert all(goal.grad is not None for goal in updated.v_goals)

@@ -3,6 +3,7 @@ import torch
 from diffusers.pipelines.rewardflow.pipeline_flux_kontext_rewardslider_v2 import (
     predict_kontext_velocity_branchwise,
 )
+from diffusers.pipelines.rewardflow.pipeline_flux_kontext_rewardslider_v2 import decode_rewardslider_v2_terminal_branchwise
 
 
 def test_branchwise_prediction_calls_model_with_b_one_and_preserves_gradients():
@@ -38,3 +39,18 @@ def test_branchwise_prediction_slices_only_matching_batch_kwargs():
 
     torch.testing.assert_close(actual, latent)
     assert seen == [((1, 1, 1), (1, 3), (1, 3)), ((1, 1, 1), (1, 3), (1, 3))]
+
+
+def test_branchwise_decode_calls_decoder_with_b_one_and_preserves_gradients():
+    latent = torch.randn(3, 2, 1, requires_grad=True)
+    batch_sizes = []
+
+    def decode(batch):
+        batch_sizes.append(batch.shape[0])
+        return batch.square()
+
+    actual = decode_rewardslider_v2_terminal_branchwise(decode, latent)
+    torch.testing.assert_close(actual, latent.square())
+    assert batch_sizes == [1, 1, 1]
+    actual.sum().backward()
+    assert latent.grad is not None and torch.isfinite(latent.grad).all()
