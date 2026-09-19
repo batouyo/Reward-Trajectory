@@ -52,3 +52,48 @@ def test_branch_alpha_broadcasts_per_branch():
 def test_invalid_step_is_rejected(bad_step):
     with pytest.raises(ValueError, match="step_index"):
         build_branch_velocity(torch.zeros(1, 2), torch.zeros(1, 2), torch.zeros(1, 2), 1.0, 0.5, step_index=bad_step)
+
+
+def test_interpolation_keeps_fp32_alpha_effective_precision_with_bf16_velocity():
+    keep = torch.zeros(1, 8, dtype=torch.bfloat16)
+    edit = torch.ones_like(keep)
+    alpha_low = torch.tensor(0.4596, dtype=torch.float32)
+    alpha_high = torch.tensor(0.4599, dtype=torch.float32)
+
+    low = interpolate_velocity(keep, edit, alpha_low)
+    high = interpolate_velocity(keep, edit, alpha_high)
+
+    assert alpha_low.dtype == torch.float32
+    assert alpha_high.dtype == torch.float32
+    assert torch.any(low != high)
+    assert low.dtype == torch.float32
+    assert high.dtype == torch.float32
+
+
+def test_build_branch_velocity_has_exact_native_fast_path_at_alpha_one_zero_goal():
+    current = torch.randn(1, 3, 4, dtype=torch.bfloat16)
+    source = torch.randn_like(current)
+    edit = torch.randn_like(current)
+    goal = torch.zeros_like(current, dtype=torch.float32)
+
+    actual = build_branch_velocity(
+        current, source, edit, sigma=0.75, alpha=torch.tensor(1.0, dtype=torch.float32),
+        v_goal=goal, step_index=0,
+    )
+
+    assert actual is edit
+    torch.testing.assert_close(actual, edit, rtol=0, atol=0)
+
+
+def test_build_branch_velocity_reports_effective_alpha_without_bf16_truncation():
+    current = torch.zeros(1, 2, 2, dtype=torch.bfloat16)
+    source = torch.zeros_like(current)
+    edit = torch.ones_like(current)
+    alpha = torch.tensor([0.4599], dtype=torch.float32)
+
+    actual = build_branch_velocity(
+        current, source, edit, sigma=1.0, alpha=alpha, step_index=0,
+    )
+
+    assert actual.dtype == torch.float32
+    assert torch.all(actual == alpha.view(1, 1, 1))

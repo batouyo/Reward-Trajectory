@@ -31,12 +31,14 @@ def compute_keep_velocity(
         raise ValueError("`current_latent` and `source_clean_latent` must have identical shapes.")
     if eps <= 0:
         raise ValueError("`eps` must be positive.")
-    sigma_tensor = torch.as_tensor(sigma, device=current_latent.device, dtype=current_latent.dtype)
-    return (current_latent - source_clean_latent) / (sigma_tensor + eps)
+    sigma_tensor = torch.as_tensor(sigma, device=current_latent.device, dtype=torch.float32)
+    current_fp32 = current_latent.to(dtype=torch.float32)
+    source_fp32 = source_clean_latent.to(dtype=torch.float32)
+    return (current_fp32 - source_fp32) / (sigma_tensor + eps)
 
 
 def _broadcast_alpha(alpha: torch.Tensor | float, reference: torch.Tensor) -> torch.Tensor:
-    value = torch.as_tensor(alpha, device=reference.device, dtype=reference.dtype)
+    value = torch.as_tensor(alpha, device=reference.device, dtype=torch.float32)
     if value.ndim == 0:
         return value
     if value.ndim == 1 and value.shape[0] == reference.shape[0]:
@@ -56,7 +58,9 @@ def interpolate_velocity(
     if keep_velocity.shape != edit_velocity.shape:
         raise ValueError("`keep_velocity` and `edit_velocity` must have identical shapes.")
     alpha_value = _broadcast_alpha(alpha, edit_velocity)
-    return (1 - alpha_value) * keep_velocity + alpha_value * edit_velocity
+    keep_fp32 = keep_velocity.to(dtype=torch.float32)
+    edit_fp32 = edit_velocity.to(dtype=torch.float32)
+    return (1 - alpha_value) * keep_fp32 + alpha_value * edit_fp32
 
 
 def build_branch_velocity(
@@ -83,10 +87,12 @@ def build_branch_velocity(
         raise ValueError("`v_goal` must match the edit velocity shape.")
     if step_index >= controlled_steps:
         return edit_velocity
+    if v_goal is not None and torch.count_nonzero(v_goal).item() == 0:
+        alpha_tensor = torch.as_tensor(alpha, device=edit_velocity.device, dtype=torch.float32)
+        if torch.all(alpha_tensor == 1):
+            return edit_velocity
     keep_velocity = compute_keep_velocity(current_latent, source_clean_latent, sigma, eps=eps)
     base_velocity = interpolate_velocity(keep_velocity, edit_velocity, alpha)
     if v_goal is None:
         return base_velocity
-    # V_goal is stored in FP32, but the native sampler's velocity/update
-    # dtype must remain unchanged for alpha=1, V_goal=0 native parity.
-    return base_velocity + v_goal.to(dtype=base_velocity.dtype)
+    return base_velocity + v_goal.to(dtype=torch.float32)
