@@ -39,6 +39,7 @@ class RewardSliderV2Scheduler:
         self.joint_alpha_lr_scale = float(joint_alpha_lr_scale)
         self.phase = "trajectory_calibration"
         self.phase_iterations = 0
+        self.phase_reference_kl: float | None = None
         self._healthy_streak = 0
         self._bad_streak = 0
         self.topology_events = []
@@ -129,13 +130,14 @@ class RewardSliderV2Scheduler:
         return total
 
     def advance(self, trajectory_kl: float | torch.Tensor, *, trajectory_collapsed: bool = False) -> str:
-        value = float(torch.as_tensor(trajectory_kl).detach().item())
+        value = float(trajectory_kl.detach().cpu().item()) if torch.is_tensor(trajectory_kl) else float(trajectory_kl)
         if not torch.isfinite(torch.tensor(value)) or value < 0:
             raise ValueError("Trajectory KL must be finite and non-negative.")
         self.phase_iterations += 1
         if self.phase == "trajectory_calibration":
             self._healthy_streak = self._healthy_streak + 1 if not trajectory_collapsed and value <= self.trajectory_kl_threshold else 0
             if self._healthy_streak >= self.trajectory_patience:
+                self.phase_reference_kl = value
                 self.force_phase("quality_repair")
         else:
             self._bad_streak = self._bad_streak + 1 if trajectory_collapsed or value > self.trajectory_kl_threshold + self.trajectory_tolerance else 0

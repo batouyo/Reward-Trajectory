@@ -16,6 +16,7 @@ class DynamicDeficitOutput:
     normalized_deficits: torch.Tensor
     weights: torch.Tensor
     direction: str = "higher_deficit_is_worse"
+    mode: str = "dynamic"
 
 
 class DynamicDeficitCoordinator:
@@ -32,6 +33,8 @@ class DynamicDeficitCoordinator:
         ema_decay: float = 0.99,
         clip_value: float = 5.0,
         weight_floor: float = 0.0,
+        warmup_steps: int = 1,
+        dynamic: bool = True,
         eps: float = 1e-6,
     ):
         self._guidance = RewardGuidance(
@@ -42,17 +45,36 @@ class DynamicDeficitCoordinator:
             weight_floor=weight_floor,
             eps=eps,
         )
+        if warmup_steps < 0:
+            raise ValueError("`warmup_steps` must be non-negative.")
+        self.warmup_steps = int(warmup_steps)
+        self.dynamic = bool(dynamic)
+        self._steps = 0
 
     def coordinate(self, deficits: torch.Tensor) -> DynamicDeficitOutput:
         if deficits.ndim != 1 or deficits.numel() < 1:
             raise ValueError("Deficits must be a non-empty one-dimensional tensor.")
+        self._steps += 1
         if not torch.isfinite(deficits).all() or torch.any(deficits < 0):
             raise ValueError("Deficits must be finite and non-negative.")
         raw = deficits.float()
         self._guidance._update_ema(raw)
+        if not self.dynamic or self._steps <= self.warmup_steps:
+            weights = torch.full_like(raw, 1.0 / raw.numel())
+            return DynamicDeficitOutput(
+                total_loss=(weights * raw).sum(), raw_deficits=raw,
+                normalized_deficits=torch.zeros_like(raw), weights=weights,
+                mode="warmup" if self._steps <= self.warmup_steps else "uniform",
+            )
+        raw = deficits.float()
+        self._guidance._update_ema(raw)
         mean = self._guidance._ema_mean.to(raw)
         variance = self._guidance._ema_var.to(raw)
-        normalized = (raw - mean) / torch.sqrt(variance + self._guidance.eps)
+        normalized = torch.where(
+            variance <= self._guidance.eps,
+            raw - raw.mean(),
+            (raw - mean) / torch.sqrt(variance + self._guidance.eps),
+        )
         if self._guidance.clip_value > 0:
             normalized = torch.clamp(normalized, -self._guidance.clip_value, self._guidance.clip_value)
         weights = torch.softmax(normalized / max(self._guidance.temperature, 1e-6), dim=0)

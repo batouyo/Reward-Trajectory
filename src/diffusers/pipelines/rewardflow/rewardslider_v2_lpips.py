@@ -19,6 +19,11 @@ class TensorImageDistance(Protocol):
     def distance(self, first: torch.Tensor, second: torch.Tensor) -> torch.Tensor: ...
 
 
+def _normalize_distances(distances: torch.Tensor, eps: float) -> torch.Tensor:
+    total = distances.sum()
+    uniform = torch.full_like(distances, 1.0 / distances.numel())
+    return torch.where(total > eps, distances / total.clamp_min(eps), uniform)
+
 def lpips_uniform_kl(distances: torch.Tensor, *, eps: float = 1e-8) -> torch.Tensor:
     """Return ``KL(p || uniform)`` for a one-dimensional distance vector."""
 
@@ -30,8 +35,7 @@ def lpips_uniform_kl(distances: torch.Tensor, *, eps: float = 1e-8) -> torch.Ten
         raise ValueError("LPIPS distances must be finite.")
     if torch.any(distances < 0):
         raise ValueError("LPIPS distances must be non-negative.")
-    total = distances.sum()
-    probabilities = distances / total.clamp_min(eps)
+    probabilities = _normalize_distances(distances, eps)
     uniform = torch.full_like(probabilities, 1.0 / probabilities.numel())
     positive = probabilities > 0
     terms = torch.where(
@@ -60,7 +64,7 @@ def lpips_trajectory_stats(distances: torch.Tensor, *, endpoint_distance: torch.
     if distances.ndim != 1 or distances.numel() < 1:
         raise ValueError("LPIPS distances must be a non-empty one-dimensional tensor.")
     total = distances.sum()
-    normalized = distances / total.clamp_min(eps)
+    normalized = _normalize_distances(distances, eps)
     path_length = total
     if endpoint_distance is None:
         endpoint_distance = torch.full_like(path_length, float("nan"))

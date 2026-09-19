@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Sequence
+from typing import Any, Callable, Sequence
 
 import torch
 
@@ -11,6 +11,27 @@ from .pipeline_flux_kontext_terminal_control import FluxKontextTerminalControlPi
 from .rewardslider_v2_unroll import RewardSliderV2UnrollOutput, unroll_rewardslider_v2
 
 
+
+def predict_kontext_velocity_branchwise(
+    predict_fn: Callable[..., torch.Tensor], latent: torch.Tensor, **kwargs: Any
+) -> torch.Tensor:
+    """Evaluate frozen Kontext dynamics one branch at a time (B=1)."""
+    if latent.ndim < 1 or latent.shape[0] < 1:
+        raise ValueError("`latent` must have a non-empty batch dimension.")
+    outputs = []
+    batch_size = latent.shape[0]
+    for branch_index in range(batch_size):
+        branch_kwargs = {}
+        for name, value in kwargs.items():
+            if torch.is_tensor(value) and value.ndim > 0 and value.shape[0] == batch_size:
+                branch_kwargs[name] = value[branch_index : branch_index + 1]
+            else:
+                branch_kwargs[name] = value
+        output = predict_fn(latent[branch_index : branch_index + 1], **branch_kwargs)
+        if output.ndim < 1 or output.shape[0] != 1:
+            raise ValueError("Branchwise prediction must return a B=1 tensor for every branch.")
+        outputs.append(output)
+    return torch.cat(outputs, dim=0)
 @dataclass(frozen=True)
 class RewardSliderV2Inputs:
     native: KontextTerminalControlInputs
@@ -40,14 +61,20 @@ class FluxKontextRewardSliderV2Pipeline(FluxKontextTerminalControlPipeline):
 
     def unroll_rewardslider_v2_controls(self, inputs: RewardSliderV2Inputs, alphas: torch.Tensor | float,
                                         v_goals: Sequence[torch.Tensor], *, control_steps: int = 4,
-                                        use_checkpointing: bool = True) -> RewardSliderV2UnrollOutput:
+                                        use_checkpointing: bool = True, branchwise: bool = True) -> RewardSliderV2UnrollOutput:
         if torch.is_tensor(alphas) and alphas.ndim == 1 and alphas.shape[0] != inputs.num_branches:
             raise ValueError("One alpha value is required per branch.")
 
         def velocity_fn(latent: torch.Tensor, timestep: torch.Tensor, step_index: int) -> torch.Tensor:
             del step_index
             model_dtype = next(self.transformer.parameters()).dtype
-            predicted = self._predict_kontext_velocity(latent.to(dtype=model_dtype), timestep, **inputs.forward_kwargs)
+            predict = lambda branch_latent, **branch_kwargs: self._predict_kontext_velocity(
+                branch_latent.to(dtype=model_dtype), timestep, **branch_kwargs
+            )
+            if branchwise:
+                predicted = predict_kontext_velocity_branchwise(predict, latent, **inputs.forward_kwargs)
+            else:
+                predicted = self._predict_kontext_velocity(latent.to(dtype=model_dtype), timestep, **inputs.forward_kwargs)
             return predicted.to(dtype=latent.dtype)
 
         return unroll_rewardslider_v2(inputs.native.initial_latent, inputs.native.timesteps, inputs.native.sigmas,
