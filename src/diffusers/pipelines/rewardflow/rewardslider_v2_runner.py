@@ -24,6 +24,7 @@ from .rewardslider_v2_regularizers import initialize_v_goal_parameters, v_goal_r
 from .rewardslider_v2_coordination import DynamicDeficitCoordinator, DynamicDeficitOutput
 from .rewardslider_v2_quality import DifferentiableQualityReward, audit_quality_reward
 from .rewardslider_v2_scheduler import RewardSliderV2Scheduler
+from .rewardslider_v2_optimization import BestTrajectoryState, coordinate_search_alphas, local_insert_line_search
 
 
 def build_rewardslider_v2_parser() -> argparse.ArgumentParser:
@@ -32,6 +33,11 @@ def build_rewardslider_v2_parser() -> argparse.ArgumentParser:
     parser.add_argument("--max-nodes", type=int, default=10)
     parser.add_argument("--control-steps", type=int, default=4)
     parser.add_argument("--seed", type=int, default=0)
+    parser.add_argument("--alpha-optimizer-mode", choices=("adam", "coordinate", "hybrid"), default="adam")
+    parser.add_argument("--coordinate-initial-delta", type=float, default=0.02)
+    parser.add_argument("--coordinate-min-delta", type=float, default=0.001)
+    parser.add_argument("--alpha-margin", type=float, default=1e-4)
+    parser.add_argument("--hybrid-acceptance-tolerance", type=float, default=0.0)
     parser.add_argument("--alpha-lr", type=float, default=1e-3)
     parser.add_argument("--vgoal-lr", type=float, default=1e-3)
     parser.add_argument("--trajectory-tolerance", type=float, default=0.02)
@@ -47,6 +53,7 @@ def build_rewardslider_v2_parser() -> argparse.ArgumentParser:
     parser.add_argument("--local-refine-iters", type=int, default=10)
     parser.add_argument("--joint-refine-iters", type=int, default=10)
     parser.add_argument("--enable-prune", action="store_true")
+    parser.add_argument("--topology-rollback-tolerance", type=float, default=0.02)
     parser.add_argument("--enable-insert", action="store_true")
     parser.add_argument("--quality-reward", default=None)
     parser.add_argument("--use-checkpointing", action="store_true")
@@ -387,6 +394,7 @@ def run_real_flux_smoke(args) -> dict:
     local_refine_remaining = 0
     local_refine_indices: tuple[int, ...] | None = None
     plateau_tracker = TrajectoryPlateauTracker(delta=args.plateau_delta, patience=args.plateau_patience)
+    best_trajectory = BestTrajectoryState()
     previous_master_alpha = None
     previous_effective_alpha = None
     relevance_image = build_image_space_relevance(
@@ -407,6 +415,7 @@ def run_real_flux_smoke(args) -> dict:
         if local_mode and scheduler.phase == "trajectory_calibration":
             scheduler.force_phase("quality_repair")
         unroll, images, stats = evaluate()
+        best_updated = best_trajectory.update(alpha_parameterization, kl=stats.kl_uniform, iteration=iteration)
         forward_master_alpha = alpha_parameterization.alphas[1:-1].detach().float()
         forward_effective_alpha = unroll.effective_alphas[0].detach().float() if unroll.effective_alphas else forward_master_alpha
         quality_loss = None
@@ -429,7 +438,27 @@ def run_real_flux_smoke(args) -> dict:
             trajectory_guard_loss = trajectory_guard_weight * torch.relu(
                 stats.kl_uniform - (guard_reference + args.trajectory_tolerance)
             )
-        routed = routed_optimization_step(
+        coordinate_result = None
+        hybrid_pre_logits = alpha_parameterization.interval_logits.detach().clone() if args.alpha_optimizer_mode == "hybrid" else None
+        if args.alpha_optimizer_mode == "coordinate" and scheduler.phase == "trajectory_calibration":
+            def _coordinate_eval(candidate):
+                with torch.no_grad():
+                    return evaluate(alpha_values=candidate, goal_values=v_goals)[2].kl_uniform
+            coordinate_result = coordinate_search_alphas(
+                alpha_parameterization.alphas.detach(), _coordinate_eval,
+                initial_delta=args.coordinate_initial_delta,
+                min_delta=args.coordinate_min_delta,
+                margin=args.alpha_margin,
+            )
+            rebuilt = OrderedAlphaParameterization.from_alphas(coordinate_result.alphas)
+            with torch.no_grad():
+                alpha_parameterization.interval_logits.copy_(rebuilt.interval_logits)
+            unroll, images, stats = evaluate()
+            routed = {"phase_before": scheduler.phase, "phase_after": scheduler.phase,
+                      "loss": float(stats.kl_uniform.detach()), "alpha_gradient_norm": None,
+                      "v_goal_gradient_norms": [None for _ in v_goals]}
+        else:
+            routed = routed_optimization_step(
             scheduler,
             alpha_optimizer,
             vgoal_optimizer,
@@ -446,10 +475,42 @@ def run_real_flux_smoke(args) -> dict:
             local_refine_remaining -= 1
             if local_refine_remaining == 0:
                 scheduler.force_phase("joint_refinement")
+        hybrid_result = None
+        if hybrid_pre_logits is not None and routed["phase_before"] in (
+            "trajectory_calibration",
+            "joint_refinement",
+        ):
+            with torch.no_grad():
+                post_hybrid_kl = evaluate()[2].kl_uniform.detach()
+            accepted = bool(
+                post_hybrid_kl
+                <= stats.kl_uniform.detach() + args.hybrid_acceptance_tolerance
+            )
+            if not accepted:
+                with torch.no_grad():
+                    alpha_parameterization.interval_logits.copy_(hybrid_pre_logits)
+                alpha_optimizer = torch.optim.Adam(
+                    [alpha_parameterization.interval_logits],
+                    lr=args.alpha_lr,
+                )
+            hybrid_result = {
+                "accepted": accepted,
+                "current_kl": float(post_hybrid_kl),
+                "rejected_steps": int(not accepted),
+            }
+        with torch.no_grad():
+            post_optimization_stats = evaluate()[2]
+        post_optimization_kl = post_optimization_stats.kl_uniform.detach()
+        best_updated = best_trajectory.update(
+            alpha_parameterization, kl=post_optimization_kl, iteration=iteration
+        ) or best_updated
         alpha_grad_norm = routed["alpha_gradient_norm"]
         topology_event = None
         plateau = plateau_tracker.update(float(stats.kl_uniform.detach()), phase=routed["phase_before"])
         if plateau and (args.enable_insert or args.enable_prune):
+            pre_topology_state = topology_state
+            pre_topology_inputs = inputs
+            pre_topology_kl = float(stats.kl_uniform.detach())
             topology_state, topology_event = apply_topology_update(
                 topology_manager, topology_state, images.detach(), stats.normalized_distances.detach(),
                 lpips.distance, enable_insert=args.enable_insert, enable_prune=args.enable_prune,
@@ -478,7 +539,41 @@ def run_real_flux_smoke(args) -> dict:
                 inputs = pipe.rematerialize_rewardslider_v2_inputs(
                     inputs, num_branches=alpha_parameterization.num_interior
                 )
+                local_line_result = None
+                if topology_event.operation == "insert" and affected is not None:
+                    local_goals = [goal.detach() for goal in v_goals]
+                    def _local_eval(candidate):
+                        _, _, candidate_stats = evaluate(alpha_values=candidate, goal_values=local_goals)
+                        return candidate_stats.distances[affected], candidate_stats.distances[affected + 1], candidate_stats.kl_uniform
+                    local_line_result = local_insert_line_search(alpha_parameterization.alphas.detach(), interval=affected, evaluate=_local_eval)
+                    calibrated = OrderedAlphaParameterization.from_alphas(local_line_result.alphas)
+                    with torch.no_grad():
+                        alpha_parameterization.interval_logits.copy_(calibrated.interval_logits)
+                    topology_event = type(topology_event)(**{**asdict(topology_event), "post_local_kl": float(local_line_result.kl), "d_left": float(local_line_result.d_left), "d_right": float(local_line_result.d_right), "balance_ratio": float(local_line_result.balance_ratio)})
+                with torch.no_grad():
+                    _, _, post_topology_stats = evaluate()
+                post_topology_kl = float(post_topology_stats.kl_uniform.detach())
+                if topology_event.operation == "insert" and post_topology_kl > pre_topology_kl + args.topology_rollback_tolerance:
+                    topology_state = pre_topology_state
+                    inputs = pre_topology_inputs
+                    alpha_parameterization = topology_state.alpha_parameterization
+                    v_goals = topology_state.v_goals
+                    alpha_optimizer = topology_state.alpha_optimizer
+                    vgoal_optimizer = topology_state.vgoal_optimizer
+                    scheduler = topology_state.scheduler
+                    topology_event = type(topology_event)(**{**asdict(topology_event), "topology_accepted": False, "post_local_kl": post_topology_kl, "reason": "rollback: post-topology KL worsened"})
+                    local_refine_indices = None
+                    local_refine_remaining = 0
                 topology_events.append(topology_event)
+                if topology_event.topology_accepted:
+                    best_trajectory = BestTrajectoryState()
+                    with torch.no_grad():
+                        post_topology_stats = evaluate()[2]
+                    best_trajectory.update(
+                        alpha_parameterization,
+                        kl=post_topology_stats.kl_uniform,
+                        iteration=iteration,
+                    )
                 last_topology_iteration = iteration
                 previous_master_alpha = None
                 previous_effective_alpha = None
@@ -501,6 +596,12 @@ def run_real_flux_smoke(args) -> dict:
         previous_effective_alpha = effective_alpha.clone()
         phase_records.append(
             {
+                "current_kl": float(stats.kl_uniform.detach()),
+                "best_kl": best_trajectory.best_kl,
+                "best_iteration": best_trajectory.best_iteration,
+                "best_updated": best_updated,
+                "post_optimization_kl": float(post_optimization_kl),
+                "hybrid_acceptance": hybrid_result,
                 "phase": routed["phase_before"],
                 "iteration": iteration,
                 "control_diagnostics": control_diagnostics,
@@ -527,6 +628,9 @@ def run_real_flux_smoke(args) -> dict:
                 "phase_after": routed["phase_after"], "topology_event": topology_event,
             }
         )
+    restored_best_at_end = False
+    if best_trajectory.best_alpha_logits is not None:
+        restored_best_at_end = best_trajectory.restore(alpha_parameterization)
     with torch.no_grad():
         final_unroll, final_images, final_stats = evaluate()
     finite_difference_audit = None
@@ -564,6 +668,7 @@ def run_real_flux_smoke(args) -> dict:
         }
     record = {
         "trajectory": {"current_number_of_nodes": alpha_parameterization.alphas.numel(), "max_nodes": args.max_nodes, "alpha": alpha_parameterization.alphas.detach(), "initial_alpha": initial_alpha, "initial_kl": initial_stats.kl_uniform, "final_kl": final_stats.kl_uniform, "adjacent_lpips": final_stats.distances, "normalized_lpips": final_stats.normalized_distances, "max_normalized_gap": final_stats.max_normalized_gap, "worst_interval": final_stats.worst_interval, "path_length": final_stats.path_length, "endpoint_distance": final_stats.endpoint_distance, "collapsed": final_stats.collapsed},
+        "trajectory_best": {"best_kl": best_trajectory.best_kl, "best_iteration": best_trajectory.best_iteration, "restored_best_at_end": restored_best_at_end},
         "reward": {
             "quality_reward": args.quality_reward,
             "formal_trajectory_metric": "LPIPS_KL_uniform",

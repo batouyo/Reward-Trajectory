@@ -24,6 +24,11 @@ class TopologyEvent:
     reason: str
     kl_before: float | None = None
     kl_after: float | None = None
+    topology_accepted: bool = True
+    post_local_kl: float | None = None
+    d_left: float | None = None
+    d_right: float | None = None
+    balance_ratio: float | None = None
 
 
 def _validate_alphas(alphas: torch.Tensor) -> None:

@@ -15,6 +15,7 @@ from diffusers.pipelines.rewardflow.rewardslider_v2_runner import (
 from diffusers.pipelines.rewardflow.rewardslider_v2_alpha import OrderedAlphaParameterization
 from diffusers.pipelines.rewardflow.rewardslider_v2_scheduler import RewardSliderV2Scheduler
 
+from diffusers.pipelines.rewardflow.rewardslider_v2_optimization import BestTrajectoryState
 
 def test_runner_parser_contains_v2_controls():
     args = build_rewardslider_v2_parser().parse_args([])
@@ -125,6 +126,27 @@ def test_trajectory_plateau_tracker_requires_stale_calibration_steps():
     assert not tracker.update(0.995, phase="trajectory_calibration")
     assert tracker.update(0.996, phase="trajectory_calibration")
     assert not tracker.update(0.9, phase="quality_repair")
+
+
+def test_best_trajectory_state_restores_best_logits_after_later_degradation():
+    parameterization = OrderedAlphaParameterization.from_alphas(
+        torch.tensor([0.0, 0.2, 0.6, 1.0])
+    )
+    best = BestTrajectoryState()
+    assert best.update(parameterization, kl=0.4, iteration=0)
+    with torch.no_grad():
+        parameterization.interval_logits.add_(0.7)
+    assert best.update(parameterization, kl=0.2, iteration=1)
+    expected_logits = parameterization.interval_logits.detach().clone()
+    expected_alphas = parameterization.alphas.detach().clone()
+    with torch.no_grad():
+        parameterization.interval_logits.sub_(1.3)
+    assert not best.update(parameterization, kl=0.3, iteration=2)
+    assert best.restore(parameterization)
+    torch.testing.assert_close(parameterization.interval_logits, expected_logits)
+    torch.testing.assert_close(parameterization.alphas, expected_alphas)
+    assert best.best_kl == 0.2
+    assert best.best_iteration == 1
 def test_quality_coordination_uses_one_preservation_weight_without_quality():
     from diffusers.pipelines.rewardflow.rewardslider_v2_coordination import DynamicDeficitCoordinator
 
