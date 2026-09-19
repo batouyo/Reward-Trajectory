@@ -49,21 +49,34 @@ class LPIPSTrajectoryStats:
     kl_uniform: torch.Tensor
     max_normalized_gap: torch.Tensor
     worst_interval: torch.Tensor
+    path_length: torch.Tensor
+    endpoint_distance: torch.Tensor
+    collapsed: bool
 
 
-def lpips_trajectory_stats(distances: torch.Tensor, *, eps: float = 1e-8) -> LPIPSTrajectoryStats:
+def lpips_trajectory_stats(distances: torch.Tensor, *, endpoint_distance: torch.Tensor | None = None, eps: float = 1e-8) -> LPIPSTrajectoryStats:
     """Compute formal KL smoothness and auditable gap diagnostics."""
 
     if distances.ndim != 1 or distances.numel() < 1:
         raise ValueError("LPIPS distances must be a non-empty one-dimensional tensor.")
     total = distances.sum()
     normalized = distances / total.clamp_min(eps)
+    path_length = total
+    if endpoint_distance is None:
+        endpoint_distance = torch.full_like(path_length, float("nan"))
+    endpoint_distance = endpoint_distance.reshape(())
+    collapsed = bool(path_length.detach() <= eps) or (
+        bool(torch.isfinite(endpoint_distance).item()) and bool(endpoint_distance.detach() <= eps)
+    )
     return LPIPSTrajectoryStats(
         distances=distances,
         normalized_distances=normalized,
         kl_uniform=lpips_uniform_kl(distances, eps=eps),
         max_normalized_gap=normalized.max(),
         worst_interval=normalized.argmax(),
+        path_length=path_length,
+        endpoint_distance=endpoint_distance,
+        collapsed=collapsed,
     )
 
 
@@ -103,4 +116,5 @@ class LPIPSDistance(nn.Module):
         if images.ndim != 4 or images.shape[0] < 2:
             raise ValueError("A trajectory needs at least two [B,3,H,W] image nodes.")
         distances = self.distance(images[:-1], images[1:])
-        return lpips_trajectory_stats(distances, eps=eps)
+        endpoint_distance = self.distance(images[:1], images[-1:]).reshape(-1).mean()
+        return lpips_trajectory_stats(distances, endpoint_distance=endpoint_distance, eps=eps)

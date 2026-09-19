@@ -163,6 +163,7 @@ def routed_optimization_step(
     trajectory_loss: torch.Tensor | None,
     quality_loss: torch.Tensor | None,
     trajectory_kl: torch.Tensor | float,
+    trajectory_collapsed: bool = False,
     control_loss: torch.Tensor | None = None,
     trajectory_guard_loss: torch.Tensor | None = None,
 ) -> dict[str, object]:
@@ -183,7 +184,7 @@ def routed_optimization_step(
         alpha_optimizer.step()
     if phase_before in ("quality_repair", "joint_refinement"):
         vgoal_optimizer.step()
-    phase_after = scheduler.advance(trajectory_kl)
+    phase_after = scheduler.advance(trajectory_kl, trajectory_collapsed=trajectory_collapsed)
     return {
         "phase_before": phase_before,
         "phase_after": phase_after,
@@ -361,6 +362,7 @@ def run_real_flux_smoke(args) -> dict:
             trajectory_loss=stats.kl_uniform,
             quality_loss=quality_loss,
             trajectory_kl=stats.kl_uniform,
+            trajectory_collapsed=stats.collapsed,
             trajectory_guard_loss=trajectory_guard_loss,
             control_loss=control_loss,
         )
@@ -390,7 +392,7 @@ def run_real_flux_smoke(args) -> dict:
     with torch.no_grad():
         final_unroll, final_images, final_stats = evaluate()
     record = {
-        "trajectory": {"current_number_of_nodes": args.initial_nodes, "max_nodes": args.max_nodes, "alpha": alpha_parameterization.alphas.detach(), "initial_kl": initial_stats.kl_uniform, "final_kl": final_stats.kl_uniform, "adjacent_lpips": final_stats.distances, "normalized_lpips": final_stats.normalized_distances, "max_normalized_gap": final_stats.max_normalized_gap, "worst_interval": final_stats.worst_interval},
+        "trajectory": {"current_number_of_nodes": args.initial_nodes, "max_nodes": args.max_nodes, "alpha": alpha_parameterization.alphas.detach(), "initial_kl": initial_stats.kl_uniform, "final_kl": final_stats.kl_uniform, "adjacent_lpips": final_stats.distances, "normalized_lpips": final_stats.normalized_distances, "max_normalized_gap": final_stats.max_normalized_gap, "worst_interval": final_stats.worst_interval, "path_length": final_stats.path_length, "endpoint_distance": final_stats.endpoint_distance, "collapsed": final_stats.collapsed},
         "reward": {
             "quality_reward": args.quality_reward,
             "formal_trajectory_metric": "LPIPS_KL_uniform",

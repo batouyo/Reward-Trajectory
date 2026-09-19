@@ -91,6 +91,7 @@ def test_routed_optimization_step_routes_trajectory_guard_to_v_goal():
         quality_loss=None,
         trajectory_guard_loss=sum(goal.square().sum() for goal in goals),
         trajectory_kl=0.2,
+        trajectory_collapsed=True,
 
     )
     assert alpha.interval_logits.grad is None

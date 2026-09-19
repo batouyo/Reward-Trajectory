@@ -70,3 +70,10 @@ def test_joint_refinement_scales_alpha_learning_rate_only():
     scheduler.configure_optimizers(alpha_optimizer, vgoal_optimizer)
     assert alpha_optimizer.param_groups[0]["lr"] == 0.001
     assert vgoal_optimizer.param_groups[0]["lr"] == 0.02
+
+def test_collapsed_trajectory_cannot_advance_to_quality_phase():
+    scheduler, _, _ = _make_scheduler(trajectory_patience=1)
+    scheduler.advance(0.0, trajectory_collapsed=True)
+    assert scheduler.phase == "trajectory_calibration"
+    scheduler.advance(0.1)
+    assert scheduler.phase == "quality_repair"

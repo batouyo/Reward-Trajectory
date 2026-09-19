@@ -39,3 +39,8 @@ def test_tensor_native_lpips_adapter_preserves_image_gradient():
     assert images.grad is not None
     assert torch.isfinite(images.grad).all()
     assert images.grad.abs().sum() > 0
+
+def test_zero_path_is_marked_collapsed_and_not_healthy():
+    stats = lpips_trajectory_stats(torch.zeros(4))
+    assert stats.collapsed
+    torch.testing.assert_close(stats.path_length, torch.tensor(0.0))
