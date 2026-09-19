@@ -42,3 +42,14 @@ def test_only_interval_logits_are_optimizer_parameters():
     assert parameters == [parameterization.interval_logits]
     assert parameterization.alphas[0].item() == 0.0
     assert parameterization.alphas[-1].item() == 1.0
+
+
+def test_ordered_alpha_endpoints_remain_exact_after_logit_updates():
+    for seed in range(100):
+        parameterization = OrderedAlphaParameterization.random(num_interior=3, seed=seed)
+        with torch.no_grad():
+            parameterization.interval_logits.add_(torch.randn_like(parameterization.interval_logits) * 2)
+        alphas = parameterization.alphas
+        assert alphas[0].item() == 0.0
+        assert alphas[-1].item() == 1.0
+        assert torch.all(alphas[1:] > alphas[:-1])

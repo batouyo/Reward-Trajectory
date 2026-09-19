@@ -2,6 +2,12 @@
 
 from __future__ import annotations
 
+
+
+def validate_v2_control_steps(control_steps: int) -> int:
+    if control_steps != 4:
+        raise ValueError("RewardSlider V2 requires exactly four controlled timesteps.")
+    return control_steps
 from dataclasses import dataclass
 from typing import Callable, Sequence
 

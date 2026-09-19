@@ -12,6 +12,11 @@ from .rewardslider_v2_unroll import RewardSliderV2UnrollOutput, unroll_rewardsli
 
 
 
+def validate_v2_control_steps(control_steps: int) -> int:
+    if control_steps != 4:
+        raise ValueError("RewardSlider V2 requires exactly four controlled timesteps.")
+    return control_steps
+
 def predict_kontext_velocity_branchwise(
     predict_fn: Callable[..., torch.Tensor], latent: torch.Tensor, **kwargs: Any
 ) -> torch.Tensor:
@@ -58,10 +63,26 @@ class FluxKontextRewardSliderV2Pipeline(FluxKontextTerminalControlPipeline):
                               guidance=guidance, negative_prompt_embeds=neg_prompt, negative_pooled_prompt_embeds=neg_pooled,
                               image_embeds=image_embeds, negative_image_embeds=neg_image_embeds)
         return RewardSliderV2Inputs(native, num_branches, forward_kwargs)
+    def rematerialize_rewardslider_v2_inputs(self, inputs: RewardSliderV2Inputs, *, num_branches: int) -> RewardSliderV2Inputs:
+        if num_branches < 1:
+            raise ValueError("`num_branches` must be positive.")
+        f = inputs.native.forward_kwargs
+        values = self._materialize_kontext_strength_batch(
+            num_branches, inputs.native.initial_latent, f["image_latents"], f["prompt_embeds"],
+            f["pooled_prompt_embeds"], f["guidance"], f["negative_prompt_embeds"],
+            f["negative_pooled_prompt_embeds"], f["image_embeds"], f["negative_image_embeds"]
+        )
+        _, image_latents, prompt_embeds, pooled_prompt_embeds, guidance, neg_prompt, neg_pooled, image_embeds, neg_image_embeds = values
+        forward_kwargs = dict(f)
+        forward_kwargs.update(image_latents=image_latents, prompt_embeds=prompt_embeds, pooled_prompt_embeds=pooled_prompt_embeds,
+                              guidance=guidance, negative_prompt_embeds=neg_prompt, negative_pooled_prompt_embeds=neg_pooled,
+                              image_embeds=image_embeds, negative_image_embeds=neg_image_embeds)
+        return RewardSliderV2Inputs(inputs.native, num_branches, forward_kwargs)
 
     def unroll_rewardslider_v2_controls(self, inputs: RewardSliderV2Inputs, alphas: torch.Tensor | float,
                                         v_goals: Sequence[torch.Tensor], *, control_steps: int = 4,
                                         use_checkpointing: bool = True, branchwise: bool = True) -> RewardSliderV2UnrollOutput:
+        validate_v2_control_steps(control_steps)
         if torch.is_tensor(alphas) and alphas.ndim == 1 and alphas.shape[0] != inputs.num_branches:
             raise ValueError("One alpha value is required per branch.")
 

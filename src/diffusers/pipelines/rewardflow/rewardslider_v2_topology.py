@@ -226,3 +226,48 @@ def rebuild_topology_optimization_state(
         vgoal_optimizer=vgoal_optimizer,
         scheduler=scheduler,
     )
+
+def apply_topology_update(
+    manager: TopologyManager,
+    state: TopologyOptimizationState,
+    images: torch.Tensor,
+    normalized_distances: torch.Tensor,
+    distance: Callable[[torch.Tensor, torch.Tensor], torch.Tensor],
+    *,
+    enable_insert: bool,
+    enable_prune: bool,
+    trajectory_kl: float,
+    threshold: float = 0.15,
+    tolerance: float = 0.0,
+) -> tuple[TopologyOptimizationState, TopologyEvent | None]:
+    """Apply at most one plateau-gated topology edit and rebuild all state."""
+    alphas = state.alpha_parameterization.alphas.detach()
+    goals = tuple(state.v_goals)
+    if not manager.topology_change_allowed:
+        manager.advance_cooldown()
+        return state, None
+    if enable_insert and trajectory_kl > threshold and alphas.numel() < manager.max_nodes:
+        updated_alphas, updated_goals, event = manager.insert_node(
+            alphas, goals, normalized_distances, reason="plateaued trajectory remains above KL threshold"
+        )
+        return rebuild_topology_optimization_state(
+            updated_alphas, updated_goals,
+            alpha_lr=state.alpha_optimizer.param_groups[0]["lr"],
+            vgoal_lr=state.vgoal_optimizer.param_groups[0]["lr"],
+        ), event
+    if enable_prune and alphas.numel() > manager.min_nodes and trajectory_kl <= threshold:
+        for index in range(1, alphas.numel() - 1):
+            try:
+                updated_alphas, updated_goals, event = manager.prune_node(
+                    alphas, goals, index, images=images, distance=distance,
+                    threshold=threshold, tolerance=tolerance,
+                )
+            except ValueError:
+                continue
+            return rebuild_topology_optimization_state(
+                updated_alphas, updated_goals,
+                alpha_lr=state.alpha_optimizer.param_groups[0]["lr"],
+                vgoal_lr=state.vgoal_optimizer.param_groups[0]["lr"],
+            ), event
+    manager.advance_cooldown()
+    return state, None

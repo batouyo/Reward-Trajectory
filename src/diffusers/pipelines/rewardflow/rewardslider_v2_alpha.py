@@ -54,8 +54,13 @@ class OrderedAlphaParameterization(nn.Module):
 
     @property
     def alphas(self) -> torch.Tensor:
-        gaps = torch.softmax(self.interval_logits, dim=0)
-        return torch.cat((gaps.new_zeros(1), gaps.cumsum(0)))
+        # Compute the simplex in FP64 so finite extreme logits do not collapse
+        # adjacent nodes after FP32 cumulative-sum rounding.
+        gaps = torch.softmax(self.interval_logits.double(), dim=0)
+        interior = gaps.cumsum(0)[:-1].to(dtype=self.interval_logits.dtype)
+        zero = self.interval_logits.new_zeros(1)
+        one = self.interval_logits.new_ones(1)
+        return torch.cat((zero, interior, one))
 
     @property
     def num_interior(self) -> int:

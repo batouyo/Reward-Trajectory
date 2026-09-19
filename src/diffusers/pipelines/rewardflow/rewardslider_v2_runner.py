@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+from dataclasses import asdict, is_dataclass
 import json
 import os
 import time
@@ -14,10 +15,11 @@ import torch.nn.functional as F
 from torch import nn
 from PIL import Image
 
-from .pipeline_flux_kontext_rewardslider_v2 import FluxKontextRewardSliderV2Pipeline, RewardSliderV2Inputs
+from .pipeline_flux_kontext_rewardslider_v2 import FluxKontextRewardSliderV2Pipeline, RewardSliderV2Inputs, validate_v2_control_steps
 from .rewardslider_v2_alpha import OrderedAlphaParameterization
 from .rewardslider_v2_lpips import LPIPSDistance
 from .rewardslider_v2_preservation import build_image_space_relevance, masked_lpips_preservation_loss
+from .rewardslider_v2_topology import TopologyManager, TopologyOptimizationState, apply_topology_update
 from .rewardslider_v2_regularizers import initialize_v_goal_parameters, v_goal_regularizers
 from .rewardslider_v2_coordination import DynamicDeficitCoordinator, DynamicDeficitOutput
 from .rewardslider_v2_quality import DifferentiableQualityReward, audit_quality_reward
@@ -32,6 +34,7 @@ def build_rewardslider_v2_parser() -> argparse.ArgumentParser:
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--alpha-lr", type=float, default=1e-3)
     parser.add_argument("--vgoal-lr", type=float, default=1e-3)
+    parser.add_argument("--trajectory-tolerance", type=float, default=0.02)
     parser.add_argument("--trajectory-kl-threshold", type=float, default=0.15)
     parser.add_argument("--trajectory-patience", type=int, default=3)
     parser.add_argument("--trajectory-guard-weight", type=float, default=0.1)
@@ -141,6 +144,8 @@ class RewardSliderV2Runner:
 
 
 def _jsonable(value):
+    if is_dataclass(value):
+        return _jsonable(asdict(value))
     if torch.is_tensor(value):
         return float(value.detach().float().cpu()) if value.ndim == 0 else value.detach().float().cpu().tolist()
     if isinstance(value, dict):
@@ -248,6 +253,7 @@ def run_real_flux_smoke(args) -> dict:
         raise ValueError("Real smoke requires --model and --source.")
     if args.height != 256 or args.width != 256:
         raise ValueError("The acceptance smoke is fixed to 256x256.")
+    validate_v2_control_steps(args.control_steps)
     if args.steps < 4:
         raise ValueError("Real smoke requires at least four denoising steps.")
     torch.manual_seed(args.seed)
@@ -323,9 +329,14 @@ def run_real_flux_smoke(args) -> dict:
         alpha_parameterization,
         v_goals,
         trajectory_kl_threshold=args.trajectory_kl_threshold,
+        trajectory_tolerance=args.trajectory_tolerance,
         trajectory_patience=args.trajectory_patience,
         min_repair_iterations=args.joint_refine_iters,
     )
+    topology_manager = TopologyManager(max_nodes=args.max_nodes)
+    topology_state = TopologyOptimizationState(alpha_parameterization, v_goals, alpha_optimizer, vgoal_optimizer, scheduler)
+    topology_events = []
+    last_topology_iteration = -1
     relevance_image = build_image_space_relevance(
         relevance,
         token_height=inputs.native.sampling_token_height,
@@ -336,7 +347,7 @@ def run_real_flux_smoke(args) -> dict:
     phase_records = []
     alpha_grad_norm = None
     vgoal_gradient_norms = []
-    for iteration in range(args.local_refine_iters + args.joint_refine_iters):
+    for iteration in range(args.local_refine_iters + args.joint_refine_iters + 1):
         unroll, images, stats = evaluate()
         quality_loss = None
         quality_deficit = None
@@ -344,6 +355,7 @@ def run_real_flux_smoke(args) -> dict:
         coordination = None
         trajectory_guard_loss = None
         trajectory_guard_weight = args.trajectory_guard_weight
+        control_diagnostics = None
         if scheduler.phase in ("quality_repair", "joint_refinement"):
             preserve = masked_lpips_preservation_loss(images * 2 - 1, source_image * 2 - 1, relevance_image, lpips)
             if quality_reward is not None:
@@ -352,8 +364,10 @@ def run_real_flux_smoke(args) -> dict:
             coordination = coordinate_image_deficits(dynamic_coordinator, preserve, quality_deficit)
             quality_loss = coordination.total_loss
             control_loss = regularizers.residual + 2.0 * regularizers.parallel + regularizers.spatial
+            control_diagnostics = regularizers.diagnostics
+            guard_reference = scheduler.phase_reference_kl if scheduler.phase_reference_kl is not None else args.trajectory_kl_threshold
             trajectory_guard_loss = trajectory_guard_weight * torch.relu(
-                stats.kl_uniform - args.trajectory_kl_threshold
+                stats.kl_uniform - (guard_reference + args.trajectory_tolerance)
             )
         routed = routed_optimization_step(
             scheduler,
@@ -367,17 +381,57 @@ def run_real_flux_smoke(args) -> dict:
             control_loss=control_loss,
         )
         alpha_grad_norm = routed["alpha_gradient_norm"]
+        topology_event = None
+        plateau_boundary = (
+            iteration == args.local_refine_iters - 1
+            or iteration == args.local_refine_iters + args.joint_refine_iters - 1
+        )
+        if plateau_boundary and (args.enable_insert or args.enable_prune):
+            topology_state, topology_event = apply_topology_update(
+                topology_manager, topology_state, images.detach(), stats.normalized_distances.detach(),
+                lpips.distance, enable_insert=args.enable_insert, enable_prune=args.enable_prune,
+                trajectory_kl=float(stats.kl_uniform.detach()), threshold=args.trajectory_kl_threshold,
+            )
+            if topology_event is not None:
+                alpha_parameterization = topology_state.alpha_parameterization
+                v_goals = topology_state.v_goals
+                alpha_optimizer = topology_state.alpha_optimizer
+                vgoal_optimizer = topology_state.vgoal_optimizer
+                scheduler = topology_state.scheduler
+                branch_index = topology_event.affected_interval
+                if topology_event.operation == "insert":
+                    native_directions = [torch.cat((prior[:branch_index], prior[branch_index:branch_index + 1].clone(), prior[branch_index:]), dim=0) for prior in native_directions]
+                    relevance = [torch.cat((prior[:branch_index], prior[branch_index:branch_index + 1].clone(), prior[branch_index:]), dim=0) for prior in relevance]
+                elif topology_event.operation == "prune":
+                    remove_index = branch_index + 1
+                    native_directions = [torch.cat((prior[:remove_index], prior[remove_index + 1:]), dim=0) for prior in native_directions]
+                    relevance = [torch.cat((prior[:remove_index], prior[remove_index + 1:]), dim=0) for prior in relevance]
+                relevance_image = build_image_space_relevance(
+                    relevance,
+                    token_height=inputs.native.sampling_token_height,
+                    token_width=inputs.native.sampling_token_width,
+                    target_height=args.height,
+                    target_width=args.width,
+                )
+                inputs = pipe.rematerialize_rewardslider_v2_inputs(
+                    inputs, num_branches=alpha_parameterization.num_interior
+                )
+                topology_events.append(topology_event)
+                last_topology_iteration = iteration
+        alpha_grad_norm = routed["alpha_gradient_norm"]
         vgoal_gradient_norms = routed["v_goal_gradient_norms"]
         phase_records.append(
             {
                 "phase": routed["phase_before"],
                 "iteration": iteration,
+                "control_diagnostics": control_diagnostics,
                 "trajectory_kl": float(stats.kl_uniform.detach()),
                 "coordination": None if coordination is None else {
                     "raw_deficits": coordination.raw_deficits,
                     "normalized_deficits": coordination.normalized_deficits,
                     "dynamic_weights": coordination.weights,
                     "direction": coordination.direction,
+                    "mode": coordination.mode,
                 },
                 "trajectory_kl_raw": float(stats.kl_uniform.detach()),
                 "trajectory_guard_loss": None if trajectory_guard_loss is None else float(trajectory_guard_loss.detach()),
@@ -386,13 +440,13 @@ def run_real_flux_smoke(args) -> dict:
                 "alpha": alpha_parameterization.alphas.detach().cpu().tolist(),
                 "alpha_gradient_norm": alpha_grad_norm,
                 "v_goal_gradient_norms": vgoal_gradient_norms,
-                "phase_after": routed["phase_after"],
+                "phase_after": routed["phase_after"], "topology_event": topology_event,
             }
         )
     with torch.no_grad():
         final_unroll, final_images, final_stats = evaluate()
     record = {
-        "trajectory": {"current_number_of_nodes": args.initial_nodes, "max_nodes": args.max_nodes, "alpha": alpha_parameterization.alphas.detach(), "initial_kl": initial_stats.kl_uniform, "final_kl": final_stats.kl_uniform, "adjacent_lpips": final_stats.distances, "normalized_lpips": final_stats.normalized_distances, "max_normalized_gap": final_stats.max_normalized_gap, "worst_interval": final_stats.worst_interval, "path_length": final_stats.path_length, "endpoint_distance": final_stats.endpoint_distance, "collapsed": final_stats.collapsed},
+        "trajectory": {"current_number_of_nodes": alpha_parameterization.alphas.numel(), "max_nodes": args.max_nodes, "alpha": alpha_parameterization.alphas.detach(), "initial_kl": initial_stats.kl_uniform, "final_kl": final_stats.kl_uniform, "adjacent_lpips": final_stats.distances, "normalized_lpips": final_stats.normalized_distances, "max_normalized_gap": final_stats.max_normalized_gap, "worst_interval": final_stats.worst_interval, "path_length": final_stats.path_length, "endpoint_distance": final_stats.endpoint_distance, "collapsed": final_stats.collapsed},
         "reward": {
             "quality_reward": args.quality_reward,
             "formal_trajectory_metric": "LPIPS_KL_uniform",
@@ -404,7 +458,7 @@ def run_real_flux_smoke(args) -> dict:
         "gradient": {"alpha_gradient_norm": alpha_grad_norm, "v_goal_gradient_norms": vgoal_gradient_norms, "alpha_finite": bool(torch.isfinite(alpha_parameterization.interval_logits).all()), "v_goal_finite": all(torch.isfinite(parameter).all().item() for parameter in v_goals)},
         "control": {"v_goal_norms": [parameter.detach().float().norm() for parameter in v_goals]},
         "parity": {"single": {"latent_mae": native_parity.mean(), "latent_cosine": F.cosine_similarity(native_single.final_latent[0].float().flatten()[None], inputs.native.native_final_latent[0].float().flatten()[None]).squeeze(), "image_mae": (native_image - pipe.decode_rewardslider_v2_terminal(native_single.final_latent, inputs)).float().abs().mean()}, "batched": batch_parity},
-        "topology": {"operation": None, "old_nodes": args.initial_nodes, "new_nodes": args.initial_nodes},
+        "topology": {"events": topology_events, "last_event_iteration": last_topology_iteration},
         "system": {"frozen_model_audit": _frozen_gradient_audit(pipe), "device": str(device), "dtype": str(dtype), "height": args.height, "width": args.width, "steps": args.steps, "control_steps": 4, "phase_records": phase_records},
     }
     _write_jsonl(output, record)

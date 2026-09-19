@@ -1,8 +1,10 @@
 import torch
+import pytest
 
 from diffusers.pipelines.rewardflow.rewardslider_v2_coordination import DynamicDeficitCoordinator
 from diffusers.pipelines.rewardflow.rewardslider_v2_lpips import lpips_trajectory_stats
 from diffusers.pipelines.rewardflow.rewardslider_v2_alpha import OrderedAlphaParameterization
+from diffusers.pipelines.rewardflow.pipeline_flux_kontext_rewardslider_v2 import validate_v2_control_steps
 from diffusers.pipelines.rewardflow.rewardslider_v2_scheduler import RewardSliderV2Scheduler
 from diffusers.pipelines.rewardflow.rewardslider_v2_runner import routed_optimization_step
 
@@ -50,3 +52,10 @@ def test_joint_refinement_performs_both_optimizer_updates():
     )
     assert not torch.equal(alpha.interval_logits, alpha_before)
     assert any(not torch.equal(goal, before) for goal, before in zip(goals, goals_before))
+
+
+@pytest.mark.parametrize("bad_steps", [0, 1, 3, 5])
+def test_real_v2_control_prefix_requires_exactly_four_steps(bad_steps):
+    with pytest.raises(ValueError, match="exactly four"):
+        validate_v2_control_steps(bad_steps)
+    assert validate_v2_control_steps(4) == 4

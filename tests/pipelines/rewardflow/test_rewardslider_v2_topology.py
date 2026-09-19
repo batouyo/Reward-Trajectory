@@ -3,6 +3,7 @@ import torch
 
 from diffusers.pipelines.rewardflow.rewardslider_v2_topology import (
     TopologyManager,
+    apply_topology_update,
     rebuild_topology_optimization_state,
     rebuild_topology_optimizer,
 )
@@ -100,3 +101,21 @@ def test_topology_cooldown_blocks_repeated_edits_until_advanced():
         torch.ones(alphas.numel() - 1),
     )
     assert next_alphas.numel() == 7
+
+def test_apply_topology_update_rebuilds_real_runner_state_after_insert():
+    manager = TopologyManager(max_nodes=6, cooldown_steps=1)
+    state = rebuild_topology_optimization_state(
+        torch.tensor([0.0, 0.2, 0.4, 0.9, 1.0]), _goals(), alpha_lr=0.01, vgoal_lr=0.02
+    )
+    images = torch.linspace(0, 1, 5).reshape(5, 1)
+    distance = lambda first, second: (first - second).abs().mean()
+    updated, event = apply_topology_update(
+        manager, state, images, torch.tensor([0.1, 0.1, 0.8, 0.1]), distance,
+        enable_insert=True, enable_prune=False, trajectory_kl=0.5, threshold=0.15,
+    )
+    assert event.operation == "insert"
+    assert updated.alpha_parameterization.alphas.numel() == 6
+    current = {parameter for group in updated.alpha_optimizer.param_groups for parameter in group["params"]}
+    current.update(parameter for group in updated.vgoal_optimizer.param_groups for parameter in group["params"])
+    assert current == {updated.alpha_parameterization.interval_logits, *updated.v_goals}
+    assert updated.scheduler.alpha_parameterization is updated.alpha_parameterization
