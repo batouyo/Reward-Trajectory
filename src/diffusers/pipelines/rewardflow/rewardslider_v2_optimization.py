@@ -66,6 +66,47 @@ class BestTrajectoryState:
         return True
 
 
+
+@dataclass
+class BestQualityState:
+    """Best image-repair checkpoint under a trajectory-KL constraint."""
+
+    best_deficit: float | None = None
+    best_kl: float | None = None
+    best_preservation: float | None = None
+    best_quality: float | None = None
+    best_alpha_logits: torch.Tensor | None = None
+    best_v_goals: tuple[torch.Tensor, ...] | None = None
+    best_iteration: int | None = None
+    preservation_only: bool = True
+
+    def update(self, parameterization, *, kl, deficit, preservation, quality, iteration, v_goals):
+        values = [float(value.detach().item() if torch.is_tensor(value) else value) for value in (kl, deficit, preservation)]
+        quality_value = None if quality is None else float(quality.detach().item() if torch.is_tensor(quality) else quality)
+        if not all(torch.isfinite(torch.tensor(value)) for value in values):
+            raise ValueError("Quality checkpoint values must be finite.")
+        if quality_value is not None and not torch.isfinite(torch.tensor(quality_value)):
+            raise ValueError("Quality checkpoint quality value must be finite.")
+        if self.best_deficit is not None and values[1] >= self.best_deficit:
+            return False
+        self.best_kl, self.best_deficit, self.best_preservation = values
+        self.best_quality = quality_value
+        self.best_alpha_logits = parameterization.interval_logits.detach().clone()
+        self.best_v_goals = tuple(goal.detach().clone() for goal in v_goals)
+        self.best_iteration = int(iteration)
+        self.preservation_only = quality is None
+        return True
+
+    def restore(self, parameterization, v_goals) -> bool:
+        if self.best_alpha_logits is None or parameterization.interval_logits.shape != self.best_alpha_logits.shape:
+            return False
+        if len(v_goals) != len(self.best_v_goals) or any(goal.shape != saved.shape for goal, saved in zip(v_goals, self.best_v_goals)):
+            return False
+        with torch.no_grad():
+            parameterization.interval_logits.copy_(self.best_alpha_logits.to(parameterization.interval_logits))
+            for goal, saved in zip(v_goals, self.best_v_goals):
+                goal.copy_(saved.to(device=goal.device, dtype=goal.dtype))
+        return True
 @dataclass(frozen=True)
 class CoordinateSearchResult:
     alphas: torch.Tensor

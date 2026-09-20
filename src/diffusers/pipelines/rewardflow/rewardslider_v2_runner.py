@@ -17,6 +17,7 @@ from torch import nn
 from PIL import Image
 
 from .pipeline_flux_kontext_rewardslider_v2 import FluxKontextRewardSliderV2Pipeline, RewardSliderV2Inputs, validate_v2_control_steps
+from .rewardslider_v2_evaluation import fixed_grid_metrics, interpolate_strengths
 from .rewardslider_v2_alpha import OrderedAlphaParameterization
 from .rewardslider_v2_lpips import LPIPSDistance
 from .rewardslider_v2_preservation import build_image_space_relevance, masked_lpips_preservation_loss
@@ -26,6 +27,7 @@ from .rewardslider_v2_coordination import DynamicDeficitCoordinator, DynamicDefi
 from .rewardslider_v2_quality import DifferentiableQualityReward, audit_quality_reward
 from .rewardslider_v2_scheduler import RewardSliderV2Scheduler
 from .rewardslider_v2_optimization import (
+    BestQualityState,
     BestTrajectoryState,
     OptimizationTransaction,
     coordinate_search_alphas,
@@ -273,6 +275,7 @@ def summarize_native_parity(batched_latent: torch.Tensor, native_latent: torch.T
         "per_branch_latent_cosine": latent_cosine,
         "per_branch_image_mae": image_mae,
         "max_batch_latent_mae": latent_mae.max(),
+
         "min_batch_latent_cosine": latent_cosine.min(),
         "max_batch_image_mae": image_mae.max(),
         "within_batch_max_latent_difference": within_batch.max(),
@@ -405,6 +408,8 @@ def run_real_flux_smoke(args) -> dict:
     topology_events = []
     last_topology_iteration = -1
     local_refine_remaining = 0
+    best_quality = BestQualityState()
+    quality_phase_ran = False
     local_refine_indices: tuple[int, ...] | None = None
     plateau_tracker = TrajectoryPlateauTracker(delta=args.plateau_delta, patience=args.plateau_patience)
     best_trajectory = BestTrajectoryState()
@@ -529,6 +534,15 @@ def run_real_flux_smoke(args) -> dict:
         post_optimization_kl = post_optimization_stats.kl_uniform.detach()
         if hybrid_transaction is None:
             routed["phase_after"] = scheduler.advance(post_optimization_kl, trajectory_collapsed=post_optimization_stats.collapsed)
+        if quality_loss is not None and routed["phase_before"] in ("quality_repair", "joint_refinement"):
+            quality_phase_ran = True
+            with torch.no_grad():
+                preservation_value = masked_lpips_preservation_loss(post_optimization_images * 2 - 1, source_image * 2 - 1, relevance_image, lpips)
+                quality_value = None if quality_reward is None else F.softplus(-quality_reward(post_optimization_images)).mean()
+                deficit_value = preservation_value if quality_value is None else preservation_value + quality_value
+            reference_kl = scheduler.phase_reference_kl if scheduler.phase_reference_kl is not None else args.trajectory_kl_threshold
+            if float(post_optimization_kl) <= float(reference_kl) + args.trajectory_tolerance:
+                best_quality.update(alpha_parameterization, kl=post_optimization_kl, deficit=deficit_value, preservation=preservation_value, quality=quality_value, iteration=iteration, v_goals=v_goals)
         best_updated = best_trajectory.update(
             alpha_parameterization, kl=post_optimization_kl, iteration=iteration, v_goals=v_goals
         ) or best_updated
@@ -693,10 +707,26 @@ def run_real_flux_smoke(args) -> dict:
             }
         )
     restored_best_at_end = False
-    if best_trajectory.best_alpha_logits is not None:
+    selected_checkpoint_type = "trajectory_best"
+    restored_quality_at_end = False
+    if quality_phase_ran and best_quality.best_alpha_logits is not None:
+        restored_quality_at_end = best_quality.restore(alpha_parameterization, v_goals)
+        restored_best_at_end = restored_quality_at_end
+        if restored_quality_at_end:
+            selected_checkpoint_type = "preservation_only_checkpoint" if best_quality.preservation_only else "quality_best"
+    if not restored_best_at_end and best_trajectory.best_alpha_logits is not None:
         restored_best_at_end = best_trajectory.restore(alpha_parameterization, v_goals)
     with torch.no_grad():
         final_unroll, final_images, final_stats = evaluate()
+        learned_nodes = torch.cat((source_image, final_images, native_image), dim=0)
+        fixed_requested = torch.linspace(0, 1, 11, device=learned_nodes.device, dtype=learned_nodes.dtype)
+        fixed_alpha = interpolate_strengths(alpha_parameterization.alphas.detach(), fixed_requested)
+        positions = torch.linspace(0, 1, learned_nodes.shape[0], device=learned_nodes.device, dtype=learned_nodes.dtype)
+        indices = torch.searchsorted(positions, fixed_requested, right=True).clamp(1, positions.numel() - 1)
+        left = indices - 1
+        fraction = (fixed_requested - positions[left]) / (positions[indices] - positions[left])
+        fixed_images = learned_nodes[left] + fraction[:, None, None, None] * (learned_nodes[indices] - learned_nodes[left])
+        fixed_stats = fixed_grid_metrics(fixed_images, lpips.distance, requested=fixed_requested)
     finite_difference_audit = None
     if args.finite_difference_audit:
         alpha_probe = alpha_parameterization.alphas[1:-1].detach().clone().requires_grad_(True)
@@ -730,9 +760,20 @@ def run_real_flux_smoke(args) -> dict:
             "finite_difference": finite_value,
             "same_sign": auto_value is not None and auto_value != 0 and finite_value != 0 and auto_value * finite_value > 0,
         }
+    fixed_grid_record = dict(fixed_stats)
     record = {
         "trajectory": {"current_number_of_nodes": alpha_parameterization.alphas.numel(), "max_nodes": args.max_nodes, "alpha": alpha_parameterization.alphas.detach(), "initial_alpha": initial_alpha, "initial_kl": initial_stats.kl_uniform, "final_kl": final_stats.kl_uniform, "adjacent_lpips": final_stats.distances, "normalized_lpips": final_stats.normalized_distances, "max_normalized_gap": final_stats.max_normalized_gap, "worst_interval": final_stats.worst_interval, "path_length": final_stats.path_length, "endpoint_distance": final_stats.endpoint_distance, "collapsed": final_stats.collapsed},
         "trajectory_best": {"best_kl": best_trajectory.best_kl, "best_iteration": best_trajectory.best_iteration, "restored_best_at_end": restored_best_at_end},
+        "quality_best": {
+            "best_kl": best_quality.best_kl,
+            "best_deficit": best_quality.best_deficit,
+            "best_preservation": best_quality.best_preservation,
+            "best_quality": best_quality.best_quality,
+            "best_iteration": best_quality.best_iteration,
+            "preservation_only": best_quality.preservation_only,
+            "phase_ran": quality_phase_ran,
+            "restored_at_end": restored_quality_at_end,
+        },
         "reward": {
             "quality_reward": args.quality_reward,
             "formal_trajectory_metric": "LPIPS_KL_uniform",
@@ -750,9 +791,10 @@ def run_real_flux_smoke(args) -> dict:
         "topology": {"events": topology_events, "last_event_iteration": last_topology_iteration},
         "system": {"frozen_model_audit": _frozen_gradient_audit(pipe), "device": str(device), "dtype": str(dtype), "height": args.height, "width": args.width, "steps": args.steps, "control_steps": 4, "controlled_step_indices": list(range(4)), "alpha_only": args.alpha_only, "phase_records": phase_records, "finite_difference_audit": finite_difference_audit},
     }
-    _write_jsonl(output, record)
     _save_tensor_image(native_image, output.with_name("native_full.png"))
     _save_tensor_image(final_images[0:1], output.with_name("candidate_weak.png"))
+    record.update(dict(fixed_grid=fixed_grid_record, selected_checkpoint_type=selected_checkpoint_type))
+    _write_jsonl(output, record)
     return record
 
 
