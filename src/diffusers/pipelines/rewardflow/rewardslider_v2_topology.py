@@ -37,6 +37,7 @@ class TopologyEvent:
     old_alpha_right: float | None = None
     midpoint_alpha: float | None = None
     candidate_alphas: tuple[float, ...] | None = None
+    candidate_kls: tuple[float, ...] | None = None
     split_max_ratio: float | None = None
 
 

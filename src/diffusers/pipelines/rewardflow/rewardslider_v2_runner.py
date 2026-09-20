@@ -601,6 +601,7 @@ def run_real_flux_smoke(args) -> dict:
                         "old_alpha_right": float(local_line_result.search_right),
                         "midpoint_alpha": float(midpoint_alphas[affected + 1]),
                         "candidate_alphas": tuple(item["alpha"] for item in local_line_result.candidates),
+                        "candidate_kls": tuple(item["kl"] for item in local_line_result.candidates),
                         "split_max_ratio": float(local_line_result.split_max_ratio),
                     })
                 with torch.no_grad():
