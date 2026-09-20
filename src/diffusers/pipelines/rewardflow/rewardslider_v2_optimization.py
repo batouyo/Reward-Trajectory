@@ -107,6 +107,29 @@ class BestQualityState:
             for goal, saved in zip(v_goals, self.best_v_goals):
                 goal.copy_(saved.to(device=goal.device, dtype=goal.dtype))
         return True
+def v_goal_off_axis_diagnostics(v_goals: Sequence[torch.Tensor], native_directions: Sequence[torch.Tensor], *, eps: float = 1e-8) -> dict[str, object]:
+    """Report V_goal geometry relative to detached native residual directions."""
+    if len(v_goals) != len(native_directions):
+        raise ValueError("v_goals and native_directions must have the same timestep count.")
+    per_timestep = []
+    nonzero = []
+    for goal, direction in zip(v_goals, native_directions):
+        direction = direction.to(device=goal.device, dtype=goal.dtype)
+        beta = (goal * direction).flatten(1).sum(dim=1) / (direction.square().flatten(1).sum(dim=1) + eps)
+        residual = goal - beta.reshape((-1,) + (1,) * (goal.ndim - 1)) * direction
+        goal_norm = goal.float().flatten(1).norm(dim=1)
+        residual_norm = residual.float().flatten(1).norm(dim=1)
+        zero = goal_norm <= eps
+        rows = []
+        for index in range(goal.shape[0]):
+            ratio = None if bool(zero[index]) else float((residual_norm[index] / (goal_norm[index] + eps)).detach())
+            if ratio is not None:
+                nonzero.append(ratio)
+            rows.append({"branch": index, "goal_norm": float(goal_norm[index].detach()), "beta": float(beta[index].detach()), "off_axis_ratio": ratio, "zero_vgoal": bool(zero[index])})
+        per_timestep.append(rows)
+    return {"per_timestep": per_timestep, "mean_nonzero_off_axis_ratio": None if not nonzero else sum(nonzero) / len(nonzero)}
+
+
 @dataclass(frozen=True)
 class CoordinateSearchResult:
     alphas: torch.Tensor

@@ -16,7 +16,7 @@ from diffusers.pipelines.rewardflow.rewardslider_v2_runner import (
 from diffusers.pipelines.rewardflow.rewardslider_v2_alpha import OrderedAlphaParameterization
 from diffusers.pipelines.rewardflow.rewardslider_v2_scheduler import RewardSliderV2Scheduler
 
-from diffusers.pipelines.rewardflow.rewardslider_v2_optimization import BestTrajectoryState, OptimizationTransaction
+from diffusers.pipelines.rewardflow.rewardslider_v2_optimization import BestQualityState, BestTrajectoryState, OptimizationTransaction, v_goal_off_axis_diagnostics
 
 def test_runner_parser_contains_v2_controls():
     args = build_rewardslider_v2_parser().parse_args([])
@@ -240,3 +240,20 @@ def test_quality_reward_builder_rejects_unavailable_and_audits_mock():
     audit = audit_quality_reward(reward, torch.ones(1, 3, 2, 2), require_pass=True)
     assert audit.passed
     assert audit.image_gradient_norm > 0
+
+
+def test_best_quality_state_reset_accepts_first_checkpoint_after_topology_change():
+    parameterization = OrderedAlphaParameterization.from_alphas(torch.tensor([0.0, 0.2, 0.6, 1.0]))
+    old = BestQualityState(best_deficit=0.1)
+    new = BestQualityState()
+    goals = [torch.nn.Parameter(torch.zeros(2, 1, 1)) for _ in range(4)]
+    assert not old.update(parameterization, kl=0.2, deficit=0.2, preservation=0.2, quality=None, iteration=1, v_goals=goals)
+    assert new.update(parameterization, kl=0.2, deficit=0.2, preservation=0.2, quality=None, iteration=1, v_goals=goals)
+    assert new.best_deficit == 0.2
+
+def test_v_goal_off_axis_diagnostics_uses_null_for_zero_goal():
+    goals = [torch.zeros(2, 1, 1) for _ in range(4)]
+    directions = [torch.ones(2, 1, 1) for _ in range(4)]
+    result = v_goal_off_axis_diagnostics(goals, directions)
+    assert result["mean_nonzero_off_axis_ratio"] is None
+    assert all(row["off_axis_ratio"] is None and row["zero_vgoal"] for rows in result["per_timestep"] for row in rows)

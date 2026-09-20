@@ -17,7 +17,7 @@ from torch import nn
 from PIL import Image
 
 from .pipeline_flux_kontext_rewardslider_v2 import FluxKontextRewardSliderV2Pipeline, RewardSliderV2Inputs, validate_v2_control_steps
-from .rewardslider_v2_evaluation import fixed_grid_metrics, interpolate_strengths
+from .rewardslider_v2_evaluation import fixed_grid_metrics, generate_model_fixed_grid, interpolate_strengths
 from .rewardslider_v2_alpha import OrderedAlphaParameterization
 from .rewardslider_v2_lpips import LPIPSDistance
 from .rewardslider_v2_preservation import build_image_space_relevance, masked_lpips_preservation_loss
@@ -29,6 +29,7 @@ from .rewardslider_v2_scheduler import RewardSliderV2Scheduler
 from .rewardslider_v2_optimization import (
     BestQualityState,
     BestTrajectoryState,
+    v_goal_off_axis_diagnostics,
     OptimizationTransaction,
     coordinate_search_alphas,
     local_insert_line_search,
@@ -293,6 +294,27 @@ def _save_tensor_image(image: torch.Tensor, path: Path) -> None:
     Image.fromarray(np.asarray(value), mode="RGB").save(path)
 
 
+def _save_contact_sheet(images, labels, path, columns=3):
+    import numpy as np
+    from PIL import ImageDraw
+    tiles = []
+    for image, label in zip(images, labels):
+        value = image.detach().clamp(0, 1).mul(255).round().byte().permute(1, 2, 0).cpu().numpy()
+        tile = Image.new("RGB", (value.shape[1], value.shape[0] + 24), "white")
+        tile.paste(Image.fromarray(np.asarray(value), mode="RGB"), (0, 24))
+        ImageDraw.Draw(tile).text((4, 4), str(label), fill="black")
+        tiles.append(tile)
+    if not tiles:
+        return
+    rows = (len(tiles) + columns - 1) // columns
+    width = max(tile.width for tile in tiles)
+    height = max(tile.height for tile in tiles)
+    sheet = Image.new("RGB", (columns * width, rows * height), "white")
+    for index, tile in enumerate(tiles):
+        sheet.paste(tile, ((index % columns) * width, (index // columns) * height))
+    sheet.save(path)
+
+
 def _frozen_gradient_audit(pipe) -> bool:
     modules = (pipe.transformer, pipe.vae, pipe.text_encoder, pipe.text_encoder_2)
     return all(parameter.grad is None for module in modules if module is not None for parameter in module.parameters())
@@ -406,6 +428,7 @@ def run_real_flux_smoke(args) -> dict:
     topology_manager = TopologyManager(max_nodes=args.max_nodes)
     topology_state = TopologyOptimizationState(alpha_parameterization, v_goals, alpha_optimizer, vgoal_optimizer, scheduler)
     topology_events = []
+    quality_checkpoint_reset_iterations = []
     last_topology_iteration = -1
     local_refine_remaining = 0
     best_quality = BestQualityState()
@@ -644,6 +667,9 @@ def run_real_flux_smoke(args) -> dict:
                 topology_events.append(topology_event)
                 if topology_event.topology_accepted:
                     best_trajectory = BestTrajectoryState()
+                    best_quality = BestQualityState()
+                    quality_phase_ran = False
+                    quality_checkpoint_reset_iterations.append(iteration)
                     with torch.no_grad():
                         post_topology_stats = evaluate()[2]
                     best_trajectory.update(
@@ -718,15 +744,33 @@ def run_real_flux_smoke(args) -> dict:
         restored_best_at_end = best_trajectory.restore(alpha_parameterization, v_goals)
     with torch.no_grad():
         final_unroll, final_images, final_stats = evaluate()
-        learned_nodes = torch.cat((source_image, final_images, native_image), dim=0)
-        fixed_requested = torch.linspace(0, 1, 11, device=learned_nodes.device, dtype=learned_nodes.dtype)
-        fixed_alpha = interpolate_strengths(alpha_parameterization.alphas.detach(), fixed_requested)
-        positions = torch.linspace(0, 1, learned_nodes.shape[0], device=learned_nodes.device, dtype=learned_nodes.dtype)
-        indices = torch.searchsorted(positions, fixed_requested, right=True).clamp(1, positions.numel() - 1)
-        left = indices - 1
-        fraction = (fixed_requested - positions[left]) / (positions[indices] - positions[left])
-        fixed_images = learned_nodes[left] + fraction[:, None, None, None] * (learned_nodes[indices] - learned_nodes[left])
-        fixed_stats = fixed_grid_metrics(fixed_images, lpips.distance, requested=fixed_requested)
+        fixed_requested = torch.linspace(0, 1, 11, device=source_image.device, dtype=source_image.dtype)
+        fixed_grid_result = generate_model_fixed_grid(
+            alpha_parameterization.alphas.detach(), tuple(goal.detach() for goal in v_goals), fixed_requested,
+            source_image=source_image, native_image=native_image,
+            rematerialize_inputs=lambda *, num_branches: pipe.rematerialize_rewardslider_v2_inputs(inputs, num_branches=num_branches),
+            unroll_callback=lambda fixed_inputs, alpha, goals, **kwargs: pipe.unroll_rewardslider_v2_controls(fixed_inputs, alpha, goals, **kwargs),
+            decode_callback=lambda fixed_unroll, fixed_inputs: pipe.decode_rewardslider_v2_terminal(fixed_unroll.final_latent, fixed_inputs),
+            control_steps=args.control_steps, use_checkpointing=args.use_checkpointing,
+        )
+        fixed_model_images = fixed_grid_result["images"]
+        fixed_stats = fixed_grid_metrics(fixed_model_images, lpips.distance, requested=fixed_requested)
+        midpoint = fixed_requested.numel() // 2
+        midpoint_alpha = fixed_grid_result["alpha"][midpoint:midpoint + 1]
+        midpoint_goals = [goal[midpoint:midpoint + 1] for goal in fixed_grid_result["v_goals"]]
+        single_inputs = pipe.rematerialize_rewardslider_v2_inputs(inputs, num_branches=1)
+        single_unroll = pipe.unroll_rewardslider_v2_controls(single_inputs, midpoint_alpha, midpoint_goals, control_steps=args.control_steps, use_checkpointing=args.use_checkpointing)
+        single_image = pipe.decode_rewardslider_v2_terminal(single_unroll.final_latent, single_inputs)
+        batch_latent = fixed_grid_result["unroll"].final_latent[midpoint - 1:midpoint]
+        batch_image = fixed_grid_result["interior_images"][midpoint - 1:midpoint]
+        fixed_grid_single_branch_parity = {"strength": float(fixed_requested[midpoint]), "latent_mae": float((batch_latent.float() - single_unroll.final_latent.float()).abs().mean()), "latent_cosine": float(F.cosine_similarity(batch_latent.float().flatten(1), single_unroll.final_latent.float().flatten(1), dim=1).mean()), "image_mae": float((batch_image.float() - single_image.float()).abs().mean())}
+        zero_goals = [torch.zeros_like(goal) for goal in v_goals]
+        _, zero_images, zero_stats = evaluate(goal_values=zero_goals)
+        zero_fixed = generate_model_fixed_grid(alpha_parameterization.alphas.detach(), tuple(zero_goals), fixed_requested, source_image=source_image, native_image=native_image, rematerialize_inputs=lambda *, num_branches: pipe.rematerialize_rewardslider_v2_inputs(inputs, num_branches=num_branches), unroll_callback=lambda fixed_inputs, alpha, goals, **kwargs: pipe.unroll_rewardslider_v2_controls(fixed_inputs, alpha, goals, **kwargs), decode_callback=lambda fixed_unroll, fixed_inputs: pipe.decode_rewardslider_v2_terminal(fixed_unroll.final_latent, fixed_inputs), control_steps=args.control_steps, use_checkpointing=args.use_checkpointing)
+        full_preservation = masked_lpips_preservation_loss(final_images * 2 - 1, source_image * 2 - 1, relevance_image, lpips)
+        zero_preservation = masked_lpips_preservation_loss(zero_images * 2 - 1, source_image * 2 - 1, relevance_image, lpips)
+        zero_fixed_stats = fixed_grid_metrics(zero_fixed["images"], lpips.distance, requested=fixed_requested)
+        vgoal_ablation = {"full": {"node_kl": float(final_stats.kl_uniform), "fixed_grid_kl": float(fixed_stats["kl"]), "preservation": float(full_preservation)}, "zero_vgoal": {"node_kl": float(zero_stats.kl_uniform), "fixed_grid_kl": float(zero_fixed_stats["kl"]), "preservation": float(zero_preservation)}, "delta": {"node_kl": float(final_stats.kl_uniform - zero_stats.kl_uniform), "fixed_grid_kl": float(fixed_stats["kl"] - zero_fixed_stats["kl"]), "preservation": float(full_preservation - zero_preservation)}}
     finite_difference_audit = None
     if args.finite_difference_audit:
         alpha_probe = alpha_parameterization.alphas[1:-1].detach().clone().requires_grad_(True)
@@ -760,10 +804,12 @@ def run_real_flux_smoke(args) -> dict:
             "finite_difference": finite_value,
             "same_sign": auto_value is not None and auto_value != 0 and finite_value != 0 and auto_value * finite_value > 0,
         }
-    fixed_grid_record = dict(fixed_stats)
+    off_axis = v_goal_off_axis_diagnostics(v_goals, native_directions)
+    fixed_grid_record = {**fixed_stats, "alpha": fixed_grid_result["alpha"], "provenance": fixed_grid_result["provenance"], "pixel_blend_used": fixed_grid_result["pixel_blend_used"], "interior_model_forward_count": fixed_grid_result["interior_model_forward_count"], "fixed_grid_control_interpolation": "piecewise_linear_alpha_and_vgoal_over_uniform_node_strength", "single_branch_parity": fixed_grid_single_branch_parity}
     record = {
         "trajectory": {"current_number_of_nodes": alpha_parameterization.alphas.numel(), "max_nodes": args.max_nodes, "alpha": alpha_parameterization.alphas.detach(), "initial_alpha": initial_alpha, "initial_kl": initial_stats.kl_uniform, "final_kl": final_stats.kl_uniform, "adjacent_lpips": final_stats.distances, "normalized_lpips": final_stats.normalized_distances, "max_normalized_gap": final_stats.max_normalized_gap, "worst_interval": final_stats.worst_interval, "path_length": final_stats.path_length, "endpoint_distance": final_stats.endpoint_distance, "collapsed": final_stats.collapsed},
         "trajectory_best": {"best_kl": best_trajectory.best_kl, "best_iteration": best_trajectory.best_iteration, "restored_best_at_end": restored_best_at_end},
+        "quality_checkpoint_reset_on_topology": quality_checkpoint_reset_iterations,
         "quality_best": {
             "best_kl": best_quality.best_kl,
             "best_deficit": best_quality.best_deficit,
@@ -785,14 +831,28 @@ def run_real_flux_smoke(args) -> dict:
         "gradient": {"alpha_gradient_norm": alpha_grad_norm, "v_goal_gradient_norms": vgoal_gradient_norms, "alpha_finite": bool(torch.isfinite(alpha_parameterization.interval_logits).all()), "v_goal_finite": all(torch.isfinite(parameter).all().item() for parameter in v_goals)},
         "control": {
             "v_goal_norms": [parameter.detach().float().norm() for parameter in v_goals],
+            "per_timestep_per_branch_v_goal_norms": [parameter.detach().float().flatten(1).norm(dim=1) for parameter in v_goals],
+            "off_axis": off_axis,
             "diagnostics": control_diagnostics,
         },
+        "vgoal_ablation": vgoal_ablation,
         "parity": {"single": {"latent_mae": native_parity.mean(), "latent_cosine": F.cosine_similarity(native_single.final_latent[0].float().flatten()[None], inputs.native.native_final_latent[0].float().flatten()[None]).squeeze(), "image_mae": (native_image - pipe.decode_rewardslider_v2_terminal(native_single.final_latent, inputs)).float().abs().mean()}, "batched": batch_parity},
         "topology": {"events": topology_events, "last_event_iteration": last_topology_iteration},
         "system": {"frozen_model_audit": _frozen_gradient_audit(pipe), "device": str(device), "dtype": str(dtype), "height": args.height, "width": args.width, "steps": args.steps, "control_steps": 4, "controlled_step_indices": list(range(4)), "alpha_only": args.alpha_only, "phase_records": phase_records, "finite_difference_audit": finite_difference_audit},
     }
+    _save_tensor_image(source_image, output.with_name("source.png"))
     _save_tensor_image(native_image, output.with_name("native_full.png"))
+    learned_nodes = torch.cat((source_image, final_images, native_image), dim=0)
+    learned_labels = ["node 00 alpha=0.000"] + [f"node {index + 1:02d} alpha={float(alpha_parameterization.alphas[index + 1]):.4f}" for index in range(final_images.shape[0])] + [f"node {learned_nodes.shape[0] - 1:02d} alpha=1.000"]
+    for index in range(learned_nodes.shape[0]):
+        suffix = "_source" if index == 0 else "_full" if index == learned_nodes.shape[0] - 1 else ""
+        _save_tensor_image(learned_nodes[index:index + 1], output.with_name(f"learned_node_{index:02d}{suffix}.png"))
     _save_tensor_image(final_images[0:1], output.with_name("candidate_weak.png"))
+    fixed_labels = [f"s={float(fixed_requested[index]):.1f} alpha={float(fixed_grid_result['alpha'][index]):.4f}" for index in range(fixed_requested.numel())]
+    for index in range(fixed_model_images.shape[0]):
+        _save_tensor_image(fixed_model_images[index:index + 1], output.with_name(f"fixed_s_{float(fixed_requested[index]):.1f}.png"))
+    _save_contact_sheet(learned_nodes, learned_labels, output.with_name("learned_nodes_contact_sheet.png"))
+    _save_contact_sheet(fixed_model_images, fixed_labels, output.with_name("fixed_grid_contact_sheet.png"))
     record.update(dict(fixed_grid=fixed_grid_record, selected_checkpoint_type=selected_checkpoint_type))
     _write_jsonl(output, record)
     return record
