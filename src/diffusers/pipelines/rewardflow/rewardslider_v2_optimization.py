@@ -133,8 +133,14 @@ class LocalInsertResult:
     candidates: tuple[dict, ...]
     search_left: torch.Tensor
     search_right: torch.Tensor
-    old_gap: torch.Tensor
+    old_alpha_width: torch.Tensor
+    old_visual_gap: torch.Tensor
     split_max_ratio: torch.Tensor
+
+    @property
+    def old_gap(self) -> torch.Tensor:
+        """Backward-compatible alias for the alpha-space width."""
+        return self.old_alpha_width
 
 
 def local_insert_line_search(
@@ -146,6 +152,7 @@ def local_insert_line_search(
     pre_insert_alphas: torch.Tensor | None = None,
     interval: int | None = None,
     evaluate,
+    old_visual_gap: torch.Tensor | float | None = None,
     fractions=(0.25, 0.5, 0.75),
 ) -> LocalInsertResult:
     """Choose an inserted alpha over the complete pre-insertion interval."""
@@ -166,11 +173,18 @@ def local_insert_line_search(
     search_right = torch.as_tensor(search_right, device=inserted_alphas.device, dtype=inserted_alphas.dtype)
     if not bool(search_right > search_left):
         raise ValueError("Search interval must be strictly increasing.")
-    old_gap = search_right - search_left
+    old_alpha_width = search_right - search_left
+    if old_visual_gap is None:
+        # Legacy tensor-only callers have no image metric; the real runner
+        # always supplies the fresh LPIPS visual gap explicitly.
+        old_visual_gap = old_alpha_width
+    old_visual_gap = torch.as_tensor(old_visual_gap, device=inserted_alphas.device, dtype=inserted_alphas.dtype)
+    if not bool(torch.isfinite(old_visual_gap) and old_visual_gap > 0):
+        raise ValueError("`old_visual_gap` must be finite and positive.")
     candidates = []
     for fraction in fractions:
         candidate = inserted_alphas.detach().clone()
-        candidate[inserted_index] = search_left + fraction * old_gap
+        candidate[inserted_index] = search_left + fraction * old_alpha_width
         d_left, d_right, kl = evaluate(candidate)
         total = torch.as_tensor(d_left) + torch.as_tensor(d_right)
         balance = (torch.as_tensor(d_left) - torch.as_tensor(d_right)).abs() / total.clamp_min(1e-8)
@@ -191,10 +205,10 @@ def local_insert_line_search(
     d_right = torch.as_tensor(d_right)
     kl = torch.as_tensor(kl)
     balance = (d_left - d_right).abs() / (d_left + d_right).clamp_min(1e-8)
-    split_max_ratio = torch.maximum(d_left, d_right) / old_gap.clamp_min(1e-8)
+    split_max_ratio = torch.maximum(d_left, d_right) / old_visual_gap.clamp_min(1e-8)
     return LocalInsertResult(
         candidate, candidate[inserted_index], d_left, d_right, kl, balance,
-        tuple(candidates), search_left, search_right, old_gap, split_max_ratio,
+        tuple(candidates), search_left, search_right, old_alpha_width, old_visual_gap, split_max_ratio,
     )
 
 

@@ -45,6 +45,19 @@ class RewardSliderV2Scheduler:
         self.topology_events = []
         self._set_parameter_permissions()
 
+    def config_dict(self) -> dict[str, object]:
+        """Return constructor configuration, excluding mutable phase state."""
+        return {
+            "trajectory_kl_threshold": self.trajectory_kl_threshold,
+            "trajectory_patience": self.trajectory_patience,
+            "trajectory_tolerance": self.trajectory_tolerance,
+            "rollback_patience": self.rollback_patience,
+            "min_repair_iterations": self.min_repair_iterations,
+            "joint_alpha_lr_scale": self.joint_alpha_lr_scale,
+        }
+
+    get_rebuild_kwargs = config_dict
+
     def configure_optimizers(self, alpha_optimizer, v_goal_optimizer) -> None:
         """Apply phase-specific learning rates without changing optimizer membership."""
         for group in alpha_optimizer.param_groups:

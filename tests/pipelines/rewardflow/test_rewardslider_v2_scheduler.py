@@ -77,3 +77,25 @@ def test_collapsed_trajectory_cannot_advance_to_quality_phase():
     assert scheduler.phase == "trajectory_calibration"
     scheduler.advance(0.1)
     assert scheduler.phase == "quality_repair"
+
+
+def test_scheduler_config_dict_contains_constructor_configuration_only():
+    scheduler, _, _ = _make_scheduler(
+        trajectory_kl_threshold=0.123,
+        trajectory_patience=17,
+        trajectory_tolerance=0.017,
+        rollback_patience=11,
+        min_repair_iterations=7,
+        joint_alpha_lr_scale=0.031,
+    )
+    config = scheduler.get_rebuild_kwargs()
+    assert config == {
+        "trajectory_kl_threshold": 0.123,
+        "trajectory_patience": 17,
+        "trajectory_tolerance": 0.017,
+        "rollback_patience": 11,
+        "min_repair_iterations": 7,
+        "joint_alpha_lr_scale": 0.031,
+    }
+    scheduler.advance(0.12)
+    assert scheduler.get_rebuild_kwargs() == config

@@ -33,6 +33,7 @@ class TopologyEvent:
     post_midpoint_kl: float | None = None
     post_line_search_kl: float | None = None
     old_gap: float | None = None
+    old_visual_gap: float | None = None
     old_alpha_left: float | None = None
     old_alpha_right: float | None = None
     midpoint_alpha: float | None = None
@@ -270,6 +271,7 @@ def apply_topology_update(
             updated_alphas, updated_goals,
             alpha_lr=state.alpha_optimizer.param_groups[0]["lr"],
             vgoal_lr=state.vgoal_optimizer.param_groups[0]["lr"],
+            scheduler_kwargs=state.scheduler.get_rebuild_kwargs(),
         ), event
     if enable_prune and plateau and alphas.numel() > manager.min_nodes and trajectory_kl <= threshold:
         for index in range(1, alphas.numel() - 1):
@@ -284,6 +286,7 @@ def apply_topology_update(
                 updated_alphas, updated_goals,
                 alpha_lr=state.alpha_optimizer.param_groups[0]["lr"],
                 vgoal_lr=state.vgoal_optimizer.param_groups[0]["lr"],
+                scheduler_kwargs=state.scheduler.get_rebuild_kwargs(),
             ), event
     manager.advance_cooldown()
     return state, None

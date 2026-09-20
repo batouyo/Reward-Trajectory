@@ -217,7 +217,7 @@ def routed_optimization_step(
     trajectory_guard_loss: torch.Tensor | None = None,
     vgoal_branch_indices: Sequence[int] | None = None,
     optimize_alpha: bool = True,
-    advance_scheduler: bool = True,
+    advance_scheduler: bool = False,
 ) -> dict[str, object]:
     """Route one optimization step through the three-phase scheduler."""
     phase_before = scheduler.phase
@@ -493,7 +493,7 @@ def run_real_flux_smoke(args) -> dict:
             control_loss=control_loss,
             vgoal_branch_indices=local_refine_indices if local_mode else None,
             optimize_alpha=not local_mode,
-            advance_scheduler=hybrid_transaction is None,
+            advance_scheduler=False,
         )
         if local_mode:
             local_refine_remaining -= 1
@@ -527,6 +527,8 @@ def run_real_flux_smoke(args) -> dict:
             post_optimization_unroll, post_optimization_images, post_optimization_stats = evaluate()
         unroll, images, stats = post_optimization_unroll, post_optimization_images, post_optimization_stats
         post_optimization_kl = post_optimization_stats.kl_uniform.detach()
+        if hybrid_transaction is None:
+            routed["phase_after"] = scheduler.advance(post_optimization_kl, trajectory_collapsed=post_optimization_stats.collapsed)
         best_updated = best_trajectory.update(
             alpha_parameterization, kl=post_optimization_kl, iteration=iteration, v_goals=v_goals
         ) or best_updated
@@ -570,6 +572,11 @@ def run_real_flux_smoke(args) -> dict:
                 if topology_event.operation == "insert" and affected is not None:
                     old_left = pre_insert_alphas[affected]
                     old_right = pre_insert_alphas[affected + 1]
+                    pre_topology_nodes = torch.cat((source_image, images, native_image), dim=0)
+                    old_visual_gap = lpips.distance(
+                        pre_topology_nodes[affected:affected + 1] * 2 - 1,
+                        pre_topology_nodes[affected + 1:affected + 2] * 2 - 1,
+                    ).reshape(-1).mean().detach()
                     midpoint_alphas = alpha_parameterization.alphas.detach().clone()
                     with torch.no_grad():
                         _, _, midpoint_stats = evaluate(alpha_values=midpoint_alphas, goal_values=v_goals)
@@ -579,6 +586,7 @@ def run_real_flux_smoke(args) -> dict:
                         return candidate_stats.distances[affected], candidate_stats.distances[affected + 1], candidate_stats.kl_uniform
                     local_line_result = local_insert_line_search(
                         midpoint_alphas,
+                        old_visual_gap=old_visual_gap,
                         inserted_index=affected + 1,
                         search_left=old_left,
                         search_right=old_right,
@@ -596,7 +604,8 @@ def run_real_flux_smoke(args) -> dict:
                         "d_left": float(local_line_result.d_left),
                         "d_right": float(local_line_result.d_right),
                         "balance_ratio": float(local_line_result.balance_ratio),
-                        "old_gap": float(local_line_result.old_gap),
+                        "old_gap": float(local_line_result.old_alpha_width),
+                        "old_visual_gap": float(local_line_result.old_visual_gap),
                         "old_alpha_left": float(local_line_result.search_left),
                         "old_alpha_right": float(local_line_result.search_right),
                         "midpoint_alpha": float(midpoint_alphas[affected + 1]),
