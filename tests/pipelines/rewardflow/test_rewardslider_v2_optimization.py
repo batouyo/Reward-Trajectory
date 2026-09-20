@@ -1,3 +1,4 @@
+import pytest
 import torch
 
 from diffusers.pipelines.rewardflow.rewardslider_v2_optimization import coordinate_search_alphas
@@ -56,12 +57,38 @@ def test_hybrid_acceptance_restores_parameters_when_post_step_kl_worsens():
 
 def test_local_insert_line_search_balances_the_new_interval():
     from diffusers.pipelines.rewardflow.rewardslider_v2_optimization import local_insert_line_search
-    alphas = torch.tensor([0.0, 0.2, 0.8, 1.0])
+    old = torch.tensor([0.0, 0.2, 0.8, 1.0])
+    alphas = torch.tensor([0.0, 0.2, 0.5, 0.8, 1.0])
     def evaluate(candidate):
         value = candidate[2]
         left = value - 0.2
         right = 0.8 - value
         return left.abs(), right.abs(), (left.abs() - right.abs()).square()
-    result = local_insert_line_search(alphas, interval=1, evaluate=evaluate)
+    result = local_insert_line_search(
+        alphas, inserted_index=2, search_left=old[1], search_right=old[2], evaluate=evaluate
+    )
     torch.testing.assert_close(result.alpha, torch.tensor(0.5))
     assert result.balance_ratio < 0.01
+    assert [item["alpha"] for item in result.candidates] == pytest.approx([0.35, 0.5, 0.65])
+
+
+def test_local_insert_line_search_covers_the_complete_original_interval():
+    from diffusers.pipelines.rewardflow.rewardslider_v2_optimization import local_insert_line_search
+    old = torch.tensor([0.0, 0.2, 0.8, 1.0])
+    inserted = torch.tensor([0.0, 0.2, 0.5, 0.8, 1.0])
+
+    def evaluate(candidate):
+        left = candidate[2] - old[1]
+        right = old[2] - candidate[2]
+        return left.abs(), right.abs(), torch.tensor(0.0)
+
+    result = local_insert_line_search(
+        inserted,
+        inserted_index=2,
+        search_left=old[1],
+        search_right=old[2],
+        evaluate=evaluate,
+    )
+    assert [item["alpha"] for item in result.candidates] == pytest.approx([0.35, 0.5, 0.65])
+    torch.testing.assert_close(result.search_left, old[1])
+    torch.testing.assert_close(result.search_right, old[2])

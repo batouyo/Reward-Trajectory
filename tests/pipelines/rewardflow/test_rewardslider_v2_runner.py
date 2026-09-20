@@ -1,3 +1,4 @@
+import copy
 import pytest
 import json
 
@@ -15,7 +16,7 @@ from diffusers.pipelines.rewardflow.rewardslider_v2_runner import (
 from diffusers.pipelines.rewardflow.rewardslider_v2_alpha import OrderedAlphaParameterization
 from diffusers.pipelines.rewardflow.rewardslider_v2_scheduler import RewardSliderV2Scheduler
 
-from diffusers.pipelines.rewardflow.rewardslider_v2_optimization import BestTrajectoryState
+from diffusers.pipelines.rewardflow.rewardslider_v2_optimization import BestTrajectoryState, OptimizationTransaction
 
 def test_runner_parser_contains_v2_controls():
     args = build_rewardslider_v2_parser().parse_args([])
@@ -112,11 +113,15 @@ def test_local_refinement_masks_v_goal_gradients_to_relevant_branches():
         trajectory_loss=None,
         quality_loss=sum(goal.square().sum() for goal in goals),
         trajectory_kl=0.2,
-        vgoal_indices=(1, 2),
+        vgoal_branch_indices=(1, 2),
         optimize_alpha=False,
     )
-    assert all(goals[index].grad is not None for index in (1, 2))
-    assert all(goals[index].grad is None for index in (0, 3))
+    assert all(goal.grad is not None for goal in goals)
+    for goal in goals:
+        assert goal.grad[0].abs().sum() == 0
+        assert goal.grad[3].abs().sum() == 0
+        assert goal.grad[1].abs().sum() > 0
+        assert goal.grad[2].abs().sum() > 0
     assert alpha.interval_logits.grad is None
 
 
@@ -147,6 +152,71 @@ def test_best_trajectory_state_restores_best_logits_after_later_degradation():
     torch.testing.assert_close(parameterization.alphas, expected_alphas)
     assert best.best_kl == 0.2
     assert best.best_iteration == 1
+
+
+def test_best_trajectory_state_restores_alpha_and_all_v_goals():
+    parameterization = OrderedAlphaParameterization.from_alphas(
+        torch.tensor([0.0, 0.2, 0.6, 1.0])
+    )
+    goals = [torch.nn.Parameter(torch.ones(3, 2, 1) * index) for index in range(4)]
+    best = BestTrajectoryState()
+    assert best.update(parameterization, kl=0.2, iteration=0, v_goals=goals)
+    saved_alpha = parameterization.interval_logits.detach().clone()
+    saved_goals = [goal.detach().clone() for goal in goals]
+    with torch.no_grad():
+        parameterization.interval_logits.add_(0.5)
+        for goal in goals:
+            goal.add_(3.0)
+    assert best.restore(parameterization, goals)
+    torch.testing.assert_close(parameterization.interval_logits, saved_alpha)
+    for goal, saved in zip(goals, saved_goals):
+        torch.testing.assert_close(goal, saved)
+
+
+def test_optimization_transaction_restores_joint_state_and_scheduler():
+    alpha = OrderedAlphaParameterization.random(num_interior=2, seed=29)
+    goals = [torch.nn.Parameter(torch.ones(2, 2, 1)) for _ in range(4)]
+    scheduler = RewardSliderV2Scheduler(alpha, goals)
+    scheduler.force_phase("joint_refinement")
+    alpha_optimizer = torch.optim.Adam([alpha.interval_logits], lr=0.1)
+    vgoal_optimizer = torch.optim.Adam(goals, lr=0.1)
+    loss = alpha.interval_logits.square().sum() + sum(goal.square().sum() for goal in goals)
+    loss.backward()
+    alpha_optimizer.step()
+    vgoal_optimizer.step()
+    before_alpha = alpha.interval_logits.detach().clone()
+    before_goals = [goal.detach().clone() for goal in goals]
+    before_alpha_state = copy.deepcopy(alpha_optimizer.state_dict())
+    before_vgoal_state = copy.deepcopy(vgoal_optimizer.state_dict())
+    scheduler.advance(0.2)
+    before_scheduler = (scheduler.phase, scheduler.phase_iterations, scheduler._bad_streak)
+    transaction = OptimizationTransaction.capture(
+        alpha_parameters=(alpha.interval_logits,),
+        v_goal_parameters=tuple(goals),
+        alpha_optimizer=alpha_optimizer,
+        vgoal_optimizer=vgoal_optimizer,
+        scheduler=scheduler,
+    )
+    with torch.no_grad():
+        alpha.interval_logits.add_(1.0)
+        for goal in goals:
+            goal.add_(1.0)
+    scheduler.advance(0.5)
+    transaction.restore(alpha_optimizer, vgoal_optimizer)
+    torch.testing.assert_close(alpha.interval_logits, before_alpha)
+    for goal, before in zip(goals, before_goals):
+        torch.testing.assert_close(goal, before)
+    after_alpha_state = alpha_optimizer.state_dict()
+    after_vgoal_state = vgoal_optimizer.state_dict()
+    assert after_alpha_state["param_groups"] == before_alpha_state["param_groups"]
+    assert after_vgoal_state["param_groups"] == before_vgoal_state["param_groups"]
+    for after, before in zip(after_alpha_state["state"].values(), before_alpha_state["state"].values()):
+        for key in after:
+            torch.testing.assert_close(after[key], before[key])
+    for after, before in zip(after_vgoal_state["state"].values(), before_vgoal_state["state"].values()):
+        for key in after:
+            torch.testing.assert_close(after[key], before[key])
+    assert (scheduler.phase, scheduler.phase_iterations, scheduler._bad_streak) == before_scheduler
 def test_quality_coordination_uses_one_preservation_weight_without_quality():
     from diffusers.pipelines.rewardflow.rewardslider_v2_coordination import DynamicDeficitCoordinator
 

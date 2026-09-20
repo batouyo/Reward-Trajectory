@@ -29,6 +29,15 @@ class TopologyEvent:
     d_left: float | None = None
     d_right: float | None = None
     balance_ratio: float | None = None
+    pre_topology_kl: float | None = None
+    post_midpoint_kl: float | None = None
+    post_line_search_kl: float | None = None
+    old_gap: float | None = None
+    old_alpha_left: float | None = None
+    old_alpha_right: float | None = None
+    midpoint_alpha: float | None = None
+    candidate_alphas: tuple[float, ...] | None = None
+    split_max_ratio: float | None = None
 
 
 def _validate_alphas(alphas: torch.Tensor) -> None:

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import copy
 from dataclasses import dataclass
+from typing import Sequence
 
 import torch
 
@@ -15,9 +16,18 @@ class BestTrajectoryState:
     best_kl: float | None = None
     best_alpha_logits: torch.Tensor | None = None
     best_alphas: torch.Tensor | None = None
+    best_v_goals: tuple[torch.Tensor, ...] | None = None
+    best_topology_signature: tuple | None = None
     best_iteration: int | None = None
 
-    def update(self, parameterization, *, kl: float | torch.Tensor, iteration: int) -> bool:
+    def update(
+        self,
+        parameterization,
+        *,
+        kl: float | torch.Tensor,
+        iteration: int,
+        v_goals: Sequence[torch.Tensor] | None = None,
+    ) -> bool:
         value = float(kl.detach().item() if torch.is_tensor(kl) else kl)
         if not torch.isfinite(torch.tensor(value)):
             raise ValueError("Trajectory KL must be finite.")
@@ -26,18 +36,33 @@ class BestTrajectoryState:
         self.best_kl = value
         self.best_alpha_logits = parameterization.interval_logits.detach().clone()
         self.best_alphas = parameterization.alphas.detach().clone()
+        self.best_v_goals = None if v_goals is None else tuple(goal.detach().clone() for goal in v_goals)
+        self.best_topology_signature = (
+            tuple(self.best_alpha_logits.shape),
+            None if self.best_v_goals is None else tuple(tuple(goal.shape) for goal in self.best_v_goals),
+        )
         self.best_iteration = int(iteration)
         return True
 
-    def restore(self, parameterization) -> bool:
+    def restore(self, parameterization, v_goals: Sequence[torch.Tensor] | None = None) -> bool:
         if self.best_alpha_logits is None:
             return False
         if parameterization.interval_logits.shape != self.best_alpha_logits.shape:
             raise ValueError("Best trajectory snapshot has incompatible topology.")
+        if (self.best_v_goals is None) != (v_goals is None):
+            raise ValueError("Best trajectory snapshot and live V_goal topology differ.")
+        if v_goals is not None:
+            if len(v_goals) != len(self.best_v_goals):
+                raise ValueError("Best trajectory snapshot has incompatible V_goal topology.")
+            if any(goal.shape != saved.shape for goal, saved in zip(v_goals, self.best_v_goals)):
+                raise ValueError("Best trajectory snapshot has incompatible V_goal shapes.")
         with torch.no_grad():
             parameterization.interval_logits.copy_(
                 self.best_alpha_logits.to(device=parameterization.interval_logits.device)
             )
+            if v_goals is not None:
+                for goal, saved in zip(v_goals, self.best_v_goals):
+                    goal.copy_(saved.to(device=goal.device, dtype=goal.dtype))
         return True
 
 
@@ -105,28 +130,72 @@ class LocalInsertResult:
     d_right: torch.Tensor
     kl: torch.Tensor
     balance_ratio: torch.Tensor
+    candidates: tuple[dict, ...]
+    search_left: torch.Tensor
+    search_right: torch.Tensor
+    old_gap: torch.Tensor
+    split_max_ratio: torch.Tensor
 
 
 def local_insert_line_search(
-    alphas: torch.Tensor,
+    inserted_alphas: torch.Tensor,
     *,
-    interval: int,
+    inserted_index: int | None = None,
+    search_left: torch.Tensor | float | None = None,
+    search_right: torch.Tensor | float | None = None,
+    pre_insert_alphas: torch.Tensor | None = None,
+    interval: int | None = None,
     evaluate,
     fractions=(0.25, 0.5, 0.75),
 ) -> LocalInsertResult:
-    """Choose an inserted alpha by a real local LPIPS balance evaluator."""
-    if not 0 <= interval < alphas.numel() - 1:
-        raise ValueError("Insertion interval is out of range.")
+    """Choose an inserted alpha over the complete pre-insertion interval."""
+    if inserted_index is None:
+        if interval is None:
+            raise ValueError("`inserted_index` or legacy `interval` is required.")
+        inserted_index = interval + 1
+    if not 0 < inserted_index < inserted_alphas.numel() - 1:
+        raise ValueError("Inserted node index is out of range.")
+    if pre_insert_alphas is not None:
+        if interval is None or not 0 <= interval < pre_insert_alphas.numel() - 1:
+            raise ValueError("A valid pre-insertion interval is required.")
+        search_left = pre_insert_alphas[interval]
+        search_right = pre_insert_alphas[interval + 1]
+    if search_left is None or search_right is None:
+        raise ValueError("The complete original interval must be supplied.")
+    search_left = torch.as_tensor(search_left, device=inserted_alphas.device, dtype=inserted_alphas.dtype)
+    search_right = torch.as_tensor(search_right, device=inserted_alphas.device, dtype=inserted_alphas.dtype)
+    if not bool(search_right > search_left):
+        raise ValueError("Search interval must be strictly increasing.")
+    old_gap = search_right - search_left
     candidates = []
     for fraction in fractions:
-        candidate = alphas.detach().clone()
-        candidate[interval + 1] = alphas[interval] + fraction * (alphas[interval + 1] - alphas[interval])
+        candidate = inserted_alphas.detach().clone()
+        candidate[inserted_index] = search_left + fraction * old_gap
         d_left, d_right, kl = evaluate(candidate)
         total = torch.as_tensor(d_left) + torch.as_tensor(d_right)
         balance = (torch.as_tensor(d_left) - torch.as_tensor(d_right)).abs() / total.clamp_min(1e-8)
-        candidates.append((balance, candidate, torch.as_tensor(d_left), torch.as_tensor(d_right), torch.as_tensor(kl)))
-    balance, candidate, d_left, d_right, kl = min(candidates, key=lambda item: float(item[0]))
-    return LocalInsertResult(candidate, candidate[interval + 1], d_left, d_right, kl, balance)
+        candidates.append({
+            "fraction": float(fraction),
+            "alpha": float(candidate[inserted_index]),
+            "d_left": float(torch.as_tensor(d_left).detach()),
+            "d_right": float(torch.as_tensor(d_right).detach()),
+            "balance_ratio": float(balance.detach()),
+            "kl": float(torch.as_tensor(kl).detach()),
+            "alphas": candidate.detach().cpu().tolist(),
+        })
+    selected = min(candidates, key=lambda item: item["balance_ratio"])
+    candidate = inserted_alphas.detach().clone()
+    candidate[inserted_index] = selected["alpha"]
+    d_left, d_right, kl = evaluate(candidate)
+    d_left = torch.as_tensor(d_left)
+    d_right = torch.as_tensor(d_right)
+    kl = torch.as_tensor(kl)
+    balance = (d_left - d_right).abs() / (d_left + d_right).clamp_min(1e-8)
+    split_max_ratio = torch.maximum(d_left, d_right) / old_gap.clamp_min(1e-8)
+    return LocalInsertResult(
+        candidate, candidate[inserted_index], d_left, d_right, kl, balance,
+        tuple(candidates), search_left, search_right, old_gap, split_max_ratio,
+    )
 
 
 @dataclass(frozen=True)
@@ -134,6 +203,60 @@ class HybridAcceptanceResult:
     accepted: bool
     current_kl: torch.Tensor
     rejected_steps: int
+
+
+@dataclass
+class OptimizationTransaction:
+    """Atomic snapshot for a joint alpha/V_goal proposal."""
+
+    alpha_parameters: tuple[torch.Tensor, ...]
+    v_goal_parameters: tuple[torch.Tensor, ...]
+    alpha_values: tuple[torch.Tensor, ...]
+    v_goal_values: tuple[torch.Tensor, ...]
+    alpha_optimizer_state: dict
+    vgoal_optimizer_state: dict
+    scheduler: object | None = None
+    scheduler_state: dict | None = None
+
+    @classmethod
+    def capture(cls, *, alpha_parameters, v_goal_parameters, alpha_optimizer, vgoal_optimizer, scheduler=None):
+        alpha_parameters = tuple(alpha_parameters)
+        v_goal_parameters = tuple(v_goal_parameters)
+        scheduler_state = None
+        if scheduler is not None:
+            scheduler_state = {
+                "phase": scheduler.phase,
+                "phase_iterations": scheduler.phase_iterations,
+                "phase_reference_kl": scheduler.phase_reference_kl,
+                "healthy_streak": scheduler._healthy_streak,
+                "bad_streak": scheduler._bad_streak,
+                "topology_events": copy.deepcopy(scheduler.topology_events),
+            }
+        return cls(
+            alpha_parameters, v_goal_parameters,
+            tuple(parameter.detach().clone() for parameter in alpha_parameters),
+            tuple(parameter.detach().clone() for parameter in v_goal_parameters),
+            copy.deepcopy(alpha_optimizer.state_dict()),
+            copy.deepcopy(vgoal_optimizer.state_dict()),
+            scheduler, scheduler_state,
+        )
+
+    def restore(self, alpha_optimizer, vgoal_optimizer) -> None:
+        with torch.no_grad():
+            for parameter, value in zip(self.alpha_parameters, self.alpha_values):
+                parameter.copy_(value.to(device=parameter.device, dtype=parameter.dtype))
+            for parameter, value in zip(self.v_goal_parameters, self.v_goal_values):
+                parameter.copy_(value.to(device=parameter.device, dtype=parameter.dtype))
+        alpha_optimizer.load_state_dict(copy.deepcopy(self.alpha_optimizer_state))
+        vgoal_optimizer.load_state_dict(copy.deepcopy(self.vgoal_optimizer_state))
+        if self.scheduler is not None and self.scheduler_state is not None:
+            self.scheduler.phase = self.scheduler_state["phase"]
+            self.scheduler.phase_iterations = self.scheduler_state["phase_iterations"]
+            self.scheduler.phase_reference_kl = self.scheduler_state["phase_reference_kl"]
+            self.scheduler._healthy_streak = self.scheduler_state["healthy_streak"]
+            self.scheduler._bad_streak = self.scheduler_state["bad_streak"]
+            self.scheduler.topology_events = copy.deepcopy(self.scheduler_state["topology_events"])
+            self.scheduler._set_parameter_permissions()
 
 
 def hybrid_acceptance_step(parameter, optimizer, *, current_kl, step, evaluate, tolerance=0.0):

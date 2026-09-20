@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 from dataclasses import asdict, is_dataclass
 import json
+import copy
 import os
 import time
 from pathlib import Path
@@ -24,7 +25,12 @@ from .rewardslider_v2_regularizers import initialize_v_goal_parameters, v_goal_r
 from .rewardslider_v2_coordination import DynamicDeficitCoordinator, DynamicDeficitOutput
 from .rewardslider_v2_quality import DifferentiableQualityReward, audit_quality_reward
 from .rewardslider_v2_scheduler import RewardSliderV2Scheduler
-from .rewardslider_v2_optimization import BestTrajectoryState, coordinate_search_alphas, local_insert_line_search
+from .rewardslider_v2_optimization import (
+    BestTrajectoryState,
+    OptimizationTransaction,
+    coordinate_search_alphas,
+    local_insert_line_search,
+)
 
 
 def build_rewardslider_v2_parser() -> argparse.ArgumentParser:
@@ -209,8 +215,9 @@ def routed_optimization_step(
     trajectory_collapsed: bool = False,
     control_loss: torch.Tensor | None = None,
     trajectory_guard_loss: torch.Tensor | None = None,
-    vgoal_indices: Sequence[int] | None = None,
+    vgoal_branch_indices: Sequence[int] | None = None,
     optimize_alpha: bool = True,
+    advance_scheduler: bool = True,
 ) -> dict[str, object]:
     """Route one optimization step through the three-phase scheduler."""
     phase_before = scheduler.phase
@@ -223,19 +230,25 @@ def routed_optimization_step(
         trajectory_guard_loss=trajectory_guard_loss,
     )
     alpha_gradient_norm = _norm(scheduler.alpha_parameters[0].grad) if scheduler.alpha_parameters else None
-    vgoal_gradient_norms = [_norm(parameter.grad) for parameter in scheduler.v_goal_parameters]
-    if vgoal_indices is not None:
-        active = set(vgoal_indices)
-        for index, parameter in enumerate(scheduler.v_goal_parameters):
-            if index not in active:
-                parameter.grad = None
-        vgoal_gradient_norms = [_norm(parameter.grad) for parameter in scheduler.v_goal_parameters]
+    vgoal_gradient_norms = [
+        [_norm(row) for row in parameter.grad] if parameter.grad is not None else [None] * parameter.shape[0]
+        for parameter in scheduler.v_goal_parameters
+    ]
+    if vgoal_branch_indices is not None:
+        active = set(vgoal_branch_indices)
+        for parameter in scheduler.v_goal_parameters:
+            if parameter.grad is None:
+                parameter.grad = torch.zeros_like(parameter)
+            inactive = [index for index in range(parameter.shape[0]) if index not in active]
+            if inactive:
+                parameter.grad[inactive] = 0
+        vgoal_gradient_norms = [[_norm(row) for row in parameter.grad] for parameter in scheduler.v_goal_parameters]
     scheduler.configure_optimizers(alpha_optimizer, vgoal_optimizer)
     if optimize_alpha and phase_before in ("trajectory_calibration", "joint_refinement"):
         alpha_optimizer.step()
     if phase_before in ("quality_repair", "joint_refinement"):
         vgoal_optimizer.step()
-    phase_after = scheduler.advance(trajectory_kl, trajectory_collapsed=trajectory_collapsed)
+    phase_after = scheduler.advance(trajectory_kl, trajectory_collapsed=trajectory_collapsed) if advance_scheduler else phase_before
     return {
         "phase_before": phase_before,
         "phase_after": phase_after,
@@ -415,7 +428,7 @@ def run_real_flux_smoke(args) -> dict:
         if local_mode and scheduler.phase == "trajectory_calibration":
             scheduler.force_phase("quality_repair")
         unroll, images, stats = evaluate()
-        best_updated = best_trajectory.update(alpha_parameterization, kl=stats.kl_uniform, iteration=iteration)
+        best_updated = best_trajectory.update(alpha_parameterization, kl=stats.kl_uniform, iteration=iteration, v_goals=v_goals)
         forward_master_alpha = alpha_parameterization.alphas[1:-1].detach().float()
         forward_effective_alpha = unroll.effective_alphas[0].detach().float() if unroll.effective_alphas else forward_master_alpha
         quality_loss = None
@@ -439,7 +452,17 @@ def run_real_flux_smoke(args) -> dict:
                 stats.kl_uniform - (guard_reference + args.trajectory_tolerance)
             )
         coordinate_result = None
-        hybrid_pre_logits = alpha_parameterization.interval_logits.detach().clone() if args.alpha_optimizer_mode == "hybrid" else None
+        hybrid_transaction = None
+        if args.alpha_optimizer_mode == "hybrid" and scheduler.phase in (
+            "trajectory_calibration", "joint_refinement",
+        ):
+            hybrid_transaction = OptimizationTransaction.capture(
+                alpha_parameters=(alpha_parameterization.interval_logits,),
+                v_goal_parameters=tuple(v_goals),
+                alpha_optimizer=alpha_optimizer,
+                vgoal_optimizer=vgoal_optimizer,
+                scheduler=scheduler,
+            )
         if args.alpha_optimizer_mode == "coordinate" and scheduler.phase == "trajectory_calibration":
             def _coordinate_eval(candidate):
                 with torch.no_grad():
@@ -468,53 +491,57 @@ def run_real_flux_smoke(args) -> dict:
             trajectory_collapsed=stats.collapsed,
             trajectory_guard_loss=trajectory_guard_loss,
             control_loss=control_loss,
-            vgoal_indices=local_refine_indices if local_mode else None,
+            vgoal_branch_indices=local_refine_indices if local_mode else None,
             optimize_alpha=not local_mode,
+            advance_scheduler=hybrid_transaction is None,
         )
         if local_mode:
             local_refine_remaining -= 1
             if local_refine_remaining == 0:
                 scheduler.force_phase("joint_refinement")
         hybrid_result = None
-        if hybrid_pre_logits is not None and routed["phase_before"] in (
-            "trajectory_calibration",
-            "joint_refinement",
-        ):
+        if hybrid_transaction is not None:
             with torch.no_grad():
-                post_hybrid_kl = evaluate()[2].kl_uniform.detach()
+                _, _, post_hybrid_stats = evaluate()
+                post_hybrid_kl = post_hybrid_stats.kl_uniform.detach()
+                post_hybrid_collapsed = post_hybrid_stats.collapsed
             accepted = bool(
                 post_hybrid_kl
                 <= stats.kl_uniform.detach() + args.hybrid_acceptance_tolerance
             )
             if not accepted:
+                hybrid_transaction.restore(alpha_optimizer, vgoal_optimizer)
                 with torch.no_grad():
-                    alpha_parameterization.interval_logits.copy_(hybrid_pre_logits)
-                alpha_optimizer = torch.optim.Adam(
-                    [alpha_parameterization.interval_logits],
-                    lr=args.alpha_lr,
-                )
+                    _, _, post_hybrid_stats = evaluate()
+                    post_hybrid_kl = post_hybrid_stats.kl_uniform.detach()
+                    post_hybrid_collapsed = post_hybrid_stats.collapsed
+            routed["phase_after"] = scheduler.advance(
+                post_hybrid_kl, trajectory_collapsed=post_hybrid_collapsed
+            )
             hybrid_result = {
                 "accepted": accepted,
                 "current_kl": float(post_hybrid_kl),
                 "rejected_steps": int(not accepted),
             }
         with torch.no_grad():
-            post_optimization_stats = evaluate()[2]
+            post_optimization_unroll, post_optimization_images, post_optimization_stats = evaluate()
+        unroll, images, stats = post_optimization_unroll, post_optimization_images, post_optimization_stats
         post_optimization_kl = post_optimization_stats.kl_uniform.detach()
         best_updated = best_trajectory.update(
-            alpha_parameterization, kl=post_optimization_kl, iteration=iteration
+            alpha_parameterization, kl=post_optimization_kl, iteration=iteration, v_goals=v_goals
         ) or best_updated
         alpha_grad_norm = routed["alpha_gradient_norm"]
         topology_event = None
-        plateau = plateau_tracker.update(float(stats.kl_uniform.detach()), phase=routed["phase_before"])
+        plateau = plateau_tracker.update(float(post_optimization_kl), phase=routed["phase_before"])
         if plateau and (args.enable_insert or args.enable_prune):
             pre_topology_state = topology_state
             pre_topology_inputs = inputs
-            pre_topology_kl = float(stats.kl_uniform.detach())
+            pre_topology_kl = float(post_optimization_kl)
+            pre_insert_alphas = alpha_parameterization.alphas.detach().clone()
             topology_state, topology_event = apply_topology_update(
                 topology_manager, topology_state, images.detach(), stats.normalized_distances.detach(),
                 lpips.distance, enable_insert=args.enable_insert, enable_prune=args.enable_prune,
-                trajectory_kl=float(stats.kl_uniform.detach()), threshold=args.trajectory_kl_threshold,
+                trajectory_kl=pre_topology_kl, threshold=args.trajectory_kl_threshold,
                 plateau=plateau,
             )
             if topology_event is not None:
@@ -541,15 +568,41 @@ def run_real_flux_smoke(args) -> dict:
                 )
                 local_line_result = None
                 if topology_event.operation == "insert" and affected is not None:
+                    old_left = pre_insert_alphas[affected]
+                    old_right = pre_insert_alphas[affected + 1]
+                    midpoint_alphas = alpha_parameterization.alphas.detach().clone()
+                    with torch.no_grad():
+                        _, _, midpoint_stats = evaluate(alpha_values=midpoint_alphas, goal_values=v_goals)
                     local_goals = [goal.detach() for goal in v_goals]
                     def _local_eval(candidate):
                         _, _, candidate_stats = evaluate(alpha_values=candidate, goal_values=local_goals)
                         return candidate_stats.distances[affected], candidate_stats.distances[affected + 1], candidate_stats.kl_uniform
-                    local_line_result = local_insert_line_search(alpha_parameterization.alphas.detach(), interval=affected, evaluate=_local_eval)
+                    local_line_result = local_insert_line_search(
+                        midpoint_alphas,
+                        inserted_index=affected + 1,
+                        search_left=old_left,
+                        search_right=old_right,
+                        evaluate=_local_eval,
+                    )
                     calibrated = OrderedAlphaParameterization.from_alphas(local_line_result.alphas)
                     with torch.no_grad():
                         alpha_parameterization.interval_logits.copy_(calibrated.interval_logits)
-                    topology_event = type(topology_event)(**{**asdict(topology_event), "post_local_kl": float(local_line_result.kl), "d_left": float(local_line_result.d_left), "d_right": float(local_line_result.d_right), "balance_ratio": float(local_line_result.balance_ratio)})
+                    topology_event = type(topology_event)(**{
+                        **asdict(topology_event),
+                        "pre_topology_kl": pre_topology_kl,
+                        "post_midpoint_kl": float(midpoint_stats.kl_uniform.detach()),
+                        "post_line_search_kl": float(local_line_result.kl),
+                        "post_local_kl": float(local_line_result.kl),
+                        "d_left": float(local_line_result.d_left),
+                        "d_right": float(local_line_result.d_right),
+                        "balance_ratio": float(local_line_result.balance_ratio),
+                        "old_gap": float(local_line_result.old_gap),
+                        "old_alpha_left": float(local_line_result.search_left),
+                        "old_alpha_right": float(local_line_result.search_right),
+                        "midpoint_alpha": float(midpoint_alphas[affected + 1]),
+                        "candidate_alphas": tuple(item["alpha"] for item in local_line_result.candidates),
+                        "split_max_ratio": float(local_line_result.split_max_ratio),
+                    })
                 with torch.no_grad():
                     _, _, post_topology_stats = evaluate()
                 post_topology_kl = float(post_topology_stats.kl_uniform.detach())
@@ -573,6 +626,7 @@ def run_real_flux_smoke(args) -> dict:
                         alpha_parameterization,
                         kl=post_topology_stats.kl_uniform,
                         iteration=iteration,
+                        v_goals=v_goals,
                     )
                 last_topology_iteration = iteration
                 previous_master_alpha = None
@@ -630,7 +684,7 @@ def run_real_flux_smoke(args) -> dict:
         )
     restored_best_at_end = False
     if best_trajectory.best_alpha_logits is not None:
-        restored_best_at_end = best_trajectory.restore(alpha_parameterization)
+        restored_best_at_end = best_trajectory.restore(alpha_parameterization, v_goals)
     with torch.no_grad():
         final_unroll, final_images, final_stats = evaluate()
     finite_difference_audit = None
@@ -678,10 +732,13 @@ def run_real_flux_smoke(args) -> dict:
             },
         },
         "gradient": {"alpha_gradient_norm": alpha_grad_norm, "v_goal_gradient_norms": vgoal_gradient_norms, "alpha_finite": bool(torch.isfinite(alpha_parameterization.interval_logits).all()), "v_goal_finite": all(torch.isfinite(parameter).all().item() for parameter in v_goals)},
-        "control": {"v_goal_norms": [parameter.detach().float().norm() for parameter in v_goals]},
+        "control": {
+            "v_goal_norms": [parameter.detach().float().norm() for parameter in v_goals],
+            "diagnostics": control_diagnostics,
+        },
         "parity": {"single": {"latent_mae": native_parity.mean(), "latent_cosine": F.cosine_similarity(native_single.final_latent[0].float().flatten()[None], inputs.native.native_final_latent[0].float().flatten()[None]).squeeze(), "image_mae": (native_image - pipe.decode_rewardslider_v2_terminal(native_single.final_latent, inputs)).float().abs().mean()}, "batched": batch_parity},
         "topology": {"events": topology_events, "last_event_iteration": last_topology_iteration},
-        "system": {"frozen_model_audit": _frozen_gradient_audit(pipe), "device": str(device), "dtype": str(dtype), "height": args.height, "width": args.width, "steps": args.steps, "control_steps": 4, "alpha_only": args.alpha_only, "phase_records": phase_records, "finite_difference_audit": finite_difference_audit},
+        "system": {"frozen_model_audit": _frozen_gradient_audit(pipe), "device": str(device), "dtype": str(dtype), "height": args.height, "width": args.width, "steps": args.steps, "control_steps": 4, "controlled_step_indices": list(range(4)), "alpha_only": args.alpha_only, "phase_records": phase_records, "finite_difference_audit": finite_difference_audit},
     }
     _write_jsonl(output, record)
     _save_tensor_image(native_image, output.with_name("native_full.png"))
