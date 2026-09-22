@@ -17,11 +17,11 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--model", default="/data15/hyp/weight/FLUX.1-Kontext-dev")
     parser.add_argument("--source", nargs="+", default=["/home/hyp/Code/VeloEdit/testdata/7.jpg"])
-    parser.add_argument("--prompt", default="make him old")
+    parser.add_argument("--prompt", default="Make him old.")
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--steps", type=int, default=15)
-    parser.add_argument("--height", type=int, default=512)
-    parser.add_argument("--width", type=int, default=512)
+    parser.add_argument("--height", type=int, default=None)
+    parser.add_argument("--width", type=int, default=None)
     parser.add_argument("--guidance-scale", type=float, default=2.5)
     parser.add_argument("--first-step-align-steps", type=int, default=4)
     parser.add_argument("--activation-distance-threshold", type=float, default=0.001)
@@ -76,7 +76,9 @@ def _json_safe(value):
 def run(args: argparse.Namespace) -> dict:
     if args.steps < 4:
         raise ValueError("V2 rollout requires at least four inference steps.")
-    if args.height % 16 or args.width % 16:
+    if (args.height is None) != (args.width is None):
+        raise ValueError("--height and --width must be supplied together.")
+    if args.height is not None and (args.height % 16 or args.width % 16):
         raise ValueError("height and width must be divisible by 16.")
     torch.manual_seed(args.seed)
     device = torch.device(args.device)
@@ -113,9 +115,16 @@ def run(args: argparse.Namespace) -> dict:
         source_path = Path(source_path)
         sample_dir = args.output_dir / source_path.stem
         sample_dir.mkdir(parents=True, exist_ok=True)
-        source_pil = Image.open(source_path).convert("RGB").resize(
-            (args.width, args.height), Image.Resampling.LANCZOS
-        )
+        original_pil = Image.open(source_path).convert("RGB")
+        if args.height is None and args.width is None:
+            scale = (1024 * 1024 / (original_pil.height * original_pil.width)) ** 0.5
+            height = max(16, round(original_pil.height * scale) // 16 * 16)
+            width = max(16, round(original_pil.width * scale) // 16 * 16)
+        elif args.height is not None and args.width is not None:
+            height, width = args.height, args.width
+        else:
+            raise ValueError("--height and --width must be supplied together.")
+        source_pil = original_pil.resize((width, height), Image.Resampling.LANCZOS)
         source_arr = np.asarray(source_pil).copy()
         source = torch.from_numpy(source_arr).permute(2, 0, 1).unsqueeze(0).to(
             device=device, dtype=torch.float32
@@ -123,37 +132,47 @@ def run(args: argparse.Namespace) -> dict:
         sample_seed = args.seed + sample_index
 
         print(f"[{sample_index + 1}/{len(args.source)}] Preparing {source_path}")
+        coarse_alphas = [0.25, 0.5, 0.75, 1.0]
         inputs = pipe.prepare_rewardslider_v2_inputs(
-            num_branches=1,
+            num_branches=len(coarse_alphas),
             image=source_pil,
             prompt=args.prompt,
-            height=args.height,
-            width=args.width,
+            height=height,
+            width=width,
             num_inference_steps=args.steps,
             guidance_scale=args.guidance_scale,
-            generator=torch.Generator(device=device).manual_seed(sample_seed),
+            generator=torch.Generator(device="cpu").manual_seed(sample_seed),
             first_step_align_steps=args.first_step_align_steps,
         )
         zero_goals = [
-            torch.zeros(1, *inputs.native.initial_latent.shape[1:], device=device, dtype=torch.float32)
+            torch.zeros(len(coarse_alphas), *inputs.native.initial_latent.shape[1:], device=device, dtype=torch.float32)
             for _ in range(4)
         ]
         cache: dict[float, torch.Tensor] = {}
 
+        with torch.no_grad():
+            coarse_result = pipe.unroll_veloedit_controls(
+                inputs, torch.tensor(coarse_alphas, device=device), v_goals=zero_goals,
+                preserve_steps=4, edit_steps=4, similarity_threshold=0.8,
+            )
+            coarse_images = pipe.decode_rewardslider_v2_terminal(coarse_result.final_latent, inputs).detach()
+        for index, alpha in enumerate(coarse_alphas):
+            cache[round(alpha, 10)] = coarse_images[index:index + 1]
+
         def rollout(alpha: float) -> torch.Tensor:
             key = round(float(alpha), 10)
             if key not in cache:
+                probe_inputs = pipe.rematerialize_rewardslider_v2_inputs(inputs, num_branches=1)
+                probe_goals = [
+                    torch.zeros(1, *probe_inputs.native.initial_latent.shape[1:], device=device, dtype=torch.float32)
+                    for _ in range(4)
+                ]
                 with torch.no_grad():
-                    result = pipe.unroll_rewardslider_v2_controls(
-                        inputs,
-                        torch.tensor([key], device=device),
-                        zero_goals,
-                        control_steps=4,
-                        use_checkpointing=False,
+                    result = pipe.unroll_veloedit_controls(
+                        probe_inputs, torch.tensor([key], device=device), v_goals=probe_goals,
+                        preserve_steps=4, edit_steps=4, similarity_threshold=0.8,
                     )
-                    cache[key] = pipe.decode_rewardslider_v2_terminal(
-                        result.final_latent, inputs
-                    ).detach()
+                    cache[key] = pipe.decode_rewardslider_v2_terminal(result.final_latent, probe_inputs).detach()
             return cache[key]
 
         detector = ActivationRangeDetector(
@@ -172,8 +191,8 @@ def run(args: argparse.Namespace) -> dict:
                 "prompt": args.prompt,
                 "seed": sample_seed,
                 "steps": args.steps,
-                "height": args.height,
-                "width": args.width,
+                "height": height,
+                "width": width,
                 "guidance_scale": args.guidance_scale,
                 "first_step_align_steps": args.first_step_align_steps,
             },
@@ -274,8 +293,8 @@ def run(args: argparse.Namespace) -> dict:
             "prompt": args.prompt,
             "seed": args.seed,
             "steps": args.steps,
-            "height": args.height,
-            "width": args.width,
+            "height": height,
+            "width": width,
             "guidance_scale": args.guidance_scale,
             "first_step_align_steps": args.first_step_align_steps,
             "activation_distance_threshold": args.activation_distance_threshold,

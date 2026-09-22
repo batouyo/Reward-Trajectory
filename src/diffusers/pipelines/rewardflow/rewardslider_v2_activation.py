@@ -11,7 +11,7 @@ import torch
 from PIL import Image
 
 
-DEFAULT_ACTIVATION_CANDIDATES = (0.0, 0.25, 0.5, 0.75, 1.0)
+DEFAULT_ACTIVATION_CANDIDATES = (0.25, 0.5, 0.75, 1.0)
 
 
 def normalize_alpha(beta: torch.Tensor | float, alpha_start: float) -> torch.Tensor | float:
@@ -42,8 +42,8 @@ class ActivationRangeConfig:
         if not np.isfinite(self.alpha_resolution) or not 0 < self.alpha_resolution <= 1:
             raise ValueError("alpha_resolution must be in (0, 1].")
         candidates = self.candidate_alphas
-        if len(candidates) < 2 or candidates[0] != 0.0 or candidates[-1] != 1.0:
-            raise ValueError("candidate_alphas must include 0 and 1 endpoints.")
+        if len(candidates) < 1 or candidates[-1] != 1.0:
+            raise ValueError("candidate_alphas must include the alpha=1 endpoint.")
         if any(not np.isfinite(value) or not 0 <= value <= 1 for value in candidates):
             raise ValueError("candidate_alphas must be finite values in [0, 1].")
         if any(right <= left for left, right in zip(candidates[:-1], candidates[1:])):
@@ -91,9 +91,9 @@ class ActivationRangeDetector:
     """Find the first alpha whose image clears a perceptual distance threshold.
 
     rollout must call the project's existing inference path and return an image
-    tensor in [0, 1], shaped [1, 3, H, W]. As in diffusion-sliders, every
-    candidate is compared with the generated alpha=0 image from the same
-    rollout, seed, and inference configuration, rather than the source image.
+    tensor in [0, 1], shaped [1, 3, H, W]. Every candidate is compared with
+    the supplied source image. The source is the invalid endpoint at alpha=0;
+    no synthetic alpha=0 rollout is used as the reference.
     """
 
     def __init__(self, distance_metric: Any, config: ActivationRangeConfig | None = None):
@@ -125,18 +125,9 @@ class ActivationRangeDetector:
         output_dir = Path(output_dir)
         output_dir.mkdir(parents=True, exist_ok=True)
         results: dict[float, dict[str, Any]] = {}
-        with torch.no_grad():
-            reference_image = rollout(0.0).detach()
-        if reference_image.shape != source_image.shape:
-            raise ValueError("alpha=0 reference image must match source_image shape.")
-        reference_path = output_dir / "alpha_0.000.png"
+        reference_image = source_image.detach().float()
+        reference_path = output_dir / "source.png"
         self._save_image(reference_image, reference_path)
-        results[0.0] = {
-            "alpha": 0.0,
-            "distance": 0.0,
-            "image_path": str(reference_path),
-            "stage": "coarse",
-        }
 
         def probe(alpha: float, stage: str) -> dict[str, Any]:
             key = round(float(alpha), 10)
@@ -146,7 +137,7 @@ class ActivationRangeDetector:
                 image = rollout(key)
                 if image.shape != source_image.shape:
                     raise ValueError("rollout image shape must match source_image.")
-                distance = self.distance_metric.distance(reference_image.float(), image.float())
+                distance = self.distance_metric.distance(reference_image, image.float())
                 distance_value = float(distance.reshape(-1).mean().detach().cpu())
             if not np.isfinite(distance_value):
                 raise ValueError(f"Perceptual distance is not finite at alpha={key}.")
@@ -165,10 +156,8 @@ class ActivationRangeDetector:
         activation_found = valid_index is not None
         if not activation_found:
             alpha_start = 1.0
-        elif valid_index == 0:
-            alpha_start = float(coarse[0]["alpha"])
         else:
-            low = float(coarse[valid_index - 1]["alpha"])
+            low = 0.0 if valid_index == 0 else float(coarse[valid_index - 1]["alpha"])
             high = float(coarse[valid_index]["alpha"])
             # Local bisection assumes distance rises across this first bracket.
             while high - low >= self.config.alpha_resolution:

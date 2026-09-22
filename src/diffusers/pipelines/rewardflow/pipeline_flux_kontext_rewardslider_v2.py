@@ -9,6 +9,7 @@ import torch
 
 from .pipeline_flux_kontext_terminal_control import FluxKontextTerminalControlPipeline, KontextTerminalControlInputs
 from .rewardslider_v2_unroll import RewardSliderV2UnrollOutput, unroll_rewardslider_v2
+from .rewardslider_v2_veloedit import unroll_veloedit
 
 
 
@@ -111,6 +112,42 @@ class FluxKontextRewardSliderV2Pipeline(FluxKontextTerminalControlPipeline):
                                       velocity_fn, alphas, v_goals,
                                       source_clean_latent=inputs.native.source_clean_latent,
                                       control_steps=control_steps, use_checkpointing=use_checkpointing)
+
+    def unroll_veloedit_controls(
+        self,
+        inputs: RewardSliderV2Inputs,
+        alphas: torch.Tensor | float,
+        *,
+        v_goals: Sequence[torch.Tensor] = (),
+        preserve_steps: int = 4,
+        edit_steps: int = 4,
+        similarity_threshold: float = 0.8,
+        use_checkpointing: bool = False,
+    ) -> RewardSliderV2UnrollOutput:
+        """Run the VeloEdit-compatible path used by activation calibration."""
+        if torch.is_tensor(alphas) and alphas.ndim == 1 and alphas.shape[0] != inputs.num_branches:
+            raise ValueError("One alpha value is required per branch.")
+        model_dtype = next(self.transformer.parameters()).dtype
+
+        def velocity_fn(latent: torch.Tensor, timestep: torch.Tensor, step_index: int) -> torch.Tensor:
+            del step_index
+            return self._predict_kontext_velocity(
+                latent.to(dtype=model_dtype), timestep, **inputs.forward_kwargs
+            ).to(dtype=latent.dtype)
+
+        return unroll_veloedit(
+            inputs.native.initial_latent,
+            inputs.native.timesteps,
+            inputs.native.sigmas,
+            velocity_fn,
+            alphas,
+            inputs.native.source_clean_latent,
+            v_goals=v_goals,
+            preserve_steps=preserve_steps,
+            edit_steps=edit_steps,
+            similarity_threshold=similarity_threshold,
+            use_checkpointing=use_checkpointing,
+        )
 
     def decode_rewardslider_v2_terminal(self, latent: torch.Tensor, inputs: RewardSliderV2Inputs) -> torch.Tensor:
         vae_dtype = next(self.vae.parameters()).dtype
