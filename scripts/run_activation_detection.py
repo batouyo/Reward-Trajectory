@@ -24,7 +24,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--width", type=int, default=512)
     parser.add_argument("--guidance-scale", type=float, default=2.5)
     parser.add_argument("--first-step-align-steps", type=int, default=4)
-    parser.add_argument("--activation-distance-threshold", type=float, default=0.065)
+    parser.add_argument("--activation-distance-threshold", type=float, default=0.001)
     parser.add_argument("--alpha-resolution", type=float, default=0.05)
     parser.add_argument("--dtype", choices=("bfloat16", "float16"), default="bfloat16")
     parser.add_argument("--device", default="cuda:0")
@@ -89,6 +89,7 @@ def run(args: argparse.Namespace) -> dict:
     from diffusers.pipelines.rewardflow.rewardslider_v2_activation import (
         ActivationRangeConfig,
         ActivationRangeDetector,
+        DreamSimDistance,
         normalize_alpha,
     )
     from diffusers.pipelines.rewardflow.rewardslider_v2_lpips import LPIPSDistance
@@ -104,6 +105,7 @@ def run(args: argparse.Namespace) -> dict:
     metric = LPIPSDistance(net="vgg").to(device)
     for parameter in metric.parameters():
         parameter.requires_grad_(False)
+    activation_metric = DreamSimDistance(device)
 
     sample_rows = []
     sample_details = []
@@ -155,7 +157,7 @@ def run(args: argparse.Namespace) -> dict:
             return cache[key]
 
         detector = ActivationRangeDetector(
-            metric,
+            activation_metric,
             ActivationRangeConfig(
                 activation_distance_threshold=args.activation_distance_threshold,
                 alpha_resolution=args.alpha_resolution,
@@ -260,6 +262,8 @@ def run(args: argparse.Namespace) -> dict:
     result = {
         "method": "VeloEdit rollout with valid-range alpha calibration",
         "metric": "LPIPS-VGG",
+        "activation_metric": "DreamSim",
+        "trajectory_metric": "LPIPS-VGG",
         "experiments": {
             "A_inactive_region": "coarse alpha probes and per-sample first threshold crossing",
             "B_calibration": "baseline and calibrated adjacent LPIPS plus KL to uniform",

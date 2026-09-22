@@ -18,7 +18,7 @@ def test_normalize_alpha_maps_beta_to_active_interval():
 
 
 def test_detector_coarse_to_fine_finds_first_threshold_crossing(tmp_path):
-    source = torch.zeros(1, 3, 2, 2)
+    source = torch.ones(1, 3, 2, 2)
     detector = ActivationRangeDetector(
         _AbsoluteDistance(),
         ActivationRangeConfig(activation_distance_threshold=0.4, alpha_resolution=0.05),
@@ -32,7 +32,9 @@ def test_detector_coarse_to_fine_finds_first_threshold_crossing(tmp_path):
         inference_config={"steps": 4},
     )
     assert result["activation_found"]
-    assert abs(result["alpha_start"] - 0.2) <= 0.05
+    assert abs(result["alpha_start"] - 0.4) <= 0.05
+    assert result["probe_results"][0]["distance"] == 0.0
+    assert result["reference_image_path"].endswith("alpha_0.000.png")
     assert any(row["alpha"] == 0.5 and row["stage"] == "coarse" for row in result["probe_results"])
     assert (tmp_path / "alpha_0.500.png").exists()
 

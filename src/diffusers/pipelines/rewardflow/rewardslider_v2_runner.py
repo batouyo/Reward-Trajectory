@@ -18,7 +18,7 @@ from PIL import Image
 
 from .pipeline_flux_kontext_rewardslider_v2 import FluxKontextRewardSliderV2Pipeline, RewardSliderV2Inputs, validate_v2_control_steps
 from .rewardslider_v2_evaluation import fixed_grid_metrics, generate_model_fixed_grid, interpolate_strengths
-from .rewardslider_v2_activation import ActivationRangeConfig, ActivationRangeDetector, normalize_alpha
+from .rewardslider_v2_activation import ActivationRangeConfig, ActivationRangeDetector, DreamSimDistance, normalize_alpha
 from .rewardslider_v2_alpha import OrderedAlphaParameterization
 from .rewardslider_v2_lpips import LPIPSDistance
 from .rewardslider_v2_preservation import build_image_space_relevance, masked_lpips_preservation_loss
@@ -48,7 +48,7 @@ def build_rewardslider_v2_parser() -> argparse.ArgumentParser:
     parser.add_argument("--coordinate-min-delta", type=float, default=0.001)
     parser.add_argument("--alpha-margin", type=float, default=1e-4)
     parser.add_argument("--enable-activation-calibration", action="store_true")
-    parser.add_argument("--activation-distance-threshold", type=float, default=0.065)
+    parser.add_argument("--activation-distance-threshold", type=float, default=0.001)
     parser.add_argument("--activation-resolution", type=float, default=0.05)
     parser.add_argument("--hybrid-acceptance-tolerance", type=float, default=0.0)
     parser.add_argument("--alpha-lr", type=float, default=1e-3)
@@ -385,6 +385,7 @@ def run_real_flux_smoke(args) -> dict:
     activation_result = None
     activation_start = 0.0
     if args.enable_activation_calibration:
+        activation_metric = DreamSimDistance(device)
         probe_inputs = pipe.rematerialize_rewardslider_v2_inputs(inputs, num_branches=1)
         probe_goals = [
             torch.zeros(1, *inputs.native.initial_latent.shape[1:], device=device, dtype=torch.float32)
@@ -400,7 +401,7 @@ def run_real_flux_smoke(args) -> dict:
                 return pipe.decode_rewardslider_v2_terminal(result.final_latent, probe_inputs)
 
         detector = ActivationRangeDetector(
-            lpips,
+            activation_metric,
             ActivationRangeConfig(
                 activation_distance_threshold=args.activation_distance_threshold,
                 alpha_resolution=args.activation_resolution,

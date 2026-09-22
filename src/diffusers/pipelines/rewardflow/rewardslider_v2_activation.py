@@ -32,7 +32,7 @@ def normalize_alpha(beta: torch.Tensor | float, alpha_start: float) -> torch.Ten
 class ActivationRangeConfig:
     """Threshold and search settings for perceptual activation detection."""
 
-    activation_distance_threshold: float = 0.065
+    activation_distance_threshold: float = 0.001
     alpha_resolution: float = 0.05
     candidate_alphas: tuple[float, ...] = DEFAULT_ACTIVATION_CANDIDATES
 
@@ -50,13 +50,50 @@ class ActivationRangeConfig:
             raise ValueError("candidate_alphas must be strictly increasing.")
 
 
+class DreamSimDistance:
+    """DreamSim adapter matching diffusion-sliders' generated-image comparison."""
+
+    metric_name = "DreamSim"
+
+    def __init__(self, device: torch.device | str):
+        try:
+            from dreamsim import dreamsim
+        except ImportError as error:
+            raise ImportError(
+                "DreamSim is required for activation calibration. Install the "
+                "same dreamsim package used by diffusion-sliders."
+            ) from error
+        self.device = torch.device(device)
+        self.model, self.preprocess = dreamsim(pretrained=True, device=str(self.device))
+        self.model.eval()
+
+    @staticmethod
+    def _to_pil(image: torch.Tensor) -> Image.Image:
+        if image.ndim != 3 or image.shape[0] != 3:
+            raise ValueError("DreamSim images must have shape [3, H, W].")
+        value = image.detach().float().clamp(0, 1).permute(1, 2, 0).cpu().numpy()
+        return Image.fromarray(np.rint(value * 255).astype(np.uint8), mode="RGB")
+
+    def distance(self, first: torch.Tensor, second: torch.Tensor) -> torch.Tensor:
+        if first.shape != second.shape or first.ndim != 4:
+            raise ValueError("DreamSim inputs must have matching [B, 3, H, W] shapes.")
+        first_batch = torch.cat(
+            [self.preprocess(self._to_pil(image)) for image in first], dim=0
+        ).to(self.device)
+        second_batch = torch.cat(
+            [self.preprocess(self._to_pil(image)) for image in second], dim=0
+        ).to(self.device)
+        with torch.no_grad():
+            return self.model(first_batch, second_batch).float()
+
+
 class ActivationRangeDetector:
     """Find the first alpha whose image clears a perceptual distance threshold.
 
     rollout must call the project's existing inference path and return an image
-    tensor in [0, 1], shaped [1, 3, H, W]. Metric inputs use LPIPS' [-1, 1]
-    range. Latent, prompt embedding, and inference config are retained as
-    explicit experiment context; model execution stays in the rollout callback.
+    tensor in [0, 1], shaped [1, 3, H, W]. As in diffusion-sliders, every
+    candidate is compared with the generated alpha=0 image from the same
+    rollout, seed, and inference configuration, rather than the source image.
     """
 
     def __init__(self, distance_metric: Any, config: ActivationRangeConfig | None = None):
@@ -87,8 +124,19 @@ class ActivationRangeDetector:
         self.config.validate()
         output_dir = Path(output_dir)
         output_dir.mkdir(parents=True, exist_ok=True)
-        source_metric = source_image.detach().float() * 2.0 - 1.0
         results: dict[float, dict[str, Any]] = {}
+        with torch.no_grad():
+            reference_image = rollout(0.0).detach()
+        if reference_image.shape != source_image.shape:
+            raise ValueError("alpha=0 reference image must match source_image shape.")
+        reference_path = output_dir / "alpha_0.000.png"
+        self._save_image(reference_image, reference_path)
+        results[0.0] = {
+            "alpha": 0.0,
+            "distance": 0.0,
+            "image_path": str(reference_path),
+            "stage": "coarse",
+        }
 
         def probe(alpha: float, stage: str) -> dict[str, Any]:
             key = round(float(alpha), 10)
@@ -98,7 +146,7 @@ class ActivationRangeDetector:
                 image = rollout(key)
                 if image.shape != source_image.shape:
                     raise ValueError("rollout image shape must match source_image.")
-                distance = self.distance_metric.distance(image.float() * 2.0 - 1.0, source_metric)
+                distance = self.distance_metric.distance(reference_image.float(), image.float())
                 distance_value = float(distance.reshape(-1).mean().detach().cpu())
             if not np.isfinite(distance_value):
                 raise ValueError(f"Perceptual distance is not finite at alpha={key}.")
@@ -135,6 +183,10 @@ class ActivationRangeDetector:
         return {
             "alpha_start": float(alpha_start),
             "activation_found": activation_found,
+            "distance_metric": getattr(
+                self.distance_metric, "metric_name", type(self.distance_metric).__name__
+            ),
+            "reference_image_path": str(reference_path),
             "activation_distance_threshold": self.config.activation_distance_threshold,
             "alpha_resolution": self.config.alpha_resolution,
             "candidate_alphas": list(self.config.candidate_alphas),
