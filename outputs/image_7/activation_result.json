@@ -1,0 +1,220 @@
+{
+  "config": {
+    "model": "/data15/hyp/weight/FLUX.1-Kontext-dev",
+    "source": [
+      "/home/hyp/Code/VeloEdit/testdata/7.jpg"
+    ],
+    "prompt": "Make him old.",
+    "seed": 42,
+    "steps": 15,
+    "guidance_scale": 2.5,
+    "first_step_align_steps": 4,
+    "preserve_steps": 4,
+    "edit_steps": 4,
+    "similarity_threshold": 0.8,
+    "activation_distance_threshold": 0.001,
+    "alpha_resolution": 0.05,
+    "device": "cuda:0",
+    "output_dir": "outputs/image_7"
+  },
+  "samples": [
+    {
+      "sample": "/home/hyp/Code/VeloEdit/testdata/7.jpg",
+      "activation": {
+        "alpha_start": 0.5,
+        "activation_found": true,
+        "distance_metric": "DreamSim",
+        "reference_image_path": "outputs/image_7/7/probes/source.png",
+        "activation_distance_threshold": 0.001,
+        "alpha_resolution": 0.05,
+        "candidate_alphas": [
+          0.25,
+          0.5,
+          0.75,
+          1.0
+        ],
+        "probe_results": [
+          {
+            "alpha": 0.25,
+            "distance": 0.0004794597625732422,
+            "image_path": "outputs/image_7/7/probes/alpha_0.250.png",
+            "stage": "coarse"
+          },
+          {
+            "alpha": 0.375,
+            "distance": 0.0004744529724121094,
+            "image_path": "outputs/image_7/7/probes/alpha_0.375.png",
+            "stage": "refine"
+          },
+          {
+            "alpha": 0.4375,
+            "distance": 0.0004647970199584961,
+            "image_path": "outputs/image_7/7/probes/alpha_0.438.png",
+            "stage": "refine"
+          },
+          {
+            "alpha": 0.46875,
+            "distance": 0.0004903078079223633,
+            "image_path": "outputs/image_7/7/probes/alpha_0.469.png",
+            "stage": "refine"
+          },
+          {
+            "alpha": 0.5,
+            "distance": 0.03018653392791748,
+            "image_path": "outputs/image_7/7/probes/alpha_0.500.png",
+            "stage": "coarse"
+          },
+          {
+            "alpha": 0.75,
+            "distance": 0.16710370779037476,
+            "image_path": "outputs/image_7/7/probes/alpha_0.750.png",
+            "stage": "coarse"
+          },
+          {
+            "alpha": 1.0,
+            "distance": 0.1954249143600464,
+            "image_path": "outputs/image_7/7/probes/alpha_1.000.png",
+            "stage": "coarse"
+          }
+        ],
+        "distance_curve": [
+          {
+            "alpha": 0.25,
+            "distance": 0.0004794597625732422
+          },
+          {
+            "alpha": 0.375,
+            "distance": 0.0004744529724121094
+          },
+          {
+            "alpha": 0.4375,
+            "distance": 0.0004647970199584961
+          },
+          {
+            "alpha": 0.46875,
+            "distance": 0.0004903078079223633
+          },
+          {
+            "alpha": 0.5,
+            "distance": 0.03018653392791748
+          },
+          {
+            "alpha": 0.75,
+            "distance": 0.16710370779037476
+          },
+          {
+            "alpha": 1.0,
+            "distance": 0.1954249143600464
+          }
+        ],
+        "inference_config": {
+          "model": "/data15/hyp/weight/FLUX.1-Kontext-dev",
+          "prompt": "Make him old.",
+          "seed": 42,
+          "steps": 15,
+          "height": 1024,
+          "width": 1024,
+          "guidance_scale": 2.5,
+          "first_step_align_steps": 4,
+          "preserve_steps": 4,
+          "edit_steps": 4,
+          "similarity_threshold": 0.8
+        },
+        "search_config": {
+          "activation_distance_threshold": 0.001,
+          "alpha_resolution": 0.05,
+          "candidate_alphas": [
+            0.25,
+            0.5,
+            0.75,
+            1.0
+          ]
+        }
+      },
+      "baseline": {
+        "alphas": [
+          0.0,
+          0.25,
+          0.5,
+          0.75,
+          1.0
+        ],
+        "adjacent_lpips": [
+          0.04328027367591858,
+          0.001624791300855577,
+          0.16208109259605408,
+          0.25900954008102417,
+          0.26659131050109863
+        ],
+        "trajectory_kl_to_uniform": 0.35955795645713806
+      },
+      "calibrated": {
+        "betas": [
+          0.0,
+          0.25,
+          0.5,
+          0.75,
+          1.0
+        ],
+        "alphas": [
+          0.5,
+          0.625,
+          0.75,
+          0.875,
+          1.0
+        ],
+        "adjacent_lpips": [
+          0.18132343888282776,
+          0.24333423376083374,
+          0.057439062744379044,
+          0.08128385990858078,
+          0.2133415937423706
+        ],
+        "trajectory_kl_to_uniform": 0.1224808394908905
+      },
+      "same_final_alpha_1": {
+        "mean_absolute_image_difference": 0.0,
+        "max_absolute_image_difference": 0.0,
+        "pass": true
+      }
+    }
+  ],
+  "table": [
+    {
+      "sample": "/home/hyp/Code/VeloEdit/testdata/7.jpg",
+      "alpha_start": 0.5,
+      "distance_curve": [
+        {
+          "alpha": 0.25,
+          "distance": 0.0004794597625732422
+        },
+        {
+          "alpha": 0.375,
+          "distance": 0.0004744529724121094
+        },
+        {
+          "alpha": 0.4375,
+          "distance": 0.0004647970199584961
+        },
+        {
+          "alpha": 0.46875,
+          "distance": 0.0004903078079223633
+        },
+        {
+          "alpha": 0.5,
+          "distance": 0.03018653392791748
+        },
+        {
+          "alpha": 0.75,
+          "distance": 0.16710370779037476
+        },
+        {
+          "alpha": 1.0,
+          "distance": 0.1954249143600464
+        }
+      ],
+      "baseline_trajectory_kl": 0.35955795645713806,
+      "calibrated_trajectory_kl": 0.1224808394908905
+    }
+  ]
+}
