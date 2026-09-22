@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import torch
 
+from .rewardslider_v2_activation import normalize_alpha
 from .rewardslider_v2_lpips import lpips_trajectory_stats
 
 
@@ -45,6 +46,8 @@ def interpolate_rewardslider_controls(
     learned_alphas: torch.Tensor,
     v_goals: list[torch.Tensor] | tuple[torch.Tensor, ...],
     requested_strengths: torch.Tensor,
+    *,
+    alpha_start: float = 0.0,
 ) -> tuple[torch.Tensor, tuple[torch.Tensor, ...]]:
     """Interpolate alpha and endpoint-zero V_goal controls, never image tensors."""
     if learned_alphas.ndim != 1 or learned_alphas.numel() < 3:
@@ -59,7 +62,7 @@ def interpolate_rewardslider_controls(
     for goal in v_goals:
         zeros = torch.zeros((1,) + tuple(goal.shape[1:]), device=goal.device, dtype=goal.dtype)
         full_goals.append(torch.cat((zeros, goal, zeros), dim=0))
-    alpha = interpolate_strengths(learned_alphas, requested_strengths)
+    alpha = normalize_alpha(interpolate_strengths(learned_alphas, requested_strengths), alpha_start)
     interpolated = tuple(_piecewise_interpolate_nodes(goal, requested_strengths) for goal in full_goals)
     return alpha, interpolated
 
@@ -74,13 +77,14 @@ def generate_model_fixed_grid(
     rematerialize_inputs,
     unroll_callback,
     decode_callback,
+    alpha_start: float = 0.0,
     control_steps: int,
     use_checkpointing: bool,
 ) -> dict[str, object]:
     """Generate a fixed grid by running the model on interpolated controls."""
     if requested_strengths.numel() < 3 or requested_strengths[0] != 0 or requested_strengths[-1] != 1:
         raise ValueError("fixed grid must include 0 and 1 endpoints.")
-    alpha, all_goals = interpolate_rewardslider_controls(learned_alphas, v_goals, requested_strengths)
+    alpha, all_goals = interpolate_rewardslider_controls(learned_alphas, v_goals, requested_strengths, alpha_start=alpha_start)
     interior_count = requested_strengths.numel() - 2
     fixed_inputs = rematerialize_inputs(num_branches=interior_count)
     fixed_unroll = unroll_callback(

@@ -18,6 +18,7 @@ from PIL import Image
 
 from .pipeline_flux_kontext_rewardslider_v2 import FluxKontextRewardSliderV2Pipeline, RewardSliderV2Inputs, validate_v2_control_steps
 from .rewardslider_v2_evaluation import fixed_grid_metrics, generate_model_fixed_grid, interpolate_strengths
+from .rewardslider_v2_activation import ActivationRangeConfig, ActivationRangeDetector, normalize_alpha
 from .rewardslider_v2_alpha import OrderedAlphaParameterization
 from .rewardslider_v2_lpips import LPIPSDistance
 from .rewardslider_v2_preservation import build_image_space_relevance, masked_lpips_preservation_loss
@@ -46,6 +47,9 @@ def build_rewardslider_v2_parser() -> argparse.ArgumentParser:
     parser.add_argument("--coordinate-initial-delta", type=float, default=0.02)
     parser.add_argument("--coordinate-min-delta", type=float, default=0.001)
     parser.add_argument("--alpha-margin", type=float, default=1e-4)
+    parser.add_argument("--enable-activation-calibration", action="store_true")
+    parser.add_argument("--activation-distance-threshold", type=float, default=0.065)
+    parser.add_argument("--activation-resolution", type=float, default=0.05)
     parser.add_argument("--hybrid-acceptance-tolerance", type=float, default=0.0)
     parser.add_argument("--alpha-lr", type=float, default=1e-3)
     parser.add_argument("--vgoal-lr", type=float, default=1e-3)
@@ -378,6 +382,44 @@ def run_real_flux_smoke(args) -> dict:
         native_batch_images = pipe.decode_rewardslider_v2_terminal(native.final_latent, inputs)
     batch_parity = summarize_native_parity(native.final_latent, inputs.native.native_final_latent, native_batch_images, native_image)
     lpips = LPIPSDistance(net="vgg").to(device)
+    activation_result = None
+    activation_start = 0.0
+    if args.enable_activation_calibration:
+        probe_inputs = pipe.rematerialize_rewardslider_v2_inputs(inputs, num_branches=1)
+        probe_goals = [
+            torch.zeros(1, *inputs.native.initial_latent.shape[1:], device=device, dtype=torch.float32)
+            for _ in range(args.control_steps)
+        ]
+
+        def _activation_rollout(alpha_value: float):
+            with torch.no_grad():
+                result = pipe.unroll_rewardslider_v2_controls(
+                    probe_inputs, torch.tensor([alpha_value], device=device), probe_goals,
+                    control_steps=args.control_steps, use_checkpointing=False,
+                )
+                return pipe.decode_rewardslider_v2_terminal(result.final_latent, probe_inputs)
+
+        detector = ActivationRangeDetector(
+            lpips,
+            ActivationRangeConfig(
+                activation_distance_threshold=args.activation_distance_threshold,
+                alpha_resolution=args.activation_resolution,
+            ),
+        )
+        activation_result = detector.detect(
+            source_image=source_image,
+            source_latent=inputs.native.initial_latent,
+            prompt_embeds=inputs.forward_kwargs["prompt_embeds"],
+            inference_config={
+                "model": args.model, "prompt": args.prompt, "seed": args.seed,
+                "steps": args.steps, "height": args.height, "width": args.width,
+                "guidance_scale": args.guidance_scale,
+            },
+            rollout=_activation_rollout,
+            output_dir=output.parent / "activation_probes",
+        )
+        if activation_result["activation_found"]:
+            activation_start = float(activation_result["alpha_start"])
     alpha_parameterization = OrderedAlphaParameterization.random(
         num_interior=args.initial_nodes - 2, seed=args.seed, device=device
     )
@@ -399,7 +441,7 @@ def run_real_flux_smoke(args) -> dict:
             goal_values = v_goals
         unroll = pipe.unroll_rewardslider_v2_controls(
             inputs,
-            alpha_values[1:-1],
+            normalize_alpha(alpha_values, activation_start)[1:-1],
             goal_values,
             control_steps=args.control_steps,
             use_checkpointing=args.use_checkpointing,
@@ -752,6 +794,7 @@ def run_real_flux_smoke(args) -> dict:
             unroll_callback=lambda fixed_inputs, alpha, goals, **kwargs: pipe.unroll_rewardslider_v2_controls(fixed_inputs, alpha, goals, **kwargs),
             decode_callback=lambda fixed_unroll, fixed_inputs: pipe.decode_rewardslider_v2_terminal(fixed_unroll.final_latent, fixed_inputs),
             control_steps=args.control_steps, use_checkpointing=args.use_checkpointing,
+            alpha_start=activation_start,
         )
         fixed_model_images = fixed_grid_result["images"]
         fixed_stats = fixed_grid_metrics(fixed_model_images, lpips.distance, requested=fixed_requested)
@@ -766,7 +809,7 @@ def run_real_flux_smoke(args) -> dict:
         fixed_grid_single_branch_parity = {"strength": float(fixed_requested[midpoint]), "latent_mae": float((batch_latent.float() - single_unroll.final_latent.float()).abs().mean()), "latent_cosine": float(F.cosine_similarity(batch_latent.float().flatten(1), single_unroll.final_latent.float().flatten(1), dim=1).mean()), "image_mae": float((batch_image.float() - single_image.float()).abs().mean())}
         zero_goals = [torch.zeros_like(goal) for goal in v_goals]
         _, zero_images, zero_stats = evaluate(goal_values=zero_goals)
-        zero_fixed = generate_model_fixed_grid(alpha_parameterization.alphas.detach(), tuple(zero_goals), fixed_requested, source_image=source_image, native_image=native_image, rematerialize_inputs=lambda *, num_branches: pipe.rematerialize_rewardslider_v2_inputs(inputs, num_branches=num_branches), unroll_callback=lambda fixed_inputs, alpha, goals, **kwargs: pipe.unroll_rewardslider_v2_controls(fixed_inputs, alpha, goals, **kwargs), decode_callback=lambda fixed_unroll, fixed_inputs: pipe.decode_rewardslider_v2_terminal(fixed_unroll.final_latent, fixed_inputs), control_steps=args.control_steps, use_checkpointing=args.use_checkpointing)
+        zero_fixed = generate_model_fixed_grid(alpha_parameterization.alphas.detach(), tuple(zero_goals), fixed_requested, source_image=source_image, native_image=native_image, rematerialize_inputs=lambda *, num_branches: pipe.rematerialize_rewardslider_v2_inputs(inputs, num_branches=num_branches), unroll_callback=lambda fixed_inputs, alpha, goals, **kwargs: pipe.unroll_rewardslider_v2_controls(fixed_inputs, alpha, goals, **kwargs), decode_callback=lambda fixed_unroll, fixed_inputs: pipe.decode_rewardslider_v2_terminal(fixed_unroll.final_latent, fixed_inputs), control_steps=args.control_steps, use_checkpointing=args.use_checkpointing, alpha_start=activation_start)
         full_preservation = masked_lpips_preservation_loss(final_images * 2 - 1, source_image * 2 - 1, relevance_image, lpips)
         zero_preservation = masked_lpips_preservation_loss(zero_images * 2 - 1, source_image * 2 - 1, relevance_image, lpips)
         zero_fixed_stats = fixed_grid_metrics(zero_fixed["images"], lpips.distance, requested=fixed_requested)
@@ -807,7 +850,8 @@ def run_real_flux_smoke(args) -> dict:
     off_axis = v_goal_off_axis_diagnostics(v_goals, native_directions)
     fixed_grid_record = {**fixed_stats, "alpha": fixed_grid_result["alpha"], "provenance": fixed_grid_result["provenance"], "pixel_blend_used": fixed_grid_result["pixel_blend_used"], "interior_model_forward_count": fixed_grid_result["interior_model_forward_count"], "fixed_grid_control_interpolation": "piecewise_linear_alpha_and_vgoal_over_uniform_node_strength", "single_branch_parity": fixed_grid_single_branch_parity}
     record = {
-        "trajectory": {"current_number_of_nodes": alpha_parameterization.alphas.numel(), "max_nodes": args.max_nodes, "alpha": alpha_parameterization.alphas.detach(), "initial_alpha": initial_alpha, "initial_kl": initial_stats.kl_uniform, "final_kl": final_stats.kl_uniform, "adjacent_lpips": final_stats.distances, "normalized_lpips": final_stats.normalized_distances, "max_normalized_gap": final_stats.max_normalized_gap, "worst_interval": final_stats.worst_interval, "path_length": final_stats.path_length, "endpoint_distance": final_stats.endpoint_distance, "collapsed": final_stats.collapsed},
+        "activation_calibration": activation_result,
+        "trajectory": {"current_number_of_nodes": alpha_parameterization.alphas.numel(), "max_nodes": args.max_nodes, "beta": alpha_parameterization.alphas.detach(), "alpha": normalize_alpha(alpha_parameterization.alphas.detach(), activation_start), "alpha_start": activation_start, "initial_beta": initial_alpha, "initial_alpha": normalize_alpha(initial_alpha, activation_start), "initial_kl": initial_stats.kl_uniform, "final_kl": final_stats.kl_uniform, "adjacent_lpips": final_stats.distances, "normalized_lpips": final_stats.normalized_distances, "max_normalized_gap": final_stats.max_normalized_gap, "worst_interval": final_stats.worst_interval, "path_length": final_stats.path_length, "endpoint_distance": final_stats.endpoint_distance, "collapsed": final_stats.collapsed},
         "trajectory_best": {"best_kl": best_trajectory.best_kl, "best_iteration": best_trajectory.best_iteration, "restored_best_at_end": restored_best_at_end},
         "quality_checkpoint_reset_on_topology": quality_checkpoint_reset_iterations,
         "quality_best": {
