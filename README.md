@@ -26,6 +26,13 @@ The generic midpoint operation is exposed as
 `rewardflow_calibration.calibration.refine_activation_bracket`; it accepts an
 `alpha -> distance` evaluator and is independent of VeloEdit and DreamSim.
 
+After `alpha_start` is detected, the elastic-band stage initializes control
+points by mapping `beta=[0, .25, .5, .75, 1]` to `[alpha_start, 1]`.  It then
+uses the independent `elastic_band_search` module to repeatedly expand large
+DreamSim gaps with midpoint branches and move interior points toward more
+uniform perceptual spacing.  The endpoints remain fixed.  The final control
+points and search history are stored under `elastic_band` in the result JSON.
+
 ## Environment
 
 Use the existing `group-edit` environment. The project does not vendor the

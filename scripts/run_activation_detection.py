@@ -19,6 +19,11 @@ from rewardflow_calibration.calibration.activation_range import (  # noqa: E402
     ActivationRangeDetector,
     normalize_alpha,
 )
+from rewardflow_calibration.calibration.elastic_band import (  # noqa: E402
+    ElasticBandConfig,
+    elastic_band_search,
+)
+from rewardflow_calibration.calibration.control_points import uniform_control_points  # noqa: E402
 from rewardflow_calibration.metrics.dreamsim import DreamSimDistance  # noqa: E402
 from rewardflow_calibration.metrics.lpips_trajectory import LPIPSDistance  # noqa: E402
 from rewardflow_calibration.rollout.veloedit import (  # noqa: E402
@@ -44,6 +49,13 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--alpha-resolution", type=float, default=0.05)
     parser.add_argument("--branch-refinement-depth", type=int, default=2)
     parser.add_argument("--adjacent-distance-gap-threshold", type=float, default=None)
+    parser.add_argument("--elastic-target-gap", type=float, default=0.05)
+    parser.add_argument("--elastic-max-points", type=int, default=10)
+    parser.add_argument("--elastic-max-iterations", type=int, default=25)
+    parser.add_argument("--elastic-expand-threshold", type=float, default=0.05)
+    parser.add_argument("--elastic-min-alpha-spacing", type=float, default=0.01)
+    parser.add_argument("--elastic-base-step-fraction", type=float, default=0.02)
+    parser.add_argument("--elastic-filter-min-adjacent-gap", type=float, default=0.001)
     parser.add_argument("--device", default="cuda:0")
     parser.add_argument("--output-dir", type=Path, default=Path("outputs"))
     return parser
@@ -130,33 +142,66 @@ def run(args: argparse.Namespace) -> dict:
         )
 
         baseline_betas = [0.0, 0.25, 0.5, 0.75, 1.0]
-        calibrated_alphas = [float(normalize_alpha(beta, activation["alpha_start"])) for beta in baseline_betas]
+        uniform_calibrated_alphas = uniform_control_points(activation["alpha_start"], betas=baseline_betas)
+        uniform_calibrated_images = [rollout(alpha) for alpha in uniform_calibrated_alphas]
+
+        def scalar_dreamsim(left: torch.Tensor, right: torch.Tensor) -> float:
+            value = dreamsim.distance(left, right)
+            return float(value.reshape(-1).mean().detach().cpu())
+
+        elastic_config = ElasticBandConfig(
+            target_gap=args.elastic_target_gap,
+            max_points=args.elastic_max_points,
+            max_iterations=args.elastic_max_iterations,
+            expand_threshold=args.elastic_expand_threshold,
+            min_alpha_spacing=args.elastic_min_alpha_spacing,
+            base_step_fraction=args.elastic_base_step_fraction,
+            filter_min_adjacent_gap=args.elastic_filter_min_adjacent_gap,
+        )
+        elastic_result = elastic_band_search(
+            initial_control_points=uniform_calibrated_alphas,
+            evaluate_image=rollout,
+            distance=scalar_dreamsim,
+            config=elastic_config,
+        )
+        calibrated_alphas = list(elastic_result.control_points)
+        calibrated_images = [rollout(alpha) for alpha in calibrated_alphas]
         baseline_alphas = baseline_betas
         baseline_images = [rollout(alpha) for alpha in baseline_alphas]
-        calibrated_images = [rollout(alpha) for alpha in calibrated_alphas]
 
         baseline_dir = sample_dir / "baseline"
+        uniform_calibrated_dir = sample_dir / "uniform_calibrated"
         calibrated_dir = sample_dir / "calibrated"
         baseline_dir.mkdir(exist_ok=True)
+        uniform_calibrated_dir.mkdir(exist_ok=True)
         calibrated_dir.mkdir(exist_ok=True)
         for alpha, image in zip(baseline_alphas, baseline_images):
             save_tensor_image(image, baseline_dir / f"alpha_{alpha:.2f}.png")
-        for beta, alpha, image in zip(baseline_betas, calibrated_alphas, calibrated_images):
+        for beta, alpha, image in zip(baseline_betas, uniform_calibrated_alphas, uniform_calibrated_images):
+            save_tensor_image(image, uniform_calibrated_dir / f"beta_{beta:.2f}_alpha_{alpha:.3f}.png")
+        for alpha, image in zip(calibrated_alphas, calibrated_images):
+            beta = (alpha - activation["alpha_start"]) / (1.0 - activation["alpha_start"])
             save_tensor_image(image, calibrated_dir / f"beta_{beta:.2f}_alpha_{alpha:.3f}.png")
 
         baseline_nodes = torch.cat([source, *baseline_images], dim=0)
+        uniform_calibrated_nodes = torch.cat([source, *uniform_calibrated_images], dim=0)
         calibrated_nodes = torch.cat([source, *calibrated_images], dim=0)
         baseline_stats = lpips.trajectory(baseline_nodes * 2 - 1)
+        uniform_calibrated_stats = lpips.trajectory(uniform_calibrated_nodes * 2 - 1)
         calibrated_stats = lpips.trajectory(calibrated_nodes * 2 - 1)
         endpoint_error = (baseline_images[-1] - calibrated_images[-1]).abs()
         contact_sheet(
             [Image.open(sample_dir / "baseline" / f"alpha_{a:.2f}.png") for a in baseline_alphas]
-            + [Image.open(calibrated_dir / f"beta_{b:.2f}_alpha_{a:.3f}.png") for b, a in zip(baseline_betas, calibrated_alphas)],
+            + [Image.open(calibrated_dir / f"beta_{(a - activation['alpha_start']) / (1.0 - activation['alpha_start']):.2f}_alpha_{a:.3f}.png") for a in calibrated_alphas],
             [f"baseline α={a:.2f}" for a in baseline_alphas]
-            + [f"calibrated β={b:.2f} α={a:.3f}" for b, a in zip(baseline_betas, calibrated_alphas)],
+            + [f"elastic β={(a - activation['alpha_start']) / (1.0 - activation['alpha_start']):.2f} α={a:.3f}" for a in calibrated_alphas],
             sample_dir / "baseline_vs_calibrated.png",
         )
 
+        elastic_betas = [
+            (alpha - activation["alpha_start"]) / (1.0 - activation["alpha_start"])
+            for alpha in calibrated_alphas
+        ]
         detail = {
             "sample": str(source_path),
             "activation": activation,
@@ -166,10 +211,24 @@ def run(args: argparse.Namespace) -> dict:
                 "trajectory_kl_to_uniform": float(baseline_stats.kl_uniform.detach().cpu()),
             },
             "calibrated": {
-                "betas": baseline_betas,
+                "betas": elastic_betas,
                 "alphas": calibrated_alphas,
                 "adjacent_lpips": calibrated_stats.distances.detach().cpu().tolist(),
                 "trajectory_kl_to_uniform": float(calibrated_stats.kl_uniform.detach().cpu()),
+            },
+            "uniform_calibrated": {
+                "betas": baseline_betas,
+                "alphas": uniform_calibrated_alphas,
+                "adjacent_lpips": uniform_calibrated_stats.distances.detach().cpu().tolist(),
+                "trajectory_kl_to_uniform": float(uniform_calibrated_stats.kl_uniform.detach().cpu()),
+            },
+            "elastic_band": {
+                "initial_alphas": uniform_calibrated_alphas,
+                "result": elastic_result.as_dict(),
+                "source_dreamsim": [
+                    {"alpha": alpha, "distance": scalar_dreamsim(source, image)}
+                    for alpha, image in zip(calibrated_alphas, calibrated_images)
+                ],
             },
             "same_final_alpha_1": {
                 "mean_absolute_image_difference": float(endpoint_error.mean().detach().cpu()),
@@ -184,6 +243,7 @@ def run(args: argparse.Namespace) -> dict:
             "distance_curve": activation["distance_curve"],
             "baseline_trajectory_kl": detail["baseline"]["trajectory_kl_to_uniform"],
             "calibrated_trajectory_kl": detail["calibrated"]["trajectory_kl_to_uniform"],
+            "elastic_control_points": calibrated_alphas,
         })
         print(f"{source_path}: alpha_start={activation['alpha_start']:.4f}")
 
