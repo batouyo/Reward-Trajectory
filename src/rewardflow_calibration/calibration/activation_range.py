@@ -10,6 +10,8 @@ import numpy as np
 import torch
 from PIL import Image
 
+from .branch_refinement import refine_activation_bracket
+
 
 DEFAULT_ACTIVATION_CANDIDATES = (0.25, 0.5, 0.75, 1.0)
 
@@ -31,6 +33,8 @@ def normalize_alpha(beta: torch.Tensor | float, alpha_start: float) -> torch.Ten
 class ActivationRangeConfig:
     activation_distance_threshold: float = 0.001
     alpha_resolution: float = 0.05
+    branch_refinement_depth: int = 2
+    adjacent_distance_gap_threshold: float | None = None
     candidate_alphas: tuple[float, ...] = DEFAULT_ACTIVATION_CANDIDATES
 
     def validate(self) -> None:
@@ -38,6 +42,13 @@ class ActivationRangeConfig:
             raise ValueError("activation_distance_threshold must be finite and non-negative")
         if not 0 < self.alpha_resolution <= 1:
             raise ValueError("alpha_resolution must be in (0, 1]")
+        if self.branch_refinement_depth < 0:
+            raise ValueError("branch_refinement_depth must be non-negative")
+        if self.adjacent_distance_gap_threshold is not None and (
+            not np.isfinite(self.adjacent_distance_gap_threshold)
+            or self.adjacent_distance_gap_threshold < 0
+        ):
+            raise ValueError("adjacent_distance_gap_threshold must be non-negative")
         if len(self.candidate_alphas) < 1 or self.candidate_alphas[-1] != 1.0:
             raise ValueError("candidate_alphas must include alpha=1")
         if any(not 0 <= value <= 1 for value in self.candidate_alphas):
@@ -104,17 +115,24 @@ class ActivationRangeDetector:
         if valid_index is None:
             alpha_start = 1.0
             activation_found = False
+            refinement = None
         else:
             activation_found = True
             low = 0.0 if valid_index == 0 else float(coarse[valid_index - 1]["alpha"])
+            low_distance = 0.0 if valid_index == 0 else float(coarse[valid_index - 1]["distance"])
             high = float(coarse[valid_index]["alpha"])
-            while high - low >= self.config.alpha_resolution:
-                midpoint = (low + high) / 2.0
-                if probe(midpoint, "refine")["distance"] > self.config.activation_distance_threshold:
-                    high = midpoint
-                else:
-                    low = midpoint
-            alpha_start = high
+            high_distance = float(coarse[valid_index]["distance"])
+            refinement = refine_activation_bracket(
+                invalid_alpha=low,
+                invalid_distance=low_distance,
+                valid_alpha=high,
+                valid_distance=high_distance,
+                evaluate=lambda alpha: probe(alpha, "refine")["distance"],
+                activation_distance_threshold=self.config.activation_distance_threshold,
+                recursion_depth=self.config.branch_refinement_depth,
+                adjacent_distance_gap_threshold=self.config.adjacent_distance_gap_threshold,
+            )
+            alpha_start = refinement.alpha_start
 
         probes = [results[key] for key in sorted(results)]
         return {
@@ -129,4 +147,5 @@ class ActivationRangeDetector:
             "distance_curve": [{"alpha": row["alpha"], "distance": row["distance"]} for row in probes],
             "inference_config": inference_config or {},
             "search_config": asdict(self.config),
+            "branch_refinement": None if refinement is None else refinement.as_dict(),
         }

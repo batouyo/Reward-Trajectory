@@ -42,6 +42,8 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--similarity-threshold", type=float, default=0.8)
     parser.add_argument("--activation-distance-threshold", type=float, default=0.001)
     parser.add_argument("--alpha-resolution", type=float, default=0.05)
+    parser.add_argument("--branch-refinement-depth", type=int, default=2)
+    parser.add_argument("--adjacent-distance-gap-threshold", type=float, default=None)
     parser.add_argument("--device", default="cuda:0")
     parser.add_argument("--output-dir", type=Path, default=Path("outputs"))
     return parser
@@ -104,6 +106,8 @@ def run(args: argparse.Namespace) -> dict:
             ActivationRangeConfig(
                 activation_distance_threshold=args.activation_distance_threshold,
                 alpha_resolution=args.alpha_resolution,
+                branch_refinement_depth=args.branch_refinement_depth,
+                adjacent_distance_gap_threshold=args.adjacent_distance_gap_threshold,
                 candidate_alphas=tuple(coarse_alphas),
             ),
         ).detect(

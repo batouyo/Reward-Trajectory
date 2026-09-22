@@ -17,7 +17,14 @@ alpha = [0.25, 0.50, 0.75, 1.00]
 
 For each generated image, DreamSim is computed against the resized source
 image. `alpha_start` is the first alpha whose distance is greater than the
-configured threshold, followed by local bisection.
+configured threshold. Around the first inactive/active adjacent pair, the
+reusable branch-refinement module inserts midpoint branches recursively twice
+by default. The active endpoint after those two evaluations is the reported
+`alpha_start`.
+
+The generic midpoint operation is exposed as
+`rewardflow_calibration.calibration.refine_activation_bracket`; it accepts an
+`alpha -> distance` evaluator and is independent of VeloEdit and DreamSim.
 
 ## Environment
 
