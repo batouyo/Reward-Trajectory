@@ -23,5 +23,17 @@
     "min_gap_imbalance_for_move": 0.01,
     "filter_min_adjacent_gap": 0.001
   },
-  "max_area": 1048576
+  "max_area": 1048576,
+  "reward_guidance": {
+    "enabled": false,
+    "identity_weight": 1.0,
+    "layout_weight": 1.0,
+    "semantic_weight": 0.5,
+    "reward_alpha_threshold": 0.4,
+    "reward_lr": 0.005,
+    "reward_threshold": 0.5,
+    "reward_update_interval": 2,
+    "max_correction": 0.01,
+    "clip_grad_norm": 1.0
+  }
 }

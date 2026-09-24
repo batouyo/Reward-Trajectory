@@ -8,6 +8,7 @@ from typing import Sequence
 import numpy as np
 import torch
 from PIL import Image
+from torch.utils.checkpoint import checkpoint
 
 from diffusers import FluxKontextPipeline
 from diffusers.pipelines.flux.pipeline_flux_kontext import calculate_shift, retrieve_timesteps
@@ -212,13 +213,30 @@ class VeloEditCompatibleRollout:
         alphas: Sequence[float] | torch.Tensor,
         *,
         config: VeloEditRolloutConfig | None = None,
+        goal_residual: torch.Tensor | None = None,
+        early_stop_steps: int | None = None,
+        velocity_trace: list[dict[str, torch.Tensor]] | None = None,
     ) -> torch.Tensor:
-        """Return decoded `[branches, 3, H, W]` images for the given alphas."""
+        """Return decoded images, optionally adding early ``V_goal`` velocities.
+
+        A residual has shape ``[goal_steps, latent_tokens, latent_channels]``.
+        It is added after the existing VeloEdit alpha intervention. Passing a
+        residual enables gradients through the frozen transformer, remaining
+        rollout steps, and VAE decoder; transformer and VAE forwards are
+        activation-checkpointed to reduce memory use. ``early_stop_steps`` is
+        an optional proxy path: after that many denoising steps, decode the
+        rectified-flow clean-latent estimate ``z_t - sigma_t * v_t`` instead
+        of completing the trajectory. The default full-rollout path is
+        unchanged.
+        """
         config = config or VeloEditRolloutConfig()
         config.validate()
         alpha = torch.as_tensor(alphas, device=self.device, dtype=torch.float32).flatten()
         if alpha.numel() < 1 or not torch.isfinite(alpha).all() or torch.any((alpha < 0) | (alpha > 1)):
             raise ValueError("alphas must be finite values in [0, 1]")
+        total_steps = len(prepared.sigma_schedule) - 1
+        if early_stop_steps is not None and not 1 <= early_stop_steps <= total_steps:
+            raise ValueError(f"early_stop_steps must be in [1, {total_steps}]")
 
         branches = alpha.numel()
         dtype = self.pipeline.transformer.dtype
@@ -229,27 +247,48 @@ class VeloEditCompatibleRollout:
         pooled = prepared.pooled_prompt_embeds.expand(branches, -1)
         guidance = None if prepared.guidance is None else prepared.guidance.expand(branches)
         train_steps = self.pipeline.scheduler.config.get("num_train_timesteps", 1000)
+        decode_latents = z
 
-        with torch.no_grad():
+        if goal_residual is not None:
+            if goal_residual.ndim != 3 or goal_residual.shape[1:] != prepared.latents.shape[1:]:
+                raise ValueError(
+                    "goal_residual must have shape [goal_steps, latent_tokens, latent_channels]"
+                )
+            if goal_residual.shape[0] > len(prepared.sigma_schedule) - 1:
+                raise ValueError("goal_residual has more steps than the rollout")
+            if early_stop_steps is not None and goal_residual.shape[0] > early_stop_steps:
+                raise ValueError("early_stop_steps must cover every goal_residual step")
+            if branches != 1:
+                raise ValueError("goal_residual optimization supports one fixed-alpha branch")
+
+        grad_enabled = goal_residual is not None and torch.is_grad_enabled()
+        with torch.set_grad_enabled(grad_enabled):
             for index in range(len(prepared.sigma_schedule) - 1):
                 sigma = prepared.sigma_schedule[index]
                 sigma_next = prepared.sigma_schedule[index + 1]
                 model_input = z if image_latents is None else torch.cat([z, image_latents], dim=1)
                 sigma_input = torch.as_tensor(sigma, device=self.device, dtype=torch.float32)
                 timestep = (sigma_input * train_steps).expand(branches).to(dtype=z.dtype) / train_steps
-                native = self.pipeline.transformer(
-                    hidden_states=model_input,
-                    timestep=timestep,
-                    guidance=guidance,
-                    pooled_projections=pooled,
-                    encoder_hidden_states=prompt_embeds,
-                    txt_ids=prepared.text_ids,
-                    img_ids=prepared.latent_ids,
-                    joint_attention_kwargs={},
-                    return_dict=False,
-                )[0][:, : z.shape[1]]
+                def predict_velocity(hidden_states: torch.Tensor) -> torch.Tensor:
+                    return self.pipeline.transformer(
+                        hidden_states=hidden_states,
+                        timestep=timestep,
+                        guidance=guidance,
+                        pooled_projections=pooled,
+                        encoder_hidden_states=prompt_embeds,
+                        txt_ids=prepared.text_ids,
+                        img_ids=prepared.latent_ids,
+                        joint_attention_kwargs={},
+                        return_dict=False,
+                    )[0][:, : z.shape[1]]
+
+                if grad_enabled:
+                    native = checkpoint(predict_velocity, model_input, use_reentrant=False)
+                else:
+                    native = predict_velocity(model_input)
 
                 actual = native
+                edit_direction = None
                 if index < max(config.preserve_steps, config.edit_steps):
                     ref_velocity = ((z.float() - reference.float()) / (sigma.float() + 1e-8)).to(dtype)
                     ref_abs = ref_velocity.float().abs() + 1e-8
@@ -262,12 +301,42 @@ class VeloEditCompatibleRollout:
                         blend_weight = (1.0 - alpha).view(branches, 1, 1)
                         blended = (blend_weight * ref_velocity.float() + alpha.view(branches, 1, 1) * native.float()).to(dtype)
                         actual = torch.where(low, blended, actual)
+                        edit_direction = (
+                            (native.float() - ref_velocity.float()) * low.to(dtype=torch.float32)
+                        ).detach()
+
+                if velocity_trace is not None and edit_direction is not None:
+                    velocity_trace.append({
+                        "step": torch.tensor(index),
+                        "edit_direction": edit_direction,
+                    })
+
+                if goal_residual is not None and index < goal_residual.shape[0]:
+                    actual = actual.float() + goal_residual[index].unsqueeze(0).float()
+
+                if early_stop_steps is not None and index + 1 == early_stop_steps:
+                    # In this sigma convention, z_sigma = z_clean + sigma*v.
+                    # Use the early clean-state prediction as a differentiable
+                    # proxy, not as a replacement for the final rollout.
+                    decode_latents = (z.float() - sigma.float() * actual.float()).to(dtype)
+                    break
 
                 dt = sigma_next.float() - sigma.float()
                 z = (z.float() + dt * actual.float()).to(dtype)
 
-            unpacked = self.pipeline._unpack_latents(z, prepared.height, prepared.width, self.pipeline.vae_scale_factor)
+            if early_stop_steps is None:
+                decode_latents = z
+            unpacked = self.pipeline._unpack_latents(decode_latents, prepared.height, prepared.width, self.pipeline.vae_scale_factor)
             unpacked = unpacked / self.pipeline.vae.config.scaling_factor + self.pipeline.vae.config.shift_factor
-            decoded = self.pipeline.vae.decode(unpacked.to(dtype=self.pipeline.vae.dtype), return_dict=False)[0]
+            if grad_enabled:
+                decoded = checkpoint(
+                    lambda value: self.pipeline.vae.decode(
+                        value.to(dtype=self.pipeline.vae.dtype), return_dict=False
+                    )[0],
+                    unpacked,
+                    use_reentrant=False,
+                )
+            else:
+                decoded = self.pipeline.vae.decode(unpacked.to(dtype=self.pipeline.vae.dtype), return_dict=False)[0]
             images = self.pipeline.image_processor.postprocess(decoded, output_type="pt")
             return images.float().clamp(0, 1)

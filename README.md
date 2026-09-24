@@ -57,3 +57,42 @@ python scripts/run_activation_detection.py \
 
 The validated sample produced `alpha_start=0.5000` with DreamSim distances
 approximately `0.00047, 0.01609, 0.16506, 0.19352` at the four coarse alphas.
+
+## Fixed-alpha `V_goal` correction
+
+The optional `optimization/` package performs per-image, per-alpha test-time
+optimization of a zero-initialized velocity residual. Alpha and all FLUX
+parameters are frozen. `V_goal` is added after VeloEdit's existing velocity
+intervention during the first `--goal-steps` transitions; the terminal
+objective is backpropagated through the frozen remaining rollout. Activation
+checkpointing is used on transformer and VAE forwards.
+
+The edit term keeps the differentiable SigLIP score above the uncorrected
+high-alpha score minus a tolerance. Preservation combines a differentiable
+DreamSim distance to the source with dense DINOv2 patch-feature drift; the
+DreamSim model is frozen, but its tensor preprocessing keeps gradients flowing
+to the generated image. InsightFace identity similarity is reported as an
+evaluation metric only: its current ONNX/NumPy path is not differentiable. The
+current calibration checkout has no differentiable VQA implementation, so
+this experiment uses the installed SigLIP reward.
+
+Run the fixed-alpha comparison on the previously used face-aging sample:
+
+```bash
+PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION=python PYTHONPATH=$PWD/src \
+  /home/hyp/.conda/envs/group-edit/bin/python scripts/run_goal_residual_optimization.py \
+  --source /home/hyp/Code/VeloEdit/testdata/7.jpg \
+  --prompt "make him old" --target-prompt "an old man" \
+  --alpha 0.843 --seed 42 --steps 15 --goal-steps 4 \
+  --model /data15/hyp/weight/FLUX.1-Kontext-dev \
+  --output-dir outputs/image_7_goal_residual
+```
+
+The script saves `baseline_vgoal_zero.png`, `optimized_vgoal.png`, the
+optimized sample-specific `v_goal.pt`, and `goal_residual_result.json` with
+edit score, DreamSim drift, DINOv2 drift, optional InsightFace similarity,
+and per-iteration losses. Iterations are streamed to
+`optimization_progress.json`. `--max-area` controls rollout resolution for
+memory/runtime-constrained smoke tests (default: 1,048,576 pixels), and
+`--structure-weight` controls the DINOv2 term inside preservation. Lower
+DreamSim/DINOv2 drift with retained SigLIP/face scores is the target.

@@ -22,5 +22,10 @@ def image_tensor(image: Image.Image, device: torch.device | str = "cpu") -> torc
 
 
 def save_tensor_image(image: torch.Tensor, path: str | Path) -> None:
-    value = image.detach().float().clamp(0, 1)[0].permute(1, 2, 0).cpu().numpy()
+    # Handle both [1, 3, H, W] and [3, H, W] tensors
+    if image.dim() == 4:
+        image = image[0]
+    elif image.dim() != 3 or image.shape[0] != 3:
+        raise ValueError(f"Expected [3, H, W] or [B, 3, H, W], got {image.shape}")
+    value = image.detach().float().clamp(0, 1).permute(1, 2, 0).cpu().numpy()
     Image.fromarray(np.rint(value * 255).astype(np.uint8), mode="RGB").save(path)
