@@ -12,6 +12,7 @@ from torch.utils.checkpoint import checkpoint
 
 from diffusers import FluxKontextPipeline
 from diffusers.pipelines.flux.pipeline_flux_kontext import calculate_shift, retrieve_timesteps
+from rewardflow_calibration.rollout.latent_accumulation import euler_latent_update
 
 
 @dataclass(frozen=True)
@@ -24,6 +25,7 @@ class VeloEditRolloutConfig:
     edit_steps: int = 4
     similarity_threshold: float = 0.8
     max_area: int = 1024 * 1024
+    accumulate_latents_fp32: bool = False
 
     def validate(self) -> None:
         if self.steps < 1:
@@ -380,7 +382,8 @@ class VeloEditCompatibleRollout:
                 for parameter in component.parameters():
                     parameter.requires_grad_(False)
         dtype = pipeline.transformer.dtype
-        z = prepared.latents.clone()
+        accumulate_fp32 = config.accumulate_latents_fp32
+        z_state = prepared.latents.float() if accumulate_fp32 else prepared.latents.clone()
         reference = prepared.reference_latent
         image_latents = prepared.image_latents
         prompt_embeds = prepared.prompt_embeds.detach()
@@ -388,15 +391,16 @@ class VeloEditCompatibleRollout:
         guidance = prepared.guidance
         train_steps = pipeline.scheduler.config.get("num_train_timesteps", 1000)
         grad_enabled = goal_residual is not None and torch.is_grad_enabled()
-        decode_latents = z
+        decode_latents = z_state
 
         with torch.set_grad_enabled(grad_enabled):
             for index in range(total_steps):
                 sigma = prepared.sigma_schedule[index]
                 sigma_next = prepared.sigma_schedule[index + 1]
-                model_input = z if image_latents is None else torch.cat([z, image_latents], dim=1)
+                z_model = z_state.to(dtype=dtype) if accumulate_fp32 else z_state
+                model_input = z_model if image_latents is None else torch.cat([z_model, image_latents.to(dtype=dtype)], dim=1)
                 sigma_input = torch.as_tensor(sigma, device=self.device, dtype=torch.float32)
-                timestep = (sigma_input * train_steps).reshape(1).to(dtype=z.dtype) / train_steps
+                timestep = (sigma_input * train_steps).reshape(1).to(dtype=z_model.dtype) / train_steps
 
                 def predict_velocity(hidden_states: torch.Tensor) -> torch.Tensor:
                     return pipeline.transformer(
@@ -409,7 +413,7 @@ class VeloEditCompatibleRollout:
                         img_ids=prepared.latent_ids,
                         joint_attention_kwargs={},
                         return_dict=False,
-                    )[0][:, : z.shape[1]]
+                    )[0][:, : z_state.shape[1]]
 
                 native = (
                     checkpoint(predict_velocity, model_input, use_reentrant=False)
@@ -420,7 +424,7 @@ class VeloEditCompatibleRollout:
                     actual = native.float() + goal_residual[index].unsqueeze(0).float()
 
                 if velocity_trace is not None:
-                    ref_velocity = (z.float() - reference.float()) / (sigma.float() + 1e-8)
+                    ref_velocity = (z_state.float() - reference.float()) / (sigma.float() + 1e-8)
                     ref_abs = ref_velocity.abs() + 1e-8
                     similarity = ref_abs / (ref_abs + (native.float() - ref_velocity).abs())
                     low_similarity = ~(similarity >= config.similarity_threshold)
@@ -444,13 +448,17 @@ class VeloEditCompatibleRollout:
                     })
 
                 if early_stop_steps is not None and index + 1 == early_stop_steps:
-                    decode_latents = (z.float() - sigma.float() * actual.float()).to(dtype)
+                    decode_latents = z_state.float() - sigma.float() * actual.float()
+                    if not accumulate_fp32:
+                        decode_latents = decode_latents.to(dtype)
                     break
                 dt = sigma_next.float() - sigma.float()
-                z = (z.float() + dt * actual.float()).to(dtype)
+                z_state = euler_latent_update(
+                    z_state, actual, dt, accumulate_fp32=accumulate_fp32
+                )
 
             if early_stop_steps is None:
-                decode_latents = z
+                decode_latents = z_state
             unpacked = pipeline._unpack_latents(
                 decode_latents, prepared.height, prepared.width, pipeline.vae_scale_factor
             )

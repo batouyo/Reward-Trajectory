@@ -33,6 +33,10 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--proxy-steps", type=int, default=4)
     parser.add_argument("--reward-mode", choices=["proxy", "final"], default="final")
     parser.add_argument("--iterations", type=int, default=4)
+    parser.add_argument("--optimizer-mode", choices=["adam", "sgd", "feedback"], default="adam")
+    parser.add_argument("--feedback-step-size", type=float, default=1e-3)
+    parser.add_argument("--auxiliary-step-size", type=float, default=1e-3)
+    parser.add_argument("--fp32-latent-accumulation", action="store_true")
     parser.add_argument("--target-tolerance", type=float, default=0.03)
     parser.add_argument("--patience", type=int, default=4)
     parser.add_argument("--min-improvement", type=float, default=1e-4)
@@ -129,6 +133,8 @@ def main() -> None:
         raise SystemExit("iterations must be in [1, 32]")
     if args.target_tolerance < 0 or args.patience < 1 or args.min_improvement < 0:
         raise SystemExit("target-tolerance and min-improvement must be non-negative; patience must be positive")
+    if args.feedback_step_size <= 0 or args.auxiliary_step_size < 0:
+        raise SystemExit("feedback-step-size must be positive and auxiliary-step-size non-negative")
     if any(not 0 <= value <= 1 for value in args.strengths):
         raise SystemExit("strengths must be in [0, 1]")
     torch.manual_seed(args.seed)
@@ -144,6 +150,7 @@ def main() -> None:
         preserve_steps=0,
         edit_steps=0,
         max_area=args.max_area,
+        accumulate_latents_fp32=args.fp32_latent_accumulation,
     )
     source_image = Image.open(args.source).convert("RGB")
     rollout = VeloEditCompatibleRollout(
@@ -224,6 +231,9 @@ def main() -> None:
             target_tolerance=args.target_tolerance,
             patience=args.patience,
             min_improvement=args.min_improvement,
+            optimizer_mode=args.optimizer_mode,
+            feedback_step_size=args.feedback_step_size,
+            auxiliary_step_size=args.auxiliary_step_size,
             progress_callback=save_progress,
         )
         result = optimizer.run()
@@ -261,6 +271,18 @@ def main() -> None:
             "last_iteration_loss": result.last_iteration_loss,
             "best_target_error": result.best_target_error,
             "last_target_error": result.last_target_error,
+            "best_target_error_so_far": result.best_target_error_so_far,
+            "best_target_error_iteration": result.best_target_error_iteration,
+            "best_loss_residual": {
+                "progress": result.best_loss_progress,
+                "target_error": result.best_loss_target_error,
+                "drift": result.best_loss_drift,
+                "rms": float(result.residual.float().square().mean().sqrt()),
+                "file": str((strength_dir / "delta_v.pt").resolve()),
+            },
+            "optimizer_mode": args.optimizer_mode,
+            "feedback_step_size": args.feedback_step_size,
+            "auxiliary_step_size": args.auxiliary_step_size,
             "stop_reason": result.stop_reason,
             "converged": result.converged,
             "proxy_target_error": abs(float(result.optimized_proxy["raw_progress"]) - strength),
@@ -328,6 +350,10 @@ def main() -> None:
         "steps": args.steps,
         "reward_mode": args.reward_mode,
         "iterations_requested": args.iterations,
+        "optimizer_mode": args.optimizer_mode,
+        "feedback_step_size": args.feedback_step_size,
+        "auxiliary_step_size": args.auxiliary_step_size,
+        "fp32_latent_accumulation": args.fp32_latent_accumulation,
         "target_tolerance": args.target_tolerance,
         "patience": args.patience,
         "min_improvement": args.min_improvement,
