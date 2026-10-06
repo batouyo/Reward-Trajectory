@@ -17,6 +17,7 @@ class TrajectoryGateConfig:
     max_second_order_deficit: float = 0.25
     keep_l1_tolerance: float = 0.01
     max_total_residual_ratio: float = 0.10
+    max_active_residual_ratio: float = 0.5
     distance_epsilon: float = 1e-8
 
     def validate(self) -> None:
@@ -24,7 +25,7 @@ class TrajectoryGateConfig:
             raise ValueError("semantic and sourceward tolerances must be non-negative")
         if self.min_visible_dreamsim < 0 or self.max_second_order_deficit < 0:
             raise ValueError("DreamSim thresholds must be non-negative")
-        if self.keep_l1_tolerance < 0 or self.max_total_residual_ratio <= 0:
+        if self.keep_l1_tolerance < 0 or self.max_total_residual_ratio <= 0 or self.max_active_residual_ratio <= 0:
             raise ValueError("keep tolerance must be non-negative and residual cap positive")
         if self.distance_epsilon <= 0:
             raise ValueError("distance_epsilon must be positive")
@@ -39,6 +40,8 @@ class TrajectoryState:
     keep_l1: float
     residual_global_ratio: float = 0.0
     residual_ratio_per_step: list[float] = field(default_factory=list)
+    active_residual_native_ratio: float | None = None
+    active_residual_ratio_per_step: list[float | None] = field(default_factory=list)
     line_search_ratio: float | None = None
     cumulative_dreamsim: float = 0.0
     metrics: dict[str, object] = field(default_factory=dict)
@@ -90,6 +93,12 @@ def assess_candidate(
         "keep_l1_delta": keep_delta,
         "total_residual_global_ratio": candidate.residual_global_ratio,
         "total_residual_ratio_per_step": list(candidate.residual_ratio_per_step),
+        "active_total_residual_native_ratio": candidate.active_residual_native_ratio,
+        "active_residual_ratio_per_step": list(candidate.active_residual_ratio_per_step),
+        "active_increment_rms": candidate.metrics.get("active_increment_rms"),
+        "active_native_velocity_rms": candidate.metrics.get("active_native_velocity_rms"),
+        "active_increment_native_ratio": candidate.metrics.get("active_increment_native_ratio"),
+        "active_total_residual_rms": candidate.metrics.get("active_total_residual_rms"),
         "requested_increment_ratio": candidate.line_search_ratio,
         "actual_increment_global_ratio": candidate.metrics.get("actual_increment_global_ratio"),
         "actual_increment_ratio_per_step": candidate.metrics.get("actual_increment_ratio_per_step"),
@@ -109,6 +118,8 @@ def assess_candidate(
         reasons.append("keep_region_drift")
     if candidate.residual_global_ratio > config.max_total_residual_ratio:
         reasons.append("trust_region_violation")
+    if candidate.active_residual_native_ratio is not None and candidate.active_residual_native_ratio > config.max_active_residual_ratio:
+        reasons.append("active_trust_region_violation")
     return GateDecision(not reasons, reasons, metrics)
 
 
@@ -121,18 +132,21 @@ def rejection_counts(decisions: Sequence[GateDecision]) -> dict[str, int]:
 
 
 def stop_reason_for_rejections(decisions: Sequence[GateDecision]) -> str:
-    """Map a completed line search to an interpretable stop reason."""
-    if decisions and all(decision.reasons == ["semantic_floor_violation"] for decision in decisions):
+    """Map line-search rejections by reasons shared across every trial."""
+    if not decisions:
+        return "line_search_exhausted_mixed"
+    all_have = lambda reason: all(reason in decision.reasons for decision in decisions)
+    if all_have("semantic_floor_violation"):
         return "semantic_boundary_reached"
-    counts = rejection_counts(decisions)
-    if decisions and all("trust_region_violation" in decision.reasons for decision in decisions):
-        return "trust_region_exhausted"
-    if decisions and all("not_sourceward" in decision.reasons for decision in decisions):
-        return "not_sourceward"
-    if decisions and all("perceptual_stall" in decision.reasons for decision in decisions):
-        return "perceptual_stall"
-    if decisions and all("keep_region_drift" in decision.reasons for decision in decisions):
-        return "preservation_violation"
-    if "second_order_jump" in counts or "semantic_wrong_direction" in counts:
-        return "trajectory_jump"
+    for reason, stop in (
+        ("trust_region_violation", "trust_region_exhausted"),
+        ("active_trust_region_violation", "active_trust_region_exhausted"),
+        ("not_sourceward", "not_sourceward"),
+        ("perceptual_stall", "perceptual_stall"),
+        ("keep_region_drift", "preservation_violation"),
+        ("second_order_jump", "trajectory_jump"),
+        ("semantic_wrong_direction", "trajectory_jump"),
+    ):
+        if all_have(reason):
+            return stop
     return "line_search_exhausted_mixed"

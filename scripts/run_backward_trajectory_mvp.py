@@ -24,7 +24,7 @@ from rewardflow_calibration.optimization.backward_trajectory_optimizer import (
     BackwardTrajectoryConfig,
     BackwardTrajectoryOptimizer,
     build_image_space_masks,
-    freeze_native_edit_mask,
+    freeze_native_control_context,
 )
 from rewardflow_calibration.optimization.trajectory_gate import TrajectoryGateConfig
 from rewardflow_calibration.rollout.veloedit import VeloEditCompatibleRollout, VeloEditRolloutConfig
@@ -49,6 +49,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--keep-l1-tolerance", type=float, default=0.01)
     parser.add_argument("--line-search-ratios", nargs="+", type=float, default=[0.05, 0.02, 0.01, 0.005, 0.002])
     parser.add_argument("--max-total-residual-ratio", type=float, default=0.10)
+    parser.add_argument("--max-active-residual-ratio", type=float, default=0.5)
     parser.add_argument("--similarity-threshold", type=float, default=0.8)
     parser.add_argument("--sourceward-tolerance", type=float, default=1e-5)
     parser.add_argument("--gradient-epsilon", type=float, default=1e-10)
@@ -109,6 +110,7 @@ def main() -> None:
         max_second_order_deficit=args.max_second_order_deficit,
         keep_l1_tolerance=args.keep_l1_tolerance,
         max_total_residual_ratio=args.max_total_residual_ratio,
+        max_active_residual_ratio=args.max_active_residual_ratio,
     )
     rollout_config = VeloEditRolloutConfig(
         steps=args.steps,
@@ -171,7 +173,7 @@ def main() -> None:
     _save_image(native_full, args.output_dir / "native_full.png")
     _save_image(native_proxy, args.output_dir / "native_proxy.png")
 
-    hard_mask, hard_keep_mask, native_rms = freeze_native_edit_mask(native_trace, args.goal_steps)
+    hard_mask, hard_keep_mask, native_rms, native_velocity = freeze_native_control_context(native_trace, args.goal_steps)
     image_edit_mask, image_keep_mask = build_image_space_masks(
         hard_mask,
         height=prepared.height,
@@ -223,6 +225,7 @@ def main() -> None:
         max_second_order_deficit=args.max_second_order_deficit,
         keep_l1_tolerance=args.keep_l1_tolerance,
         max_total_residual_ratio=args.max_total_residual_ratio,
+        max_active_residual_ratio=args.max_active_residual_ratio,
     )
     optimizer = BackwardTrajectoryOptimizer(
         rollout,
@@ -234,6 +237,7 @@ def main() -> None:
         hard_edit_mask=hard_mask.to(device),
         image_keep_mask=image_keep_mask.to(device),
         native_velocity_rms_per_step=native_rms,
+        native_velocity_per_step=native_velocity.to(device),
         rollout_config=rollout_config,
         config=backward_config,
         gate_config=gate_config,

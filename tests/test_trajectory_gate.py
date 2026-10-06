@@ -90,3 +90,24 @@ def test_all_floor_only_trials_mean_semantic_boundary_not_failure():
         GateDecision(False, ["semantic_floor_violation"], {}),
     ]
     assert stop_reason_for_rejections(decisions) == "semantic_boundary_reached"
+
+
+def test_active_trust_region_uses_active_ratio_and_rejects_over_cap():
+    previous = _state("p", 0.8, 0.8, 0.5)
+    candidate = _state("c", 0.6, 0.7, 0.4, residual=0.05)
+    candidate.active_residual_native_ratio = 0.8
+    decision = assess_candidate(previous, candidate, [previous], _distance,
+                                _config(max_active_residual_ratio=0.5))
+    assert candidate.residual_global_ratio < 0.1
+    assert "active_trust_region_violation" in decision.reasons
+
+
+def test_stop_reason_uses_shared_reason_even_with_other_reasons():
+    assert stop_reason_for_rejections([
+        GateDecision(False, ["semantic_floor_violation", "perceptual_stall"], {}),
+        GateDecision(False, ["semantic_floor_violation", "keep_region_drift"], {}),
+    ]) == "semantic_boundary_reached"
+    assert stop_reason_for_rejections([
+        GateDecision(False, ["active_trust_region_violation"], {}),
+        GateDecision(False, ["active_trust_region_violation", "not_sourceward"], {}),
+    ]) == "active_trust_region_exhausted"

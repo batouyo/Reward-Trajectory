@@ -80,6 +80,23 @@ def freeze_native_edit_mask(
     return frozen, keep, velocity_rms
 
 
+def freeze_native_control_context(velocity_trace: list[dict[str, torch.Tensor]], goal_steps: int):
+    """Freeze hard masks, per-step RMS, and the exact native velocities."""
+    hard, keep, rms = freeze_native_edit_mask(velocity_trace, goal_steps)
+    velocities = []
+    for i, row in enumerate(velocity_trace[:goal_steps]):
+        velocity = row.get("native_velocity")
+        if velocity is None:
+            raise ValueError(f"native velocity trace step {i} has no native_velocity")
+        velocity = torch.as_tensor(velocity).detach().float()
+        if velocity.ndim == 3 and velocity.shape[0] == 1:
+            velocity = velocity.squeeze(0)
+        if velocity.shape != hard[i].shape or not torch.isfinite(velocity).all():
+            raise ValueError(f"native velocity invalid or mismatched at step {i}")
+        velocities.append(velocity.clone())
+    return hard, keep, rms, torch.stack(velocities).detach()
+
+
 def apply_frozen_edit_mask(gradient: torch.Tensor, hard_edit_mask: torch.Tensor) -> torch.Tensor:
     """Apply a previously frozen elementwise mask without changing time weighting."""
     if gradient.shape != hard_edit_mask.shape:
@@ -171,6 +188,7 @@ class BackwardTrajectoryOptimizer:
         image_keep_mask: torch.Tensor,
         native_velocity_rms_per_step: list[float] | torch.Tensor,
         rollout_config: VeloEditRolloutConfig,
+        native_velocity_per_step: torch.Tensor | None = None,
         config: BackwardTrajectoryConfig | None = None,
         gate_config: TrajectoryGateConfig | None = None,
     ) -> None:
@@ -185,12 +203,21 @@ class BackwardTrajectoryOptimizer:
         self.native_rms = torch.as_tensor(
             native_velocity_rms_per_step, device=rollout.device, dtype=torch.float32
         ).flatten().detach()
+        self.native_velocity = (
+            None
+            if native_velocity_per_step is None
+            else torch.as_tensor(native_velocity_per_step, device=rollout.device)
+            .detach()
+            .float()
+            .clone()
+        )
         self.rollout_config = rollout_config
         self.config = config or BackwardTrajectoryConfig(goal_steps=self.hard_edit_mask.shape[0])
         self.gate_config = gate_config or TrajectoryGateConfig(
             semantic_floor=reward.semantic_floor or 0.0,
             max_total_residual_ratio=self.config.max_total_residual_ratio,
             sourceward_tolerance=self.config.sourceward_tolerance,
+            max_active_residual_ratio=0.5,
         )
         self.config.validate(len(prepared.sigma_schedule) - 1)
         self.gate_config.validate()
@@ -199,6 +226,8 @@ class BackwardTrajectoryOptimizer:
             raise ValueError(f"hard edit mask shape {tuple(self.hard_edit_mask.shape)} != residual shape {expected}")
         if self.native_rms.numel() != self.config.goal_steps:
             raise ValueError("native_velocity_rms_per_step length must equal goal_steps")
+        if self.native_velocity is not None and tuple(self.native_velocity.shape) != expected:
+            raise ValueError("native_velocity_per_step must match residual shape")
         if self.image_keep_mask.shape != (1, 1, prepared.height, prepared.width):
             raise ValueError("image_keep_mask must be [1, 1, prepared.height, prepared.width]")
         if rollout_config.first_step_align_steps or rollout_config.preserve_steps or rollout_config.edit_steps:
@@ -210,6 +239,35 @@ class BackwardTrajectoryOptimizer:
         per_step = residual.detach().float().square().mean(dim=(1, 2)).sqrt() / self.native_rms.clamp_min(1e-12)
         return global_ratio, per_step.cpu().tolist()
 
+    def _active_residual_stats(self, residual: torch.Tensor) -> dict[str, object]:
+        if self.native_velocity is None:
+            return {"active_residual_rms": None, "active_native_velocity_rms": None,
+                    "active_residual_native_ratio": None,
+                    "active_residual_ratio_per_step": [None] * self.config.goal_steps}
+        mask, native = self.hard_edit_mask.to(residual.device), self.native_velocity.to(residual.device)
+        rparts, nparts, per = [], [], []
+        for i in range(self.config.goal_steps):
+            active = mask[i]
+            if not bool(active.any()):
+                per.append(None)
+                continue
+            r, n = residual.detach().float()[i][active], native[i][active]
+            rr, nr = r.square().mean().sqrt(), n.square().mean().sqrt()
+            per.append(None if float(nr.cpu()) <= 1e-12 else float((rr/nr).cpu()))
+            rparts.append(r.reshape(-1)); nparts.append(n.reshape(-1))
+        if not rparts:
+            return {"active_residual_rms": None, "active_native_velocity_rms": None,
+                    "active_residual_native_ratio": None, "active_residual_ratio_per_step": per}
+        rr, nr = torch.cat(rparts).square().mean().sqrt(), torch.cat(nparts).square().mean().sqrt()
+        return {
+            "active_residual_rms": float(rr.cpu()),
+            "active_native_velocity_rms": float(nr.cpu()),
+            "active_residual_native_ratio": (
+                None if float(nr.cpu()) <= 1e-12 else float((rr / nr).cpu())
+            ),
+            "active_residual_ratio_per_step": per,
+        }
+
     def _measure_state(
         self,
         name: str,
@@ -218,14 +276,18 @@ class BackwardTrajectoryOptimizer:
         residual: torch.Tensor,
         line_search_ratio: float | None = None,
         increment_stats: dict[str, object] | None = None,
+        reward_values: Any | None = None,
     ) -> TrajectoryState:
-        with torch.no_grad():
-            values = self.reward.evaluate(image, self.source, self.image_keep_mask)
-            semantic = float(values.semantic_score.detach().cpu())
-            keep_l1_value = float(values.keep_loss.detach().cpu())
+        if reward_values is None:
+            with torch.no_grad():
+                reward_values = self.reward.evaluate(image, self.source, self.image_keep_mask)
+        semantic = float(reward_values.semantic_score.detach().cpu())
+        keep_l1_value = float(reward_values.keep_loss.detach().cpu())
         d_source = self.reward.dreamsim(self.source, image)
         residual_global, residual_per_step = self._total_residual_ratios(residual)
         cumulative = 0.0 if previous is None else previous.cumulative_dreamsim
+        active_stats = self._active_residual_stats(residual)
+        metrics = dict(increment_stats or {}); metrics.update(active_stats)
         state = TrajectoryState(
             name=name,
             image=image.detach(),
@@ -234,61 +296,64 @@ class BackwardTrajectoryOptimizer:
             keep_l1=keep_l1_value,
             residual_global_ratio=residual_global,
             residual_ratio_per_step=residual_per_step,
+            active_residual_native_ratio=active_stats["active_residual_native_ratio"],
+            active_residual_ratio_per_step=active_stats["active_residual_ratio_per_step"],
             line_search_ratio=line_search_ratio,
             cumulative_dreamsim=cumulative,
-            metrics=increment_stats or {},
+            metrics=metrics,
         )
         return state
 
-    def _verify_final(
-        self, accepted_states: list[TrajectoryState], residuals: list[torch.Tensor]
-    ) -> dict[str, object]:
+    def _verify_final(self, accepted_states, residuals):
+        proxy_sem = [float(self.reward.semantic_score(self.native_proxy).detach().cpu())]
+        proxy_sem += [s.semantic_score for s in accepted_states[1:]]
+        proxy_src = [self.reward.dreamsim(self.source, self.native_proxy)]
+        proxy_src += [s.dreamsim_to_source for s in accepted_states[1:]]
         final_images = [self.native_full]
         for residual in residuals:
             with torch.no_grad():
-                final = self.rollout.rollout_native(
-                    self.prepared, config=self.rollout_config, goal_residual=residual,
-                )
-            final_images.append(final.detach())
-        proxy_semantic = [float(self.reward.semantic_full)] + [s.semantic_score for s in accepted_states[1:]]
-        proxy_source_distance = [
-            self.reward.dreamsim(self.source, self.native_full)
-        ] + [s.dreamsim_to_source for s in accepted_states[1:]]
-        final_semantic: list[float] = []
-        final_source_distance: list[float] = []
+                final_images.append(self.rollout.rollout_native(
+                    self.prepared, config=self.rollout_config, goal_residual=residual).detach())
+        final_sem, final_src = [], []
         for image in final_images:
             with torch.no_grad():
-                final_semantic.append(float(self.reward.semantic_score(image).detach().cpu()))
-            final_source_distance.append(self.reward.dreamsim(self.source, image))
-        proxy_semantic_order = all(a >= b for a, b in zip(proxy_semantic, proxy_semantic[1:]))
-        final_semantic_order = all(a >= b for a, b in zip(final_semantic, final_semantic[1:]))
-        proxy_source_order = all(a >= b for a, b in zip(proxy_source_distance, proxy_source_distance[1:]))
-        final_source_order = all(a >= b for a, b in zip(final_source_distance, final_source_distance[1:]))
-        sem_agreement = sum(
-            (a >= b) == (c >= d)
-            for a, b, c, d in zip(proxy_semantic, proxy_semantic[1:], final_semantic, final_semantic[1:])
-        ) / max(1, len(proxy_semantic) - 1)
-        source_agreement = sum(
-            (a >= b) == (c >= d)
-            for a, b, c, d in zip(proxy_source_distance, proxy_source_distance[1:], final_source_distance, final_source_distance[1:])
-        ) / max(1, len(proxy_source_distance) - 1)
-        semantic_gap = float(np.mean(np.abs(np.asarray(proxy_semantic) - np.asarray(final_semantic))))
-        dreamsim_gap = float(np.mean(np.abs(np.asarray(proxy_source_distance) - np.asarray(final_source_distance))))
-        mismatch = (proxy_semantic_order and not final_semantic_order) or (proxy_source_order and not final_source_order)
+                final_sem.append(float(self.reward.semantic_score(image).detach().cpu()))
+            final_src.append(self.reward.dreamsim(self.source, image))
+        def ordered(values):
+            return all(left >= right for left, right in zip(values, values[1:]))
+
+        sem_pairs = list(zip(proxy_sem, proxy_sem[1:], final_sem, final_sem[1:]))
+        source_pairs = list(zip(proxy_src, proxy_src[1:], final_src, final_src[1:]))
+        sem_agreement = (
+            sum((a >= b) == (c >= d) for a, b, c, d in sem_pairs) / len(sem_pairs)
+            if sem_pairs
+            else None
+        )
+        source_agreement = (
+            sum((a >= b) == (c >= d) for a, b, c, d in source_pairs) / len(source_pairs)
+            if source_pairs
+            else None
+        )
         return {
-            "proxy_semantic_scores": proxy_semantic,
-            "final_semantic_scores": final_semantic,
-            "proxy_dreamsim_to_source": proxy_source_distance,
-            "final_dreamsim_to_source": final_source_distance,
-            "proxy_final_semantic_gap": semantic_gap,
-            "proxy_final_dreamsim_gap": dreamsim_gap,
+            "accepted_count": len(residuals), "proxy_semantic_scores": proxy_sem,
+            "final_semantic_scores": final_sem, "proxy_dreamsim_to_source": proxy_src,
+            "final_dreamsim_to_source": final_src,
+            "proxy_final_semantic_gap": float(
+                np.mean(np.abs(np.asarray(proxy_sem) - np.asarray(final_sem)))
+            ),
+            "proxy_final_dreamsim_gap": float(
+                np.mean(np.abs(np.asarray(proxy_src) - np.asarray(final_src)))
+            ),
             "adjacent_semantic_order_agreement": sem_agreement,
             "adjacent_source_distance_order_agreement": source_agreement,
-            "proxy_semantic_ordered": proxy_semantic_order,
-            "final_semantic_ordered": final_semantic_order,
-            "proxy_source_distance_ordered": proxy_source_order,
-            "final_source_distance_ordered": final_source_order,
-            "proxy_final_mismatch": bool(mismatch),
+            "proxy_semantic_ordered": ordered(proxy_sem),
+            "final_semantic_ordered": ordered(final_sem),
+            "proxy_source_distance_ordered": ordered(proxy_src),
+            "final_source_distance_ordered": ordered(final_src),
+            "proxy_final_mismatch": any(
+                value is not None and value < 1.0 - 1e-6
+                for value in (sem_agreement, source_agreement)
+            ),
             "final_images": final_images,
         }
 
@@ -357,7 +422,16 @@ class BackwardTrajectoryOptimizer:
                     raw_gradient.float(), self.hard_edit_mask.to(raw_gradient.device).float()
                 )
                 masked_rms = masked_gradient.square().mean().sqrt()
-                if float(masked_rms.detach().cpu()) <= self.config.gradient_epsilon:
+                active_gradient = masked_gradient[self.hard_edit_mask.to(masked_gradient.device)]
+                active_gradient_rms = (
+                    active_gradient.square().mean().sqrt()
+                    if active_gradient.numel()
+                    else masked_rms.new_zeros(())
+                )
+                if (
+                    float(masked_rms.detach().cpu()) <= self.config.gradient_epsilon
+                    or float(active_gradient_rms.detach().cpu()) <= self.config.gradient_epsilon
+                ):
                     stop_reason = "mask_gradient_dead"
                     break
                 retained_energy = masked_gradient.square().sum() / raw_gradient.float().square().sum().clamp_min(1e-20)
@@ -375,6 +449,7 @@ class BackwardTrajectoryOptimizer:
                     **guide.diagnostics(),
                     "raw_gradient_rms": float(raw_rms.detach().cpu()),
                     "masked_gradient_rms": float(masked_rms.detach().cpu()),
+                    "active_gradient_rms": float(active_gradient_rms.detach().cpu()),
                     "masked_raw_gradient_energy_ratio": float(retained_energy.detach().cpu()),
                     "gradient_rms_per_step": per_step_gradient_rms.detach().cpu().tolist(),
                     "gradient_cosine_with_previous": cosine,
@@ -399,6 +474,8 @@ class BackwardTrajectoryOptimizer:
                     )
                     trial_residual = current_residual + increment.to(current_residual)
                     residual_global, residual_per_step = self._total_residual_ratios(trial_residual)
+                    active_inc = self._active_residual_stats(increment)
+                    active_total = self._active_residual_stats(trial_residual)
                     trial_proxy = self.rollout.rollout_native(
                         self.prepared,
                         config=self.rollout_config,
@@ -411,6 +488,12 @@ class BackwardTrajectoryOptimizer:
                         "actual_increment_global_ratio": increment_info["actual_global_ratio"],
                         "actual_increment_ratio_per_step": increment_info["actual_ratio_per_step"],
                         "scale_factor": increment_info["scale_factor"],
+                        "active_increment_rms": active_inc["active_residual_rms"],
+                        "active_native_velocity_rms": active_inc["active_native_velocity_rms"],
+                        "active_increment_native_ratio": active_inc["active_residual_native_ratio"],
+                        "active_total_residual_rms": active_total["active_residual_rms"],
+                        "active_total_residual_native_ratio": active_total["active_residual_native_ratio"],
+                        "active_residual_ratio_per_step": active_total["active_residual_ratio_per_step"],
                     }
                     state = self._measure_state(
                         f"trial_{iteration + 1:03d}_{trial_index:02d}",
@@ -419,8 +502,8 @@ class BackwardTrajectoryOptimizer:
                         trial_residual,
                         requested_ratio,
                         increment_stats,
+                        reward_values=trial_values,
                     )
-                    state.keep_l1 = float(trial_values.keep_loss.detach().cpu())
                     decision = assess_candidate(
                         accepted_states[-1], state, accepted_states,
                         self.reward.dreamsim_distance, self.gate_config,
@@ -476,7 +559,7 @@ class BackwardTrajectoryOptimizer:
                 _append_jsonl(trajectory_path, chosen_record)
 
         verify: dict[str, object] | None = None
-        if verify_final and accepted_residuals:
+        if verify_final:
             verify = self._verify_final(accepted_states, accepted_residuals)
             final_images = verify.pop("final_images")
             for index, image in enumerate(final_images[1:], start=1):
@@ -491,6 +574,8 @@ class BackwardTrajectoryOptimizer:
             "native_velocity_rms_per_step": self.native_rms.cpu().tolist(),
             "final_residual_global_ratio": self._total_residual_ratios(current_residual)[0],
             "final_residual_ratio_per_step": self._total_residual_ratios(current_residual)[1],
+            "max_active_residual_ratio": self.gate_config.max_active_residual_ratio,
+            "final_active_residual_native_ratio": self._active_residual_stats(current_residual)["active_residual_native_ratio"],
             "accepted_states": [
                 {
                     "name": state.name,
@@ -500,6 +585,8 @@ class BackwardTrajectoryOptimizer:
                     "line_search_ratio": state.line_search_ratio,
                     "residual_global_ratio": state.residual_global_ratio,
                     "residual_ratio_per_step": state.residual_ratio_per_step,
+                    "active_residual_native_ratio": state.active_residual_native_ratio,
+                    "active_residual_ratio_per_step": state.active_residual_ratio_per_step,
                     "cumulative_dreamsim": state.cumulative_dreamsim,
                 }
                 for state in accepted_states[1:]
