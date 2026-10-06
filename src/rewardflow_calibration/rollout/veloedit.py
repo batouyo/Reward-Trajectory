@@ -445,6 +445,9 @@ class VeloEditCompatibleRollout:
                         "residual_native_rms_ratio": residual_rms / native_rms.clamp_min(1e-12),
                         "edit_direction": edit_direction,
                         "soft_edit_mask": (1.0 - similarity.mean(dim=-1)).detach(),
+                        "hard_edit_mask": low_similarity.squeeze(0).detach(),
+                        "low_similarity_mask": low_similarity.squeeze(0).detach(),
+                        "keep_region_mask": (~low_similarity).squeeze(0).detach(),
                     })
 
                 if early_stop_steps is not None and index + 1 == early_stop_steps:
