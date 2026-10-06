@@ -17,7 +17,10 @@ sys.path.insert(0, str(ROOT / "src"))
 
 from rewardflow_calibration.optimization.progress_objective import ProgressLossConfig, progress_control_loss
 from rewardflow_calibration.optimization.progress_reward import ProgressEstimator
-from rewardflow_calibration.optimization.velocity_control import scale_negative_gradient_to_native_ratio
+from rewardflow_calibration.optimization.velocity_control import (
+    scale_gradient_to_global_native_ratio,
+    scale_negative_gradient_to_native_ratio,
+)
 from rewardflow_calibration.rollout.veloedit import VeloEditCompatibleRollout, VeloEditRolloutConfig
 
 
@@ -28,6 +31,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--prompt", required=True)
     parser.add_argument("--target-strength", type=float, default=0.5)
     parser.add_argument("--ratios", nargs="+", type=float, default=[0.001, 0.002, 0.005, 0.01, 0.02, 0.05, 0.10])
+    parser.add_argument("--scaling-mode", choices=["global", "per-step"], default="global")
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--steps", type=int, default=15)
     parser.add_argument("--goal-steps", type=int, default=4)
@@ -117,25 +121,44 @@ def main() -> None:
         baseline_values.raw_progress, args.target_strength, baseline_values.drift,
         residual_zero, loss_config,
     )
-    terminal_gradient = torch.autograd.grad(baseline_loss.total, residual_zero)[0]
-    if not torch.isfinite(terminal_gradient).all():
-        raise FloatingPointError("terminal residual gradient contains NaN or Inf")
+    baseline_progress = float(baseline_values.raw_progress.detach().mean().cpu())
+    baseline_signed_error = baseline_progress - args.target_strength
+    if abs(baseline_signed_error) <= 1e-8:
+        raise ValueError("capacity test is undefined because baseline progress already matches target")
+    progress_gradient = torch.autograd.grad(
+        baseline_values.raw_progress.mean(), residual_zero
+    )[0]
+    if not torch.isfinite(progress_gradient).all():
+        raise FloatingPointError("raw-progress gradient contains NaN or Inf")
     native_rms = torch.stack([
         entry["native_velocity_rms"].detach().float().to(device)
         for entry in baseline_trace[:args.goal_steps]
     ])
-    baseline_progress = float(baseline_values.raw_progress.detach().mean().cpu())
-    direction = -terminal_gradient.detach()
+    direction = (-1.0 if baseline_signed_error > 0 else 1.0) * progress_gradient.detach()
+    gradient_direction = "decrease_progress" if baseline_signed_error > 0 else "increase_progress"
     save_image(native_full, args.output_dir / "native_full.png")
     grid_paths = [args.output_dir / "native_full.png"]
     grid_labels = ["native"]
     ratio_results = []
 
     for ratio in args.ratios:
-        residual, actual_per_step = scale_negative_gradient_to_native_ratio(
-            direction, native_rms, ratio
-        )
-        actual_ratio = float(actual_per_step.mean().cpu())
+        if args.scaling_mode == "global":
+            residual, scaling_stats = scale_gradient_to_global_native_ratio(
+                direction, native_rms, ratio
+            )
+        else:
+            residual, actual_per_step = scale_negative_gradient_to_native_ratio(
+                direction, native_rms, ratio
+            )
+            scaling_stats = {
+                "requested_global_ratio": float(ratio),
+                "actual_global_ratio": float(
+                    residual.square().mean().sqrt().cpu()
+                    / native_rms.square().mean().sqrt().cpu()
+                ),
+                "actual_ratio_per_step": actual_per_step.detach().cpu().tolist(),
+                "scale_factor": None,
+            }
         with torch.no_grad():
             candidate = rollout.rollout_native(
                 prepared, config=config, goal_residual=residual
@@ -150,8 +173,9 @@ def main() -> None:
         grid_labels.append("%.1f%%" % (ratio * 100))
         ratio_results.append({
             "requested_ratio": float(ratio),
-            "actual_ratio": actual_ratio,
-            "actual_ratio_per_step": actual_per_step.detach().cpu().tolist(),
+            "actual_global_ratio": scaling_stats["actual_global_ratio"],
+            "actual_ratio_per_step": scaling_stats["actual_ratio_per_step"],
+            "scale_factor": scaling_stats["scale_factor"],
             "final_progress": progress,
             "final_target_error": abs(progress - args.target_strength),
             "drift": drift,
@@ -170,9 +194,12 @@ def main() -> None:
         "progress_backbone": args.progress_backbone,
         "progress_anchors": anchors,
         "baseline_final_progress": baseline_progress,
+        "baseline_signed_error": baseline_signed_error,
+        "gradient_direction": gradient_direction,
         "baseline_loss": float(baseline_loss.total.detach().cpu()),
         "baseline_drift": float(baseline_values.drift.detach().mean().cpu()),
-        "progress_gradient_rms": float(terminal_gradient.float().square().mean().sqrt().cpu()),
+        "progress_gradient_rms": float(progress_gradient.float().square().mean().sqrt().cpu()),
+        "scaling_mode": args.scaling_mode,
         "native_velocity_rms_per_step": native_rms.detach().cpu().tolist(),
         "optimizer": None,
         "ratios": ratio_results,

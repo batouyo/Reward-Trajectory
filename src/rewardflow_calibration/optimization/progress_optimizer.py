@@ -69,7 +69,7 @@ class ProgressResidualOptimizer:
         min_improvement: float = 1e-4,
         optimizer_mode: str = "adam",
         feedback_step_size: float = 1e-3,
-        auxiliary_step_size: float = 1e-3,
+        auxiliary_step_size: float = 0.0,
         progress_callback: Callable[[dict[str, object]], None] | None = None,
     ) -> None:
         if not 0.0 <= target_strength <= 1.0:
@@ -184,23 +184,24 @@ class ProgressResidualOptimizer:
             self._all_finite(loss.total, "total loss")
             progress = values.raw_progress.float().mean()
             signed_error = progress - self.target_strength
-            progress_gradient = torch.autograd.grad(
-                progress, residual.velocity, retain_graph=True
-            )[0]
-            if progress_gradient is None:
-                raise RuntimeError("progress estimator produced no gradient for velocity residual")
-            self._all_finite(progress_gradient, "progress gradient")
-            per_step_grad = progress_gradient.float().flatten(1).norm(dim=1)
-            grad_norm = progress_gradient.detach().float().norm()
             feedback_update = torch.zeros_like(residual.velocity, dtype=torch.float32)
             auxiliary_update = torch.zeros_like(residual.velocity, dtype=torch.float32)
-            feedback_stats = {
-                "progress_gradient_rms": float(progress_gradient.detach().float().square().mean().sqrt().cpu()),
-                "progress_gradient_norm": float(grad_norm.cpu()),
-            }
-            record_per_step_grad = per_step_grad
+            progress_gradient_rms: float | None = None
+            progress_gradient_norm: float | None = None
+            progress_per_step_grad: list[float] | None = None
+            record_per_step_grad: torch.Tensor
 
             if self.optimizer_mode == "feedback":
+                progress_gradient = torch.autograd.grad(
+                    progress, residual.velocity, retain_graph=self.auxiliary_step_size > 0
+                )[0]
+                if progress_gradient is None:
+                    raise RuntimeError("progress estimator produced no gradient for velocity residual")
+                self._all_finite(progress_gradient, "progress gradient")
+                progress_step_grad = progress_gradient.float().flatten(1).norm(dim=1)
+                progress_per_step_grad = progress_step_grad.detach().cpu().tolist()
+                progress_gradient_rms = float(progress_gradient.detach().float().square().mean().sqrt().cpu())
+                progress_gradient_norm = float(progress_gradient.detach().float().norm().cpu())
                 feedback_update, feedback_stats = normalized_feedback_update(
                     progress_gradient, signed_error.detach(), self.feedback_step_size
                 )
@@ -217,6 +218,7 @@ class ProgressResidualOptimizer:
                         auxiliary_update = -self.auxiliary_step_size * auxiliary_gradient.float()
                 with torch.no_grad():
                     residual.velocity.add_(feedback_update + auxiliary_update)
+                record_per_step_grad = progress_step_grad
                 grad_norm = torch.as_tensor(feedback_stats["progress_gradient_norm"], device=residual.velocity.device)
             else:
                 loss.total.backward()
@@ -224,9 +226,8 @@ class ProgressResidualOptimizer:
                 if grad is None:
                     raise RuntimeError("progress loss produced no gradient for velocity residual")
                 self._all_finite(grad, "residual gradient")
-                per_step_grad_loss = grad.float().flatten(1).norm(dim=1)
-                record_per_step_grad = per_step_grad_loss
-                if float(per_step_grad_loss.max().detach().cpu()) <= 0:
+                record_per_step_grad = grad.float().flatten(1).norm(dim=1)
+                if float(record_per_step_grad.max().detach().cpu()) <= 0:
                     raise RuntimeError("progress loss produced a zero residual gradient")
                 grad_norm = torch.nn.utils.clip_grad_norm_([residual.velocity], self.clip_grad_norm)
                 self._all_finite(residual.velocity, "residual before update")
@@ -302,8 +303,9 @@ class ProgressResidualOptimizer:
                 "progress": post_progress,
                 "signed_error": post_signed_error,
                 "absolute_error": post_target_error,
-                "progress_gradient_rms": feedback_stats["progress_gradient_rms"],
-                "progress_gradient_norm": feedback_stats["progress_gradient_norm"],
+                "progress_gradient_rms": progress_gradient_rms,
+                "progress_gradient_norm": progress_gradient_norm,
+                "progress_gradient_norm_per_step": progress_per_step_grad,
                 "feedback_update_rms": feedback_update_rms,
                 "auxiliary_update_rms": auxiliary_update_rms,
                 "total_update_rms": total_update_rms,
@@ -324,9 +326,10 @@ class ProgressResidualOptimizer:
                 "raw_progress": post_progress,
                 "target_error": float(post_loss.target_error.detach().cpu()),
                 "gradient_norm_total": float(grad_norm.detach().cpu()),
-                "gradient_norm_per_step": per_step_grad.detach().cpu().tolist(),
+                "gradient_norm_per_step": record_per_step_grad.detach().cpu().tolist(),
+                "optimizer_gradient_norm_per_step": record_per_step_grad.detach().cpu().tolist(),
                 "gradient_norm_pre_update": float(grad_norm.detach().cpu()),
-                "gradient_norm_per_step_pre_update": per_step_grad.detach().cpu().tolist(),
+                "gradient_norm_per_step_pre_update": record_per_step_grad.detach().cpu().tolist(),
                 "residual_rms": float(residual.velocity.detach().float().square().mean().sqrt().cpu()),
                 "residual_max_abs": float(residual.velocity.detach().float().abs().max().cpu()),
                 "residual_rms_per_step": per_step_rms.cpu().tolist(),

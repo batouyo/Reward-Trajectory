@@ -3,6 +3,7 @@ import torch
 
 from rewardflow_calibration.optimization.velocity_control import (
     normalized_feedback_update,
+    scale_gradient_to_global_native_ratio,
     scale_negative_gradient_to_native_ratio,
 )
 
@@ -60,3 +61,38 @@ def test_capacity_scaling_rejects_zero_per_step_gradient():
     gradient[1].zero_()
     with pytest.raises(FloatingPointError, match="zero or near-zero step"):
         scale_negative_gradient_to_native_ratio(gradient, [1.0, 2.0, 3.0], 0.01)
+
+
+def test_global_capacity_scaling_preserves_direction_and_single_scalar():
+    torch.manual_seed(7)
+    direction = torch.randn(4, 3, 2)
+    direction[0] *= 0.1
+    direction[1] *= 0.5
+    direction[2] *= 2.0
+    direction[3] *= 5.0
+    native_rms = torch.tensor([0.5, 1.0, 3.0, 8.0])
+    requested = 0.025
+
+    residual, stats = scale_gradient_to_global_native_ratio(
+        direction, native_rms, requested
+    )
+
+    cosine = torch.nn.functional.cosine_similarity(
+        residual.flatten(), direction.flatten(), dim=0
+    )
+    assert cosine.item() == pytest.approx(1.0, abs=1e-6)
+    ratios = residual[direction != 0] / direction[direction != 0]
+    torch.testing.assert_close(ratios, torch.full_like(ratios, ratios[0]), atol=1e-6, rtol=1e-6)
+    global_native_rms = native_rms.square().mean().sqrt()
+    global_residual_rms = residual.square().mean().sqrt()
+    assert global_residual_rms.item() / global_native_rms.item() == pytest.approx(requested, rel=1e-6)
+    assert stats["requested_global_ratio"] == requested
+    assert stats["actual_global_ratio"] == pytest.approx(requested, rel=1e-6)
+    assert stats["scale_factor"] > 0
+    per_step = stats["actual_ratio_per_step"]
+    assert max(per_step) - min(per_step) > 1e-3
+
+
+def test_global_capacity_scaling_rejects_zero_direction():
+    with pytest.raises(FloatingPointError, match="zero or near-zero global RMS"):
+        scale_gradient_to_global_native_ratio(torch.zeros(2, 3, 4), [1.0, 2.0], 0.01)

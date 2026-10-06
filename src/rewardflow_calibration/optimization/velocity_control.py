@@ -71,3 +71,47 @@ def scale_negative_gradient_to_native_ratio(
     )
     actual_ratio = residual.square().mean(dim=(1, 2)).sqrt() / native_rms
     return residual, actual_ratio
+
+
+def scale_gradient_to_global_native_ratio(
+    direction: torch.Tensor,
+    native_velocity_rms_per_step: torch.Tensor | list[float] | tuple[float, ...],
+    requested_ratio: float,
+    *,
+    eps: float = 1e-12,
+) -> tuple[torch.Tensor, dict[str, float | list[float]]]:
+    """Apply one scalar to a [steps, tokens, channels] direction.
+
+    The scalar targets global residual RMS / global native RMS. Per-step ratios
+    are diagnostic only and retain the original direction's timestep weighting.
+    """
+    if direction.ndim != 3:
+        raise ValueError("direction must have shape [steps, tokens, channels]")
+    if not math.isfinite(requested_ratio) or requested_ratio < 0:
+        raise ValueError("requested_ratio must be finite and non-negative")
+    if eps <= 0:
+        raise ValueError("eps must be positive")
+    value = direction.detach().float()
+    native_rms = torch.as_tensor(
+        native_velocity_rms_per_step, device=value.device, dtype=torch.float32
+    ).flatten()
+    if native_rms.numel() != value.shape[0]:
+        raise ValueError("native_velocity_rms_per_step must have one value per direction step")
+    if not torch.isfinite(value).all() or not torch.isfinite(native_rms).all():
+        raise FloatingPointError("direction and native RMS must be finite")
+    if torch.any(native_rms <= eps):
+        raise FloatingPointError("native velocity RMS is zero or too small for ratio scaling")
+    direction_rms = value.square().mean().sqrt()
+    if direction_rms <= eps:
+        raise FloatingPointError("gradient direction has zero or near-zero global RMS")
+    global_native_rms = native_rms.square().mean().sqrt()
+    scale_factor = float(requested_ratio) * global_native_rms / (direction_rms + eps)
+    residual = value * scale_factor
+    actual_global_ratio = residual.square().mean().sqrt() / global_native_rms
+    actual_per_step = residual.square().mean(dim=(1, 2)).sqrt() / native_rms
+    return residual, {
+        "requested_global_ratio": float(requested_ratio),
+        "actual_global_ratio": float(actual_global_ratio.cpu()),
+        "actual_ratio_per_step": actual_per_step.detach().cpu().tolist(),
+        "scale_factor": float(scale_factor.cpu()),
+    }

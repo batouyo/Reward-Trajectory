@@ -35,7 +35,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--iterations", type=int, default=4)
     parser.add_argument("--optimizer-mode", choices=["adam", "sgd", "feedback"], default="adam")
     parser.add_argument("--feedback-step-size", type=float, default=1e-3)
-    parser.add_argument("--auxiliary-step-size", type=float, default=1e-3)
+    parser.add_argument("--auxiliary-step-size", type=float, default=0.0)
     parser.add_argument("--fp32-latent-accumulation", action="store_true")
     parser.add_argument("--target-tolerance", type=float, default=0.03)
     parser.add_argument("--patience", type=int, default=4)
@@ -334,7 +334,7 @@ def main() -> None:
     progress_values = [row["best_final_progress"] for row in result_rows]
     signal_range = float(max(progress_values) - min(progress_values)) if progress_values else 0.0
     sr = sorted(result_rows, key=lambda q: float(q["requested_strength"]))
-    sp = [float(q["optimized_final_progress"]) for q in sr]
+    sp = [float(q["best_final_progress"]) for q in sr]
     ordered = all(b > a for a,b in zip(sp,sp[1:]))
     gaps = {f"gap_{int(100*a['requested_strength']):02d}_{int(100*b['requested_strength']):02d}":float(b["best_final_progress"])-float(a["best_final_progress"]) for a,b in zip(sr,sr[1:])}
     summary: dict[str, object] = {
