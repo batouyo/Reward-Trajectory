@@ -340,3 +340,132 @@ class VeloEditCompatibleRollout:
                 decoded = self.pipeline.vae.decode(unpacked.to(dtype=self.pipeline.vae.dtype), return_dict=False)[0]
             images = self.pipeline.image_processor.postprocess(decoded, output_type="pt")
             return images.float().clamp(0, 1)
+
+    def rollout_native(
+        self,
+        prepared: PreparedVeloEdit,
+        *,
+        config: VeloEditRolloutConfig | None = None,
+        goal_residual: torch.Tensor | None = None,
+        early_stop_steps: int | None = None,
+        velocity_trace: list[dict[str, torch.Tensor]] | None = None,
+    ) -> torch.Tensor:
+        """Run FLUX-Kontext native velocity, optionally with a learned residual.
+
+        This path has no alpha argument and never applies VeloEdit intervention.
+        """
+        config = config or VeloEditRolloutConfig(
+            first_step_align_steps=0, preserve_steps=0, edit_steps=0
+        )
+        config.validate()
+        if config.first_step_align_steps != 0:
+            raise ValueError("native rollout requires first_step_align_steps=0 during prepare")
+        if config.preserve_steps != 0 or config.edit_steps != 0:
+            raise ValueError("native rollout requires preserve_steps=0 and edit_steps=0")
+        total_steps = len(prepared.sigma_schedule) - 1
+        if early_stop_steps is not None and not 1 <= early_stop_steps <= total_steps:
+            raise ValueError(f"early_stop_steps must be in [1, {total_steps}]")
+        if goal_residual is not None:
+            if goal_residual.ndim != 3 or goal_residual.shape[1:] != prepared.latents.shape[1:]:
+                raise ValueError("goal_residual must have shape [steps, latent_tokens, latent_channels]")
+            if goal_residual.shape[0] > total_steps:
+                raise ValueError("goal_residual has more steps than the rollout")
+            if early_stop_steps is not None and goal_residual.shape[0] > early_stop_steps:
+                raise ValueError("early_stop_steps must cover every goal_residual step")
+
+        pipeline = self.pipeline
+        for component in pipeline.components.values():
+            if isinstance(component, torch.nn.Module):
+                component.eval()
+                for parameter in component.parameters():
+                    parameter.requires_grad_(False)
+        dtype = pipeline.transformer.dtype
+        z = prepared.latents.clone()
+        reference = prepared.reference_latent
+        image_latents = prepared.image_latents
+        prompt_embeds = prepared.prompt_embeds.detach()
+        pooled = prepared.pooled_prompt_embeds.detach()
+        guidance = prepared.guidance
+        train_steps = pipeline.scheduler.config.get("num_train_timesteps", 1000)
+        grad_enabled = goal_residual is not None and torch.is_grad_enabled()
+        decode_latents = z
+
+        with torch.set_grad_enabled(grad_enabled):
+            for index in range(total_steps):
+                sigma = prepared.sigma_schedule[index]
+                sigma_next = prepared.sigma_schedule[index + 1]
+                model_input = z if image_latents is None else torch.cat([z, image_latents], dim=1)
+                sigma_input = torch.as_tensor(sigma, device=self.device, dtype=torch.float32)
+                timestep = (sigma_input * train_steps).reshape(1).to(dtype=z.dtype) / train_steps
+
+                def predict_velocity(hidden_states: torch.Tensor) -> torch.Tensor:
+                    return pipeline.transformer(
+                        hidden_states=hidden_states,
+                        timestep=timestep,
+                        guidance=guidance,
+                        pooled_projections=pooled,
+                        encoder_hidden_states=prompt_embeds,
+                        txt_ids=prepared.text_ids,
+                        img_ids=prepared.latent_ids,
+                        joint_attention_kwargs={},
+                        return_dict=False,
+                    )[0][:, : z.shape[1]]
+
+                native = (
+                    checkpoint(predict_velocity, model_input, use_reentrant=False)
+                    if grad_enabled else predict_velocity(model_input)
+                )
+                actual = native
+                if goal_residual is not None and index < goal_residual.shape[0]:
+                    actual = native.float() + goal_residual[index].unsqueeze(0).float()
+
+                if velocity_trace is not None:
+                    ref_velocity = (z.float() - reference.float()) / (sigma.float() + 1e-8)
+                    ref_abs = ref_velocity.abs() + 1e-8
+                    similarity = ref_abs / (ref_abs + (native.float() - ref_velocity).abs())
+                    low_similarity = ~(similarity >= config.similarity_threshold)
+                    # VeloEdit direction is diagnostic only; it never affects actual.
+                    edit_direction = (
+                        (native.float() - ref_velocity) * low_similarity.float()
+                    ).detach()
+                    residual_velocity = (actual.float() - native.float()).detach()
+                    native_rms = native.detach().float().square().mean().sqrt()
+                    residual_rms = residual_velocity.square().mean().sqrt()
+                    velocity_trace.append({
+                        "step": torch.tensor(index),
+                        "native_velocity": native.detach().float(),
+                        "actual_velocity": actual.detach().float(),
+                        "residual_velocity": residual_velocity,
+                        "native_velocity_rms": native_rms,
+                        "residual_velocity_rms": residual_rms,
+                        "residual_native_rms_ratio": residual_rms / native_rms.clamp_min(1e-12),
+                        "edit_direction": edit_direction,
+                        "soft_edit_mask": (1.0 - similarity.mean(dim=-1)).detach(),
+                    })
+
+                if early_stop_steps is not None and index + 1 == early_stop_steps:
+                    decode_latents = (z.float() - sigma.float() * actual.float()).to(dtype)
+                    break
+                dt = sigma_next.float() - sigma.float()
+                z = (z.float() + dt * actual.float()).to(dtype)
+
+            if early_stop_steps is None:
+                decode_latents = z
+            unpacked = pipeline._unpack_latents(
+                decode_latents, prepared.height, prepared.width, pipeline.vae_scale_factor
+            )
+            unpacked = unpacked / pipeline.vae.config.scaling_factor + pipeline.vae.config.shift_factor
+            if grad_enabled:
+                decoded = checkpoint(
+                    lambda value: pipeline.vae.decode(
+                        value.to(dtype=pipeline.vae.dtype), return_dict=False
+                    )[0],
+                    unpacked,
+                    use_reentrant=False,
+                )
+            else:
+                decoded = pipeline.vae.decode(
+                    unpacked.to(dtype=pipeline.vae.dtype), return_dict=False
+                )[0]
+            images = pipeline.image_processor.postprocess(decoded, output_type="pt")
+            return images.float().clamp(0, 1)

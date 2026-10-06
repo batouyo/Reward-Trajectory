@@ -96,3 +96,32 @@ and per-iteration losses. Iterations are streamed to
 memory/runtime-constrained smoke tests (default: 1,048,576 pixels), and
 `--structure-weight` controls the DINOv2 term inside preservation. Lower
 DreamSim/DINOv2 drift with retained SigLIP/face scores is the target.
+
+
+## Reward-Level Velocity Control MVP
+
+This is a separate experiment path from VeloEdit calibration and the fixed-alpha
+GoalResidualOptimizer. It prepares FLUX-Kontext with
+first_step_align_steps=0, preserve_steps=0, and edit_steps=0, then runs
+the native velocity trajectory. The requested strength is a target progress
+value measured by the projection between source and native full-edit image
+features; it is never passed as a velocity interpolation coefficient.
+
+Run the single-image MVP:
+
+    CUDA_VISIBLE_DEVICES=0 PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION=python PYTHONPATH=$PWD/src \
+      /home/hyp/.conda/envs/group-edit/bin/python scripts/run_reward_level_control.py \
+      --source /home/hyp/Code/VeloEdit/testdata/7.jpg \
+      --prompt "make him old" --strengths 0.25 0.50 0.75 \
+      --seed 42 --steps 15 --goal-steps 4 --proxy-steps 4 \
+      --iterations 4 --learning-rate 1e-3 --progress-backbone siglip \
+      --device cuda:0 --output-dir outputs/reward_level_control
+
+The script saves the native full-edit anchor, per-strength proxy/final images,
+learned residuals, iteration logs, per-strength diagnostics, and a comparison
+grid. scripts/check_progress_gradient.py checks gradient direction, while
+scripts/diagnose_progress_signal.py compares SigLIP and DINO progress signals
+on diagnostic VeloEdit alpha images. Those images are not used to generate
+Reward-Level outputs. DINO uses the normalized mean of patch tokens with CLS
+excluded. All report JSON files include unclamped raw progress and separately
+reported clamped progress.
