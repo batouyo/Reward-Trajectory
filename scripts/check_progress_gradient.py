@@ -92,7 +92,7 @@ def main():
         with torch.no_grad():
             image = rollout.rollout_native(
                 prepared, config=config, goal_residual=delta,
-                early_stop_steps=args.proxy_steps,
+                early_stop_steps=args.proxy_steps if args.reward_mode == "proxy" else None,
             )
             p = estimator(image)
             loss = progress_control_loss(

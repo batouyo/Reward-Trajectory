@@ -33,6 +33,9 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--proxy-steps", type=int, default=4)
     parser.add_argument("--reward-mode", choices=["proxy", "final"], default="final")
     parser.add_argument("--iterations", type=int, default=4)
+    parser.add_argument("--target-tolerance", type=float, default=0.03)
+    parser.add_argument("--patience", type=int, default=4)
+    parser.add_argument("--min-improvement", type=float, default=1e-4)
     parser.add_argument("--learning-rate", type=float, default=1e-3)
     parser.add_argument("--progress-backbone", choices=["siglip", "dino"], default="siglip")
     parser.add_argument("--progress-weight", type=float, default=1.0)
@@ -72,9 +75,19 @@ def save_grid(paths: list[Path], labels: list[str], output: Path) -> None:
 
 
 def infer_failure(summary: dict[str, object]) -> str:
-    signal = summary.get("progress_signal_diagnostic", {})
-    if isinstance(signal, dict) and signal.get("dynamic_range", 1.0) < 0.05:
-        return "progress_estimator"
+    # Only an independent set of intermediate images can diagnose the estimator.
+    signal_report = summary.get("progress_signal_report")
+    if isinstance(signal_report, dict):
+        rows = signal_report.get("rows", [])
+        backbone = str(summary.get("progress_backbone", "siglip"))
+        values = [
+            float(row[f"{backbone}_progress"])
+            for row in rows
+            if isinstance(row, dict) and row.get(f"{backbone}_progress") is not None
+        ]
+        if len(values) >= 2 and max(values) - min(values) < 0.05:
+            return "progress_estimator"
+
     sanity = summary.get("gradient_sanity_check", {})
     if isinstance(sanity, dict) and sanity.get("sanity_check_failed"):
         return "gradient_sign_or_graph"
@@ -93,14 +106,18 @@ def infer_failure(summary: dict[str, object]) -> str:
             return "native_dynamics_too_stiff_or_wrong_control_window"
         if any(row.get("veloedit_parallel_fraction", 0.0) > 0.95 for row in rows):
             return "degenerates_to_veloedit_rescaling"
-        progress = [row.get("optimized_final_progress") for row in rows if row.get("optimized_final_progress") is not None]
-        targets = [row.get("requested_strength") for row in rows if row.get("optimized_final_progress") is not None]
+        progress = [float(row.get("best_final_progress", row.get("optimized_final_progress", 0.0))) for row in rows]
+        targets = [float(row.get("requested_strength", 0.0)) for row in rows]
         if len(progress) > 1 and any(b <= a for a, b in zip(progress, progress[1:])):
             return "level_tracking_failure"
-        if len(progress) < len(targets):
-            return "control_capacity"
+        if any(not row.get("converged", False) for row in rows):
+            return "optimization_not_converged"
+        if progress and max(progress) - min(progress) < 0.05 and any(
+            abs(value - target) > float(summary.get("target_tolerance", 0.03))
+            for value, target in zip(progress, targets)
+        ):
+            return "control_effect_too_weak"
     return "unclear"
-
 
 def main() -> None:
     args = parse_args()
@@ -108,8 +125,10 @@ def main() -> None:
         raise SystemExit("steps must be positive and goal-steps must be in [1, steps]")
     if not args.goal_steps <= args.proxy_steps <= args.steps:
         raise SystemExit("proxy-steps must cover goal-steps and not exceed steps")
-    if args.iterations > 16:
-        raise SystemExit("iterations cannot exceed 16")
+    if args.iterations < 1 or args.iterations > 32:
+        raise SystemExit("iterations must be in [1, 32]")
+    if args.target_tolerance < 0 or args.patience < 1 or args.min_improvement < 0:
+        raise SystemExit("target-tolerance and min-improvement must be non-negative; patience must be positive")
     if any(not 0 <= value <= 1 for value in args.strengths):
         raise SystemExit("strengths must be in [0, 1]")
     torch.manual_seed(args.seed)
@@ -202,6 +221,9 @@ def main() -> None:
             iterations=args.iterations,
             clip_grad_norm=args.clip_grad_norm,
             reward_mode=args.reward_mode,
+            target_tolerance=args.target_tolerance,
+            patience=args.patience,
+            min_improvement=args.min_improvement,
             progress_callback=save_progress,
         )
         result = optimizer.run()
@@ -214,7 +236,7 @@ def main() -> None:
         image_paths[strength] = final_path
 
         first_grad = (
-            result.history[0]["gradient_norm_total"] if result.history else 0.0
+            result.history[0]["gradient_norm_pre_update"] if result.history else 0.0
         )
         projection = result.projection_diagnostics
         projection_parallel = float(projection.get("parallel_energy_fraction_of_residual", 0.0))
@@ -229,8 +251,18 @@ def main() -> None:
             "source_progress": anchor_diagnostics["source_progress"],
             "target_progress": anchor_diagnostics["target_progress"],
             "initial_proxy_progress": result.initial_proxy["raw_progress"],
+            "initial_final_progress": anchor_diagnostics["target_progress"],
             "optimized_proxy_progress": result.optimized_proxy["raw_progress"],
             "optimized_final_progress": result.optimized_final["raw_progress"],
+            "best_final_progress": result.best_final_progress,
+            "last_final_progress": result.last_final_progress,
+            "best_iteration": result.best_iteration,
+            "best_loss": result.best_loss,
+            "last_iteration_loss": result.last_iteration_loss,
+            "best_target_error": result.best_target_error,
+            "last_target_error": result.last_target_error,
+            "stop_reason": result.stop_reason,
+            "converged": result.converged,
             "proxy_target_error": abs(float(result.optimized_proxy["raw_progress"]) - strength),
             "final_target_error": abs(float(result.optimized_final["raw_progress"]) - strength),
             "initial_drift": result.initial_proxy["drift"],
@@ -266,6 +298,10 @@ def main() -> None:
             "optimized_final_progress": diagnostics["optimized_final_progress"],
             "final_target_error": diagnostics["final_target_error"],
             "residual_native_ratio": diagnostics["residual_native_ratio"],
+            "best_iteration": result.best_iteration,
+            "best_loss": result.best_loss,
+            "last_iteration_loss": result.last_iteration_loss,
+            "stop_reason": result.stop_reason,
         }), flush=True)
 
     ordered = [0.0, *[float(x) for x in args.strengths if 0 < x < 1], 1.0]
@@ -273,12 +309,12 @@ def main() -> None:
     grid_labels = ["source" if value == 0 else "native full" if value == 1 else f"progress {value:.2f}" for value in ordered]
     grid_path = args.output_dir / "comparison_grid.png"
     save_grid(grid_paths, grid_labels, grid_path)
-    progress_values = [row["optimized_final_progress"] for row in result_rows]
+    progress_values = [row["best_final_progress"] for row in result_rows]
     signal_range = float(max(progress_values) - min(progress_values)) if progress_values else 0.0
     sr = sorted(result_rows, key=lambda q: float(q["requested_strength"]))
     sp = [float(q["optimized_final_progress"]) for q in sr]
     ordered = all(b > a for a,b in zip(sp,sp[1:]))
-    gaps = {f"gap_{int(100*a['requested_strength']):02d}_{int(100*b['requested_strength']):02d}":float(b["optimized_final_progress"])-float(a["optimized_final_progress"]) for a,b in zip(sr,sr[1:])}
+    gaps = {f"gap_{int(100*a['requested_strength']):02d}_{int(100*b['requested_strength']):02d}":float(b["best_final_progress"])-float(a["best_final_progress"]) for a,b in zip(sr,sr[1:])}
     summary: dict[str, object] = {
         "source": str(Path(args.source).resolve()),
         "prompt": args.prompt,
@@ -291,6 +327,10 @@ def main() -> None:
         "seed": args.seed,
         "steps": args.steps,
         "reward_mode": args.reward_mode,
+        "iterations_requested": args.iterations,
+        "target_tolerance": args.target_tolerance,
+        "patience": args.patience,
+        "min_improvement": args.min_improvement,
         "final_progress_is_ordered": ordered,
         "level_gaps": gaps,
         "native_rollout_config": {

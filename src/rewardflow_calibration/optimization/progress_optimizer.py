@@ -28,6 +28,15 @@ class ProgressResidualResult:
     velocity_diagnostics: dict[str, object]
     projection_diagnostics: dict[str, object]
     warnings: list[str]
+    best_iteration: int
+    best_loss: float
+    last_iteration_loss: float
+    best_final_progress: float
+    last_final_progress: float
+    best_target_error: float
+    last_target_error: float
+    stop_reason: str
+    converged: bool
 
 
 class ProgressResidualOptimizer:
@@ -49,6 +58,9 @@ class ProgressResidualOptimizer:
         iterations: int = 4,
         clip_grad_norm: float = 1.0,
         reward_mode: str = "proxy",
+        target_tolerance: float = 0.03,
+        patience: int = 4,
+        min_improvement: float = 1e-4,
         progress_callback: Callable[[dict[str, object]], None] | None = None,
     ) -> None:
         if not 0.0 <= target_strength <= 1.0:
@@ -63,6 +75,8 @@ class ProgressResidualOptimizer:
             raise ValueError("iterations, learning_rate, and clip_grad_norm must be positive")
         if reward_mode not in {"proxy", "final"}:
             raise ValueError("reward_mode must be 'proxy' or 'final'")
+        if target_tolerance < 0 or patience < 1 or min_improvement < 0:
+            raise ValueError("target_tolerance and min_improvement must be non-negative; patience must be positive")
         self.rollout = rollout
         self.prepared = prepared
         self.native_full_image = native_full_image.detach()
@@ -77,6 +91,9 @@ class ProgressResidualOptimizer:
         self.iterations = int(iterations)
         self.clip_grad_norm = float(clip_grad_norm)
         self.reward_mode = reward_mode
+        self.target_tolerance = float(target_tolerance)
+        self.patience = int(patience)
+        self.min_improvement = float(min_improvement)
         self.progress_callback = progress_callback
 
     def prepared_source_tensor(self) -> torch.Tensor:
@@ -114,6 +131,13 @@ class ProgressResidualOptimizer:
         )
         optimizer = torch.optim.Adam([residual.velocity], lr=self.learning_rate)
         history: list[dict[str, object]] = []
+        best_residual: torch.Tensor | None = None
+        best_loss = float("inf")
+        best_iteration = 0
+        stale_iterations = 0
+        last_residual = residual.velocity.detach().clone()
+        last_iteration_loss = float("inf")
+        stop_reason = "max_iterations"
 
         for iteration in range(self.iterations):
             optimizer.zero_grad(set_to_none=True)
@@ -141,41 +165,93 @@ class ProgressResidualOptimizer:
             self._all_finite(residual.velocity, "residual before update")
             optimizer.step()
             self._all_finite(residual.velocity, "residual after update")
+            last_residual = residual.velocity.detach().clone()
+
+            with torch.no_grad():
+                post_image = self.rollout.rollout_native(
+                    self.prepared, config=self.config, goal_residual=residual.velocity.detach(),
+                    early_stop_steps=self.proxy_steps if self.reward_mode == "proxy" else None,
+                )
+                post_values = self.estimator(post_image)
+                post_loss = progress_control_loss(
+                    post_values.raw_progress, self.target_strength, post_values.drift,
+                    residual.velocity.detach(), self.loss_config,
+                )
+            self._all_finite(post_loss.total, "post-update total loss")
+            post_loss_value = float(post_loss.total.detach().cpu())
+            post_progress = float(post_values.raw_progress.detach().mean().cpu())
+            last_iteration_loss = post_loss_value
+            previous_best = best_loss
+            improvement = previous_best - post_loss_value
+            if post_loss_value < best_loss:
+                best_loss = post_loss_value
+                best_iteration = iteration + 1
+                best_residual = residual.velocity.detach().clone()
+            if previous_best == float("inf") or improvement >= self.min_improvement:
+                stale_iterations = 0
+            else:
+                stale_iterations += 1
+
             per_step_rms = residual.velocity.detach().float().square().mean(dim=(1, 2)).sqrt()
             record: dict[str, object] = {
                 "iteration": iteration,
+                "iteration_number": iteration + 1,
                 "reward_mode": self.reward_mode,
-                "supervision_progress": float(values.raw_progress.detach().mean().cpu()),
-                "total_loss": float(loss.total.detach().cpu()),
-                "progress_loss": float(loss.progress.detach().cpu()),
-                "drift_loss": float(loss.drift.detach().cpu()),
-                "regularization": float(loss.regularization.detach().cpu()),
-                "raw_progress": float(values.raw_progress.detach().mean().cpu()),
-                "target_error": float(loss.target_error.detach().cpu()),
+                "post_update": True,
+                "supervision_progress": post_progress,
+                "total_loss": post_loss_value,
+                "progress_loss": float(post_loss.progress.detach().cpu()),
+                "drift_loss": float(post_loss.drift.detach().cpu()),
+                "regularization": float(post_loss.regularization.detach().cpu()),
+                "raw_progress": post_progress,
+                "target_error": float(post_loss.target_error.detach().cpu()),
                 "gradient_norm_total": float(grad_norm.detach().cpu()),
                 "gradient_norm_per_step": per_step_grad.detach().cpu().tolist(),
+                "gradient_norm_pre_update": float(grad_norm.detach().cpu()),
+                "gradient_norm_per_step_pre_update": per_step_grad.detach().cpu().tolist(),
                 "residual_rms": float(residual.velocity.detach().float().square().mean().sqrt().cpu()),
                 "residual_max_abs": float(residual.velocity.detach().float().abs().max().cpu()),
                 "residual_rms_per_step": per_step_rms.cpu().tolist(),
-                "progress_diagnostics": values.diagnostics(),
+                "progress_diagnostics": post_values.diagnostics(),
+                "best_loss_so_far": best_loss,
+                "best_iteration_so_far": best_iteration,
+                "stale_iterations": stale_iterations,
             }
             history.append(record)
             if self.progress_callback:
                 self.progress_callback(record)
 
-        self._all_finite(residual.velocity, "optimized residual")
+            if abs(post_progress - self.target_strength) <= self.target_tolerance:
+                stop_reason = "target_tolerance"
+                break
+            if stale_iterations >= self.patience:
+                stop_reason = "patience"
+                break
+
+        if best_residual is None:
+            raise RuntimeError("optimizer completed without evaluating a best residual")
+        self._all_finite(best_residual, "best residual")
         with torch.no_grad():
             optimized_proxy_image = self.rollout.rollout_native(
-                self.prepared, config=self.config, goal_residual=residual.velocity.detach(),
+                self.prepared, config=self.config, goal_residual=best_residual,
                 early_stop_steps=self.proxy_steps,
             ).detach()
             optimized_proxy_values = self.estimator(optimized_proxy_image)
             optimized_final_trace: list[dict[str, torch.Tensor]] = []
             optimized_final_image = self.rollout.rollout_native(
-                self.prepared, config=self.config, goal_residual=residual.velocity.detach(),
+                self.prepared, config=self.config, goal_residual=best_residual,
                 velocity_trace=optimized_final_trace,
             ).detach()
             optimized_final_values = self.estimator(optimized_final_image)
+            last_final_image = self.rollout.rollout_native(
+                self.prepared, config=self.config, goal_residual=last_residual,
+            ).detach()
+            last_final_values = self.estimator(last_final_image)
+        best_final_progress = float(optimized_final_values.raw_progress.detach().mean().cpu())
+        last_final_progress = float(last_final_values.raw_progress.detach().mean().cpu())
+        best_target_error = abs(best_final_progress - self.target_strength)
+        last_target_error = abs(last_final_progress - self.target_strength)
+        converged = abs(float(history[-1]["raw_progress"]) - self.target_strength) <= self.target_tolerance
 
         velocity_rows = []
         warnings_list: list[str] = []
@@ -250,7 +326,7 @@ class ProgressResidualOptimizer:
             initial_proxy_image=initial_proxy_image,
             optimized_proxy_image=optimized_proxy_image,
             optimized_final_image=optimized_final_image,
-            residual=residual.velocity.detach().cpu(),
+            residual=best_residual.detach().cpu(),
             initial_proxy=initial_values.diagnostics(),
             optimized_proxy=optimized_proxy_values.diagnostics(),
             optimized_final=optimized_final_values.diagnostics(),
@@ -258,4 +334,13 @@ class ProgressResidualOptimizer:
             velocity_diagnostics=diagnostics,
             projection_diagnostics=projection,
             warnings=warnings_list,
+            best_iteration=best_iteration,
+            best_loss=best_loss,
+            last_iteration_loss=last_iteration_loss,
+            best_final_progress=best_final_progress,
+            last_final_progress=last_final_progress,
+            best_target_error=best_target_error,
+            last_target_error=last_target_error,
+            stop_reason=stop_reason,
+            converged=converged,
         )
