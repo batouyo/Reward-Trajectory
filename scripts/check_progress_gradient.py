@@ -29,6 +29,7 @@ def parse_args():
     parser.add_argument("--steps", type=int, default=15)
     parser.add_argument("--goal-steps", type=int, default=4)
     parser.add_argument("--proxy-steps", type=int, default=4)
+    parser.add_argument("--reward-mode", choices=["proxy", "final"], default="proxy")
     parser.add_argument("--learning-rate", type=float, default=1e-3)
     parser.add_argument("--epsilon", type=float, default=1e-2)
     parser.add_argument("--progress-backbone", choices=["siglip", "dino"], default="siglip")
@@ -71,7 +72,7 @@ def main():
     )
     proxy = rollout.rollout_native(
         prepared, config=config, goal_residual=residual,
-        early_stop_steps=args.proxy_steps,
+        early_stop_steps=args.proxy_steps if args.reward_mode == "proxy" else None,
     )
     projected = estimator(proxy)
     values = progress_control_loss(
@@ -113,6 +114,7 @@ def main():
     report = {
         "source": str(Path(args.source).resolve()),
         "prompt": args.prompt,
+        "reward_mode": args.reward_mode,
         "target_strength": args.target_strength,
         "initial_progress": initial_progress,
         "target_progress": args.target_strength,
@@ -131,6 +133,7 @@ def main():
     }
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(json.dumps(report, indent=2), encoding="utf-8")
+    torch.save(gradient.detach().cpu(), args.output.with_name(args.output.stem + "_gradient.pt"))
     print(json.dumps(report, indent=2))
 
 

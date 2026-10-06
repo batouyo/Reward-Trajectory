@@ -48,6 +48,7 @@ class ProgressResidualOptimizer:
         learning_rate: float = 1e-3,
         iterations: int = 4,
         clip_grad_norm: float = 1.0,
+        reward_mode: str = "proxy",
         progress_callback: Callable[[dict[str, object]], None] | None = None,
     ) -> None:
         if not 0.0 <= target_strength <= 1.0:
@@ -60,6 +61,8 @@ class ProgressResidualOptimizer:
             raise ValueError("proxy_steps must cover goal_steps and not exceed rollout steps")
         if iterations < 1 or learning_rate <= 0 or clip_grad_norm <= 0:
             raise ValueError("iterations, learning_rate, and clip_grad_norm must be positive")
+        if reward_mode not in {"proxy", "final"}:
+            raise ValueError("reward_mode must be 'proxy' or 'final'")
         self.rollout = rollout
         self.prepared = prepared
         self.native_full_image = native_full_image.detach()
@@ -73,6 +76,7 @@ class ProgressResidualOptimizer:
         self.learning_rate = float(learning_rate)
         self.iterations = int(iterations)
         self.clip_grad_norm = float(clip_grad_norm)
+        self.reward_mode = reward_mode
         self.progress_callback = progress_callback
 
     def prepared_source_tensor(self) -> torch.Tensor:
@@ -113,11 +117,11 @@ class ProgressResidualOptimizer:
 
         for iteration in range(self.iterations):
             optimizer.zero_grad(set_to_none=True)
-            proxy_image = self.rollout.rollout_native(
+            supervision_image = self.rollout.rollout_native(
                 self.prepared, config=self.config, goal_residual=residual.velocity,
-                early_stop_steps=self.proxy_steps,
+                early_stop_steps=self.proxy_steps if self.reward_mode == "proxy" else None,
             )
-            values = self.estimator(proxy_image)
+            values = self.estimator(supervision_image)
             loss = progress_control_loss(
                 values.raw_progress, self.target_strength, values.drift,
                 residual.velocity, self.loss_config,
@@ -140,6 +144,8 @@ class ProgressResidualOptimizer:
             per_step_rms = residual.velocity.detach().float().square().mean(dim=(1, 2)).sqrt()
             record: dict[str, object] = {
                 "iteration": iteration,
+                "reward_mode": self.reward_mode,
+                "supervision_progress": float(values.raw_progress.detach().mean().cpu()),
                 "total_loss": float(loss.total.detach().cpu()),
                 "progress_loss": float(loss.progress.detach().cpu()),
                 "drift_loss": float(loss.drift.detach().cpu()),

@@ -31,6 +31,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--steps", type=int, default=15)
     parser.add_argument("--goal-steps", type=int, default=4)
     parser.add_argument("--proxy-steps", type=int, default=4)
+    parser.add_argument("--reward-mode", choices=["proxy", "final"], default="final")
     parser.add_argument("--iterations", type=int, default=4)
     parser.add_argument("--learning-rate", type=float, default=1e-3)
     parser.add_argument("--progress-backbone", choices=["siglip", "dino"], default="siglip")
@@ -200,6 +201,7 @@ def main() -> None:
             learning_rate=args.learning_rate,
             iterations=args.iterations,
             clip_grad_norm=args.clip_grad_norm,
+            reward_mode=args.reward_mode,
             progress_callback=save_progress,
         )
         result = optimizer.run()
@@ -273,6 +275,10 @@ def main() -> None:
     save_grid(grid_paths, grid_labels, grid_path)
     progress_values = [row["optimized_final_progress"] for row in result_rows]
     signal_range = float(max(progress_values) - min(progress_values)) if progress_values else 0.0
+    sr = sorted(result_rows, key=lambda q: float(q["requested_strength"]))
+    sp = [float(q["optimized_final_progress"]) for q in sr]
+    ordered = all(b > a for a,b in zip(sp,sp[1:]))
+    gaps = {f"gap_{int(100*a['requested_strength']):02d}_{int(100*b['requested_strength']):02d}":float(b["optimized_final_progress"])-float(a["optimized_final_progress"]) for a,b in zip(sr,sr[1:])}
     summary: dict[str, object] = {
         "source": str(Path(args.source).resolve()),
         "prompt": args.prompt,
@@ -284,6 +290,9 @@ def main() -> None:
         ),
         "seed": args.seed,
         "steps": args.steps,
+        "reward_mode": args.reward_mode,
+        "final_progress_is_ordered": ordered,
+        "level_gaps": gaps,
         "native_rollout_config": {
             "first_step_align_steps": 0,
             "preserve_steps": 0,
