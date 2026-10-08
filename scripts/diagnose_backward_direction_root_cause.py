@@ -21,12 +21,16 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
 from rewardflow_calibration.diagnostics.backward_direction import (
+    build_proxy_directions,
     capture_final_gradient,
     compare_directions,
     component_gradients,
+    exact_veloedit_overrides,
     evaluate_proxy_final_pair,
+    global_direction_names,
     mask_direction,
     parallel_orthogonal_energy,
+    root_cause_evidence,
     scale_global_direction,
     scale_isolated_timestep,
     temporal_energy,
@@ -322,82 +326,6 @@ def _record_candidate(
     return record
 
 
-def _root_cause_evidence(
-    directions_geometry: dict[str, Any],
-    proxy_temporal: dict[str, Any],
-    final_temporal: dict[str, Any] | None,
-    candidates: list[dict[str, Any]],
-    exact_metrics: list[dict[str, Any]],
-    final_gradient_status: str,
-) -> dict[str, Any]:
-    def find(direction: str, kind: str = "global_direction"):
-        return next((row for row in candidates if row.get("direction") == direction
-                     and row.get("candidate_type") == kind
-                     and row.get("requested_ratio") == 0.02), None)
-
-    def delta(row, stage: str, metric: str):
-        if row is None:
-            return None
-        return row.get(stage, {}).get("deltas", {}).get(f"delta_{metric}")
-
-    proxy_source = find("proxy_source_masked")
-    proxy_total = find("proxy_total_masked")
-    proxy_unmasked = find("proxy_total_unmasked")
-    proxy_reverse = find("proxy_total_reverse")
-    final_source = find("final_source_masked")
-    local = find("velo_local_backward")
-    geom = directions_geometry.get("comparisons", {})
-    projection = directions_geometry.get("projection_to_velo_local", {})
-    return {
-        "case_1_proxy_problem": {
-            "proxy_final_source_gradient_cosine": geom.get("proxy_source_masked_vs_final_source_masked", {}).get("global_cosine"),
-            "proxy_source_direction_final_dreamsim_delta": delta(proxy_source, "final", "dreamsim_to_source"),
-            "final_source_direction_final_dreamsim_delta": delta(final_source, "final", "dreamsim_to_source"),
-            "final_gradient_status": final_gradient_status,
-        },
-        "case_2_reward_metric_problem": {
-            "proxy_source_dino_delta": delta(proxy_source, "proxy", "dino_source_loss"),
-            "proxy_source_dreamsim_delta": delta(proxy_source, "proxy", "dreamsim_to_source"),
-            "final_source_dino_delta": delta(proxy_source, "final", "dino_source_loss"),
-            "final_source_dreamsim_delta": delta(proxy_source, "final", "dreamsim_to_source"),
-            "velo_local_final_dreamsim_delta": delta(local, "final", "dreamsim_to_source"),
-        },
-        "case_3_keep_loss_conflict": {
-            "proxy_source_vs_total_cosine": geom.get("proxy_total_masked_vs_proxy_source_masked", {}).get("global_cosine"),
-            "proxy_source_final_dreamsim_delta": delta(proxy_source, "final", "dreamsim_to_source"),
-            "proxy_total_final_dreamsim_delta": delta(proxy_total, "final", "dreamsim_to_source"),
-            "proxy_keep_source_cosine": geom.get("proxy_total_masked_vs_proxy_keep_masked", {}).get("global_cosine"),
-        },
-        "case_4_mask_conflict": {
-            "total_masked_final_dreamsim_delta": delta(proxy_total, "final", "dreamsim_to_source"),
-            "total_unmasked_final_dreamsim_delta": delta(proxy_unmasked, "final", "dreamsim_to_source"),
-            "masked_unmasked_cosine": geom.get("proxy_total_masked_vs_proxy_total_unmasked", {}).get("global_cosine"),
-        },
-        "case_5_sign_problem": {
-            "total_backward_final_dreamsim_delta": delta(proxy_total, "final", "dreamsim_to_source"),
-            "reverse_final_dreamsim_delta": delta(proxy_reverse, "final", "dreamsim_to_source"),
-            "backward_reverse_cosine": geom.get("proxy_total_masked_vs_proxy_total_reverse", {}).get("global_cosine"),
-        },
-        "case_6_free_gradient_geometry": {
-            "source_parallel_energy_fraction": projection.get("proxy_source_masked", {}).get("parallel_energy_fraction"),
-            "source_orthogonal_energy_fraction": projection.get("proxy_source_masked", {}).get("orthogonal_energy_fraction"),
-            "source_vs_velo_cosine": geom.get("proxy_source_masked_vs_velo_local", {}).get("global_cosine"),
-            "velo_local_final_dreamsim_delta": delta(local, "final", "dreamsim_to_source"),
-        },
-        "case_7_step4_shortcut": {
-            "proxy_step4_energy_fraction": proxy_temporal.get("proxy_total", {}).get("step4_energy_fraction"),
-            "final_step4_energy_fraction": None if final_temporal is None else final_temporal.get("final_source", {}).get("step4_energy_fraction"),
-            "reward_step4_final_dreamsim_delta": delta(next((row for row in candidates if row.get("candidate_type") == "temporal_direction" and row.get("direction") == "proxy_total_masked" and row.get("temporal_step") == 3), None), "final", "dreamsim_to_source"),
-            "velo_step4_final_dreamsim_delta": delta(next((row for row in candidates if row.get("candidate_type") == "temporal_direction" and row.get("direction") == "velo_local_backward" and row.get("temporal_step") == 3), None), "final", "dreamsim_to_source"),
-        },
-        "case_8_veloedit_preservation": {
-            "velo_local_direction_final_dreamsim_delta": delta(local, "final", "dreamsim_to_source"),
-            "exact_alpha_dreamsim_to_source": [row.get("metrics", {}).get("dreamsim_to_source") for row in exact_metrics],
-            "exact_alpha": [row.get("alpha") for row in exact_metrics],
-        },
-    }
-
-
 def main() -> None:
     args = parse_args()
     if args.steps < 1 or not 1 <= args.goal_steps <= args.steps:
@@ -405,10 +333,11 @@ def main() -> None:
     for label, path in (
         ("model", args.model_path), ("input image", args.image),
         ("SigLIP", args.siglip_model_path), ("DINOv2", args.dino_model_path),
-        ("DreamSim cache", args.dreamsim_cache_dir),
     ):
         if not Path(path).exists():
             raise FileNotFoundError(f"{label} path does not exist: {path}")
+    if args.dreamsim_cache_dir:
+        Path(args.dreamsim_cache_dir).mkdir(parents=True, exist_ok=True)
 
     output = args.output_dir.resolve()
     output.mkdir(parents=True, exist_ok=True)
@@ -416,11 +345,12 @@ def main() -> None:
     candidates_path.write_text("", encoding="utf-8")
     for name in (
         "proxy_total_masked", "proxy_source_masked", "proxy_total_unmasked",
-        "proxy_total_reverse", "final_source_masked", "velo_local",
+        "proxy_source_unmasked", "proxy_total_reverse", "final_source_masked", "velo_local",
     ):
         (output / "directions" / name).mkdir(parents=True, exist_ok=True)
     (output / "temporal").mkdir(parents=True, exist_ok=True)
-    (output / "exact_veloedit").mkdir(parents=True, exist_ok=True)
+    (output / "exact_veloedit_low_only").mkdir(parents=True, exist_ok=True)
+    (output / "exact_veloedit_full").mkdir(parents=True, exist_ok=True)
 
     device = torch.device(args.device)
     dtype = torch.bfloat16
@@ -454,10 +384,13 @@ def main() -> None:
         "goal_steps": args.goal_steps,
         "dtype": str(dtype),
         "native_rollout": asdict(rollout_config),
-        "exact_veloedit": {
-            "first_step_align_steps": 0,
-            "preserve_steps": 4,
-            "edit_steps": 4,
+        "exact_veloedit_low_only": {
+            **exact_veloedit_overrides(full=False),
+            "similarity_threshold": args.similarity_threshold,
+            "alphas": list(EXACT_VELOEDIT_ALPHAS),
+        },
+        "exact_veloedit_full": {
+            **exact_veloedit_overrides(full=True),
             "similarity_threshold": args.similarity_threshold,
             "alphas": list(EXACT_VELOEDIT_ALPHAS),
         },
@@ -536,7 +469,9 @@ def main() -> None:
         "image_edit_mask_coverage": float(image_edit_mask.mean().cpu()),
     }
 
-    dreamsim = DreamSimDistance(device, cache_dir=args.dreamsim_cache_dir)
+    dreamsim = DreamSimDistance(
+        device, cache_dir=args.dreamsim_cache_dir or None
+    )
     reward = BackwardReward(
         args.prompt,
         device=device,
@@ -622,15 +557,7 @@ def main() -> None:
     if device.type == "cuda" and torch.cuda.is_available():
         torch.cuda.empty_cache()
 
-    directions = {
-        "proxy_total_masked": mask_direction(proxy_gradients["total"], hard_mask, sign=-1),
-        "proxy_source_masked": mask_direction(proxy_gradients["source"], hard_mask, sign=-1),
-        "proxy_keep_masked": mask_direction(proxy_gradients["keep"], hard_mask, sign=-1),
-        "proxy_semantic_down": mask_direction(proxy_gradients["semantic"], hard_mask, sign=-1),
-        "proxy_total_unmasked": -proxy_gradients["total"].detach().float(),
-        "proxy_total_reverse": mask_direction(proxy_gradients["total"], hard_mask, sign=1),
-        "velo_local_backward": velo_local,
-    }
+    directions = build_proxy_directions(proxy_gradients, hard_mask, velo_local)
     if final_gradients is not None:
         directions["final_source_masked"] = mask_direction(
             final_gradients["source"], hard_mask, sign=-1
@@ -644,6 +571,8 @@ def main() -> None:
         ("proxy_total_masked", "proxy_keep_masked"),
         ("proxy_total_masked", "proxy_total_unmasked"),
         ("proxy_total_masked", "proxy_total_reverse"),
+        ("proxy_source_masked", "proxy_source_unmasked"),
+        ("proxy_source_unmasked", "velo_local_backward"),
         ("proxy_total_masked", "velo_local_backward"),
         ("proxy_source_masked", "velo_local_backward"),
         ("proxy_semantic_down", "velo_local_backward"),
@@ -663,7 +592,7 @@ def main() -> None:
             name: parallel_orthogonal_energy(value, directions["velo_local_backward"])
             for name, value in directions.items()
             if name in {
-                "proxy_total_masked", "proxy_source_masked", "proxy_semantic_down",
+                "proxy_total_masked", "proxy_source_masked", "proxy_source_unmasked", "proxy_semantic_down",
                 "final_source_masked", "final_total_masked",
             }
         },
@@ -702,11 +631,7 @@ def main() -> None:
     _write_json(output / "gradient_temporal.json", gradient_temporal)
 
     candidate_records: list[dict[str, Any]] = []
-    global_direction_names = [
-        "proxy_total_masked", "proxy_source_masked", "proxy_total_unmasked",
-        "proxy_total_reverse", "final_source_masked", "velo_local_backward",
-    ]
-    for name in global_direction_names:
+    for name in global_direction_names(final_gradient_available=final_gradients is not None):
         direction = directions.get(name)
         if direction is None:
             for ratio in GLOBAL_RATIOS:
@@ -770,39 +695,43 @@ def main() -> None:
             )
             candidate_records.append(record)
 
-    exact_velo_config = VeloEditRolloutConfig(
-        **{
-            **asdict(rollout_config),
-            "preserve_steps": 4,
-            "edit_steps": 4,
-        }
-    )
-    started = _begin_stage(device)
-    with torch.no_grad():
-        exact_images = rollout.rollout(
-            prepared,
-            torch.tensor(EXACT_VELOEDIT_ALPHAS, device=device),
-            config=exact_velo_config,
-        ).detach()
-    runtime["exact_veloedit_rollouts"] = _end_stage(device, started)
-    exact_metrics: list[dict[str, Any]] = []
-    for index, alpha in enumerate(EXACT_VELOEDIT_ALPHAS):
-        image = exact_images[index:index + 1]
-        image_path = output / "exact_veloedit" / f"alpha_{alpha:.2f}.png"
-        _save_image(image, image_path)
-        metrics = _measure_image(reward, image, source, image_keep_mask, native_full)
-        row = {
-            "candidate_type": "exact_veloedit",
-            "alpha": alpha,
-            "metrics": metrics,
-            "deltas": _metric_delta(metrics, final_baseline_metrics),
-            "image": str(image_path.resolve()),
-            "runtime": runtime["exact_veloedit_rollouts"],
-        }
-        exact_metrics.append(row)
-        _append_jsonl(candidates_path, row)
-    del exact_images
-
+    exact_metrics_by_mode: dict[str, list[dict[str, Any]]] = {
+        "low_only": [],
+        "full": [],
+    }
+    for mode, full in (("low_only", False), ("full", True)):
+        exact_config = VeloEditRolloutConfig(
+            **{
+                **asdict(rollout_config),
+                **exact_veloedit_overrides(full=full),
+                "similarity_threshold": args.similarity_threshold,
+            }
+        )
+        started = _begin_stage(device)
+        with torch.no_grad():
+            exact_images = rollout.rollout(
+                prepared,
+                torch.tensor(EXACT_VELOEDIT_ALPHAS, device=device),
+                config=exact_config,
+            ).detach()
+        runtime[f"exact_veloedit_{mode}_rollouts"] = _end_stage(device, started)
+        directory = output / f"exact_veloedit_{mode}"
+        for index, alpha in enumerate(EXACT_VELOEDIT_ALPHAS):
+            image = exact_images[index:index + 1]
+            image_path = directory / f"alpha_{alpha:.2f}.png"
+            _save_image(image, image_path)
+            metrics = _measure_image(reward, image, source, image_keep_mask, native_full)
+            row = {
+                "candidate_type": f"exact_veloedit_{mode}",
+                "alpha": alpha,
+                "metrics": metrics,
+                "deltas": _metric_delta(metrics, final_baseline_metrics),
+                "image": str(image_path.resolve()),
+                "runtime": runtime[f"exact_veloedit_{mode}_rollouts"],
+            }
+            exact_metrics_by_mode[mode].append(row)
+            _append_jsonl(candidates_path, row)
+        del exact_images
     grid_items: list[tuple[str, Path]] = [
         ("source", output / "source.png"),
         ("native full · 15 steps", output / "native_full.png"),
@@ -817,16 +746,21 @@ def main() -> None:
                 Path(row["final"]["image"]),
             ))
     grid_items.extend(
-        (f"exact VeloEdit · alpha {row['alpha']:.2f}", Path(row["image"]))
-        for row in exact_metrics
+        (f"Exact Velo low-only · alpha {row['alpha']:.2f}", Path(row["image"]))
+        for row in exact_metrics_by_mode["low_only"]
+    )
+    grid_items.extend(
+        (f"Exact Velo full · alpha {row['alpha']:.2f}", Path(row["image"]))
+        for row in exact_metrics_by_mode["full"]
     )
     _make_grid(grid_items, output / "comparison_grid.png")
 
     direction_geometry["final_gradient_status"] = final_gradient_status
     direction_geometry["final_gradient_error"] = final_gradient_error
-    root_evidence = _root_cause_evidence(
-        direction_geometry, gradient_temporal, final_temporal,
-        candidate_records, exact_metrics, final_gradient_status,
+    root_evidence = root_cause_evidence(
+        direction_geometry, gradient_temporal,
+        candidate_records, exact_metrics_by_mode["low_only"],
+        exact_metrics_by_mode["full"], final_gradient_status,
     )
     summary = {
         "experiment": "Backward Velocity Direction Root-Cause Diagnostic",
@@ -841,7 +775,8 @@ def main() -> None:
         "candidate_count": len(candidate_records),
         "evaluated_candidate_count": sum(row.get("status") == "evaluated" for row in candidate_records),
         "skipped_candidate_count": sum(row.get("status") == "skipped" for row in candidate_records),
-        "exact_veloedit_count": len(exact_metrics),
+        "exact_veloedit_low_only_count": len(exact_metrics_by_mode["low_only"]),
+        "exact_veloedit_full_count": len(exact_metrics_by_mode["full"]),
         "root_cause_evidence": root_evidence,
         "runtime": runtime,
         "images": {

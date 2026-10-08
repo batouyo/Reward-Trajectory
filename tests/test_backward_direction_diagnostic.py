@@ -1,18 +1,26 @@
+import sys
+import types
+
 import pytest
 import torch
 
 from rewardflow_calibration.diagnostics.backward_direction import (
+    build_proxy_directions,
     capture_final_gradient,
     compare_directions,
     component_gradients,
+    exact_veloedit_overrides,
     evaluate_proxy_final_pair,
+    global_direction_names,
     mask_direction,
     parallel_orthogonal_energy,
+    root_cause_evidence,
     scale_global_direction,
     scale_isolated_timestep,
     temporal_energy,
     veloedit_backward_direction,
 )
+from rewardflow_calibration.metrics.dreamsim import DreamSimDistance
 
 
 def _tensor(values):
@@ -138,3 +146,82 @@ def test_final_gradient_oom_is_captured_without_losing_proxy_results():
     assert result["final_gradient_status"] == "oom"
     assert result["gradients"] is None
     assert "out of memory" in result["error"].lower()
+
+
+def test_root_evidence_preserves_step4_energy_fractions():
+    evidence = root_cause_evidence(
+        {},
+        {"proxy_step4_energy_fraction": 0.99, "final_step4_energy_fraction": 0.25},
+        [], [], [], "ok",
+    )
+    assert evidence["case_7_step4_shortcut"]["proxy_step4_energy_fraction"] == 0.99
+    assert evidence["case_7_step4_shortcut"]["final_step4_energy_fraction"] == 0.25
+
+
+def test_root_evidence_reads_backward_velo_geometry_key():
+    evidence = root_cause_evidence(
+        {"comparisons": {
+            "proxy_source_masked_vs_velo_local_backward": {"global_cosine": 0.123}
+        }},
+        {}, [], [], [], "ok",
+    )
+    assert evidence["case_6_free_gradient_geometry"]["source_vs_velo_cosine"] == 0.123
+
+
+def test_proxy_source_directions_preserve_masked_and_unmasked_support():
+    gradients = {
+        "source": torch.ones(4, 2, 1),
+        "total": torch.ones(4, 2, 1),
+        "keep": torch.ones(4, 2, 1),
+        "semantic": torch.ones(4, 2, 1),
+    }
+    mask = torch.zeros(4, 2, 1, dtype=torch.bool)
+    mask[:, 0] = True
+    directions = build_proxy_directions(gradients, mask, torch.zeros_like(gradients["source"]))
+    assert directions["proxy_source_masked"].shape == directions["proxy_source_unmasked"].shape
+    assert torch.count_nonzero(directions["proxy_source_masked"][:, 1]) == 0
+    assert torch.count_nonzero(directions["proxy_source_unmasked"][:, 1]) == 4
+
+
+def test_global_direction_names_include_proxy_source_unmasked():
+    assert "proxy_source_unmasked" in global_direction_names(final_gradient_available=True)
+
+
+def test_exact_veloedit_comparator_configs_are_distinct():
+    low_only = exact_veloedit_overrides(full=False)
+    full = exact_veloedit_overrides(full=True)
+    assert low_only["first_step_align_steps"] == full["first_step_align_steps"] == 0
+    assert low_only["preserve_steps"] == 0 and low_only["edit_steps"] == 4
+    assert full["preserve_steps"] == 4 and full["edit_steps"] == 4
+
+
+def test_root_evidence_keeps_low_only_and_full_exact_results_separate():
+    low_only = [{"alpha": 0.75, "metrics": {"dreamsim_to_source": 0.12}}]
+    full = [{"alpha": 0.75, "metrics": {"dreamsim_to_source": 0.08}}]
+    evidence = root_cause_evidence({}, {}, [], low_only, full, "ok")
+    case = evidence["case_8_veloedit_preservation"]
+    assert case["exact_low_only_alpha"] == [0.75]
+    assert case["exact_low_only_dreamsim_to_source"] == [0.12]
+    assert case["exact_full_alpha"] == [0.75]
+    assert case["exact_full_dreamsim_to_source"] == [0.08]
+
+
+@pytest.mark.parametrize(
+    "cache_dir,expected",
+    [(None, {"pretrained": True, "device": "cpu"}),
+     ("/tmp/x", {"pretrained": True, "device": "cpu", "cache_dir": "/tmp/x"})],
+)
+def test_dreamsim_cache_dir_is_only_passed_when_explicit(monkeypatch, cache_dir, expected):
+    calls = []
+
+    class FakeModel:
+        def eval(self):
+            return self
+
+    def fake_dreamsim(**kwargs):
+        calls.append(kwargs)
+        return FakeModel(), object()
+
+    monkeypatch.setitem(sys.modules, "dreamsim", types.SimpleNamespace(dreamsim=fake_dreamsim))
+    DreamSimDistance("cpu", cache_dir=cache_dir)
+    assert calls == [expected]

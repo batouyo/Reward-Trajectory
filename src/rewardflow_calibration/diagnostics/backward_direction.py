@@ -37,6 +37,158 @@ def veloedit_backward_direction(edit_direction: torch.Tensor) -> torch.Tensor:
     return -edit_direction.detach().float()
 
 
+def global_direction_names(*, final_gradient_available: bool) -> list[str]:
+    """Return the fixed direction sweep order, including optional final gradients."""
+    names = [
+        "proxy_total_masked",
+        "proxy_source_masked",
+        "proxy_source_unmasked",
+        "proxy_total_unmasked",
+        "proxy_total_reverse",
+    ]
+    if final_gradient_available:
+        names.append("final_source_masked")
+    names.append("velo_local_backward")
+    return names
+
+
+def build_proxy_directions(
+    proxy_gradients: Mapping[str, torch.Tensor],
+    hard_mask: torch.Tensor,
+    velo_local_backward: torch.Tensor,
+) -> dict[str, torch.Tensor]:
+    """Construct the independent proxy reward directions used by diagnostics."""
+    source = proxy_gradients["source"].detach().float()
+    total = proxy_gradients["total"].detach().float()
+    keep = proxy_gradients["keep"].detach().float()
+    semantic = proxy_gradients["semantic"].detach().float()
+    return {
+        "proxy_total_masked": mask_direction(total, hard_mask, sign=-1),
+        "proxy_source_masked": mask_direction(source, hard_mask, sign=-1),
+        "proxy_source_unmasked": -source,
+        "proxy_keep_masked": mask_direction(keep, hard_mask, sign=-1),
+        "proxy_semantic_down": mask_direction(semantic, hard_mask, sign=-1),
+        "proxy_total_unmasked": -total,
+        "proxy_total_reverse": mask_direction(total, hard_mask, sign=1),
+        "velo_local_backward": velo_local_backward.detach().float(),
+    }
+
+
+def exact_veloedit_overrides(*, full: bool) -> dict[str, int]:
+    """Return intervention settings for matched-schedule VeloEdit comparators."""
+    return {
+        "first_step_align_steps": 0,
+        "preserve_steps": 4 if full else 0,
+        "edit_steps": 4,
+    }
+
+
+def root_cause_evidence(
+    directions_geometry: dict[str, object],
+    gradient_temporal: dict[str, object],
+    candidates: list[dict[str, object]],
+    exact_low_only_metrics: list[dict[str, object]],
+    exact_full_metrics: list[dict[str, object]],
+    final_gradient_status: str,
+) -> dict[str, object]:
+    """Assemble evidence with explicit proxy/final and low-only/full fields."""
+
+    def find(direction: str, kind: str = "global_direction"):
+        return next((row for row in candidates if row.get("direction") == direction
+                     and row.get("candidate_type") == kind
+                     and row.get("requested_ratio") == 0.02), None)
+
+    def delta(row, stage: str, metric: str):
+        if row is None:
+            return None
+        return row.get(stage, {}).get("deltas", {}).get(f"delta_{metric}")
+
+    proxy_source = find("proxy_source_masked")
+    proxy_source_unmasked = find("proxy_source_unmasked")
+    proxy_total = find("proxy_total_masked")
+    proxy_total_unmasked = find("proxy_total_unmasked")
+    proxy_reverse = find("proxy_total_reverse")
+    final_source = find("final_source_masked")
+    local = find("velo_local_backward")
+    comparisons = directions_geometry.get("comparisons", {})
+    projections = directions_geometry.get("projection_to_velo_local", {})
+    comparisons = comparisons if isinstance(comparisons, dict) else {}
+    projections = projections if isinstance(projections, dict) else {}
+    proxy_total_temporal = gradient_temporal.get("proxy_total", {})
+    final_source_temporal = gradient_temporal.get("final_source", {})
+    proxy_total_temporal = proxy_total_temporal if isinstance(proxy_total_temporal, dict) else {}
+    final_source_temporal = final_source_temporal if isinstance(final_source_temporal, dict) else {}
+
+    def cosine(key: str):
+        comparison = comparisons.get(key, {})
+        return comparison.get("global_cosine") if isinstance(comparison, dict) else None
+
+    def metric_values(rows: list[dict[str, object]]) -> tuple[list[object], list[object]]:
+        return (
+            [row.get("alpha") for row in rows],
+            [row.get("metrics", {}).get("dreamsim_to_source") for row in rows],
+        )
+
+    low_alphas, low_dreamsim = metric_values(exact_low_only_metrics)
+    full_alphas, full_dreamsim = metric_values(exact_full_metrics)
+    return {
+        "case_1_proxy_problem": {
+            "proxy_final_source_gradient_cosine": cosine("proxy_source_masked_vs_final_source_masked"),
+            "proxy_source_direction_final_dreamsim_delta": delta(proxy_source, "final", "dreamsim_to_source"),
+            "final_source_direction_final_dreamsim_delta": delta(final_source, "final", "dreamsim_to_source"),
+            "final_gradient_status": final_gradient_status,
+        },
+        "case_2_reward_metric_problem": {
+            "proxy_source_dino_delta": delta(proxy_source, "proxy", "dino_source_loss"),
+            "proxy_source_dreamsim_delta": delta(proxy_source, "proxy", "dreamsim_to_source"),
+            "final_source_dino_delta": delta(proxy_source, "final", "dino_source_loss"),
+            "final_source_dreamsim_delta": delta(proxy_source, "final", "dreamsim_to_source"),
+            "velo_local_final_dreamsim_delta": delta(local, "final", "dreamsim_to_source"),
+        },
+        "case_3_keep_loss_conflict": {
+            "proxy_source_vs_total_cosine": cosine("proxy_total_masked_vs_proxy_source_masked"),
+            "proxy_source_final_dreamsim_delta": delta(proxy_source, "final", "dreamsim_to_source"),
+            "proxy_total_final_dreamsim_delta": delta(proxy_total, "final", "dreamsim_to_source"),
+            "proxy_keep_source_cosine": cosine("proxy_total_masked_vs_proxy_keep_masked"),
+        },
+        "case_4_mask_conflict": {
+            "source_masked_final_dreamsim_delta": delta(proxy_source, "final", "dreamsim_to_source"),
+            "source_unmasked_final_dreamsim_delta": delta(proxy_source_unmasked, "final", "dreamsim_to_source"),
+            "source_masked_unmasked_cosine": cosine("proxy_source_masked_vs_proxy_source_unmasked"),
+            "total_masked_final_dreamsim_delta": delta(proxy_total, "final", "dreamsim_to_source"),
+            "total_unmasked_final_dreamsim_delta": delta(proxy_total_unmasked, "final", "dreamsim_to_source"),
+            "total_masked_unmasked_cosine": cosine("proxy_total_masked_vs_proxy_total_unmasked"),
+        },
+        "case_5_sign_problem": {
+            "total_backward_final_dreamsim_delta": delta(proxy_total, "final", "dreamsim_to_source"),
+            "reverse_final_dreamsim_delta": delta(proxy_reverse, "final", "dreamsim_to_source"),
+            "backward_reverse_cosine": cosine("proxy_total_masked_vs_proxy_total_reverse"),
+        },
+        "case_6_free_gradient_geometry": {
+            "source_parallel_energy_fraction": projections.get("proxy_source_masked", {}).get("parallel_energy_fraction"),
+            "source_orthogonal_energy_fraction": projections.get("proxy_source_masked", {}).get("orthogonal_energy_fraction"),
+            "source_vs_velo_cosine": cosine("proxy_source_masked_vs_velo_local_backward"),
+            "source_unmasked_vs_velo_cosine": cosine("proxy_source_unmasked_vs_velo_local_backward"),
+            "velo_local_final_dreamsim_delta": delta(local, "final", "dreamsim_to_source"),
+        },
+        "case_7_step4_shortcut": {
+            "proxy_step4_energy_fraction": gradient_temporal.get("proxy_step4_energy_fraction"),
+            "final_step4_energy_fraction": gradient_temporal.get("final_step4_energy_fraction"),
+            "reward_step4_final_dreamsim_delta": delta(next((row for row in candidates if row.get("candidate_type") == "temporal_direction" and row.get("direction") == "proxy_total_masked" and row.get("temporal_step") == 3), None), "final", "dreamsim_to_source"),
+            "velo_step4_final_dreamsim_delta": delta(next((row for row in candidates if row.get("candidate_type") == "temporal_direction" and row.get("direction") == "velo_local_backward" and row.get("temporal_step") == 3), None), "final", "dreamsim_to_source"),
+            "proxy_total_temporal_energy_fraction": proxy_total_temporal.get("energy_fraction_per_step"),
+            "final_source_temporal_energy_fraction": final_source_temporal.get("energy_fraction_per_step"),
+        },
+        "case_8_veloedit_preservation": {
+            "velo_local_direction_final_dreamsim_delta": delta(local, "final", "dreamsim_to_source"),
+            "exact_low_only_alpha": low_alphas,
+            "exact_low_only_dreamsim_to_source": low_dreamsim,
+            "exact_full_alpha": full_alphas,
+            "exact_full_dreamsim_to_source": full_dreamsim,
+        },
+    }
+
+
 def scale_global_direction(
     direction: torch.Tensor,
     native_velocity: torch.Tensor,
