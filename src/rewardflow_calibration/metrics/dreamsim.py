@@ -10,13 +10,15 @@ from PIL import Image
 class DreamSimDistance:
     metric_name = "DreamSim"
 
-    def __init__(self, device: torch.device | str):
+    def __init__(self, device: torch.device | str, *, cache_dir: str = "./models"):
         try:
             from dreamsim import dreamsim
         except ImportError as exc:
             raise ImportError("DreamSim is required for activation calibration") from exc
         self.device = torch.device(device)
-        self.model, self.preprocess = dreamsim(pretrained=True, device=str(self.device))
+        self.model, self.preprocess = dreamsim(
+            pretrained=True, device=str(self.device), cache_dir=cache_dir
+        )
         self.model.eval()
 
     @staticmethod
