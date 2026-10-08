@@ -351,7 +351,8 @@ class VeloEditCompatibleRollout:
         goal_residual: torch.Tensor | None = None,
         early_stop_steps: int | None = None,
         velocity_trace: list[dict[str, torch.Tensor]] | None = None,
-    ) -> torch.Tensor:
+        return_latent_trace: bool = False,
+    ) -> torch.Tensor | tuple[torch.Tensor, dict[str, object]]:
         """Run FLUX-Kontext native velocity, optionally with a learned residual.
 
         This path has no alpha argument and never applies VeloEdit intervention.
@@ -385,43 +386,35 @@ class VeloEditCompatibleRollout:
         accumulate_fp32 = config.accumulate_latents_fp32
         z_state = prepared.latents.float() if accumulate_fp32 else prepared.latents.clone()
         reference = prepared.reference_latent
-        image_latents = prepared.image_latents
-        prompt_embeds = prepared.prompt_embeds.detach()
-        pooled = prepared.pooled_prompt_embeds.detach()
-        guidance = prepared.guidance
-        train_steps = pipeline.scheduler.config.get("num_train_timesteps", 1000)
         grad_enabled = goal_residual is not None and torch.is_grad_enabled()
         decode_latents = z_state
+        latent_states: list[torch.Tensor] = []
+        sigmas: list[torch.Tensor] = []
+        native_velocities: list[torch.Tensor] = []
+        actual_velocities: list[torch.Tensor] = []
+        latent_states_graph: list[torch.Tensor] = []
+        actual_velocities_graph: list[torch.Tensor] = []
 
         with torch.set_grad_enabled(grad_enabled):
             for index in range(total_steps):
                 sigma = prepared.sigma_schedule[index]
                 sigma_next = prepared.sigma_schedule[index + 1]
+                if return_latent_trace:
+                    latent_states.append(z_state.detach().clone())
+                    sigmas.append(torch.as_tensor(sigma).detach().clone())
+                    if grad_enabled:
+                        latent_states_graph.append(z_state)
                 z_model = z_state.to(dtype=dtype) if accumulate_fp32 else z_state
-                model_input = z_model if image_latents is None else torch.cat([z_model, image_latents.to(dtype=dtype)], dim=1)
-                sigma_input = torch.as_tensor(sigma, device=self.device, dtype=torch.float32)
-                timestep = (sigma_input * train_steps).reshape(1).to(dtype=z_model.dtype) / train_steps
-
-                def predict_velocity(hidden_states: torch.Tensor) -> torch.Tensor:
-                    return pipeline.transformer(
-                        hidden_states=hidden_states,
-                        timestep=timestep,
-                        guidance=guidance,
-                        pooled_projections=pooled,
-                        encoder_hidden_states=prompt_embeds,
-                        txt_ids=prepared.text_ids,
-                        img_ids=prepared.latent_ids,
-                        joint_attention_kwargs={},
-                        return_dict=False,
-                    )[0][:, : z_state.shape[1]]
-
-                native = (
-                    checkpoint(predict_velocity, model_input, use_reentrant=False)
-                    if grad_enabled else predict_velocity(model_input)
-                )
+                native = self.native_velocity(prepared, z_model, sigma)
                 actual = native
                 if goal_residual is not None and index < goal_residual.shape[0]:
                     actual = native.float() + goal_residual[index].unsqueeze(0).float()
+
+                if return_latent_trace:
+                    native_velocities.append(native.detach().float().clone())
+                    actual_velocities.append(actual.detach().float().clone())
+                    if grad_enabled:
+                        actual_velocities_graph.append(actual)
 
                 if velocity_trace is not None:
                     ref_velocity = (z_state.float() - reference.float()) / (sigma.float() + 1e-8)
@@ -462,6 +455,9 @@ class VeloEditCompatibleRollout:
 
             if early_stop_steps is None:
                 decode_latents = z_state
+            if return_latent_trace and early_stop_steps is None:
+                latent_states.append(z_state.detach().clone())
+                sigmas.append(torch.as_tensor(prepared.sigma_schedule[-1]).detach().clone())
             unpacked = pipeline._unpack_latents(
                 decode_latents, prepared.height, prepared.width, pipeline.vae_scale_factor
             )
@@ -479,4 +475,74 @@ class VeloEditCompatibleRollout:
                     unpacked.to(dtype=pipeline.vae.dtype), return_dict=False
                 )[0]
             images = pipeline.image_processor.postprocess(decoded, output_type="pt")
-            return images.float().clamp(0, 1)
+            image = images.float().clamp(0, 1)
+            if not return_latent_trace:
+                return image
+            trace: dict[str, object] = {
+                "latent_states": tuple(latent_states),
+                "sigmas": tuple(sigmas),
+                "native_velocities": tuple(native_velocities),
+                "actual_velocities": tuple(actual_velocities),
+                "latent_states_graph": tuple(latent_states_graph),
+                "actual_velocities_graph": tuple(actual_velocities_graph),
+                "true_final_latent": z_state.detach().clone() if early_stop_steps is None else None,
+                "anchors_detached": all(not value.requires_grad for value in latent_states)
+                and all(not value.requires_grad for value in native_velocities)
+                and all(not value.requires_grad for value in actual_velocities),
+            }
+            return image, trace
+
+    def native_velocity(
+        self,
+        prepared: PreparedVeloEdit,
+        latent: torch.Tensor,
+        sigma: torch.Tensor | float,
+    ) -> torch.Tensor:
+        """Evaluate the frozen native Kontext velocity at a latent state."""
+        pipeline = self.pipeline
+        dtype = pipeline.transformer.dtype
+        train_steps = pipeline.scheduler.config.get("num_train_timesteps", 1000)
+        latent_model = latent.to(dtype=dtype)
+        model_input = latent_model if prepared.image_latents is None else torch.cat(
+            [latent_model, prepared.image_latents.to(device=latent.device, dtype=dtype)], dim=1
+        )
+        sigma_input = torch.as_tensor(sigma, device=latent.device, dtype=torch.float32)
+        timestep = (sigma_input * train_steps).reshape(1).to(dtype=latent_model.dtype) / train_steps
+
+        def predict_velocity(hidden_states: torch.Tensor) -> torch.Tensor:
+            return pipeline.transformer(
+                hidden_states=hidden_states,
+                timestep=timestep,
+                guidance=prepared.guidance,
+                pooled_projections=prepared.pooled_prompt_embeds.detach(),
+                encoder_hidden_states=prepared.prompt_embeds.detach(),
+                txt_ids=prepared.text_ids,
+                img_ids=prepared.latent_ids,
+                joint_attention_kwargs={},
+                return_dict=False,
+            )[0][:, : latent_model.shape[1]]
+
+        if torch.is_grad_enabled() and latent.requires_grad:
+            return checkpoint(predict_velocity, model_input, use_reentrant=False)
+        return predict_velocity(model_input)
+
+    def decode_latents(self, prepared: PreparedVeloEdit, latents: torch.Tensor) -> torch.Tensor:
+        """Decode packed latent tokens while preserving gradients to ``latents``."""
+        pipeline = self.pipeline
+        unpacked = pipeline._unpack_latents(
+            latents, prepared.height, prepared.width, pipeline.vae_scale_factor
+        )
+        unpacked = unpacked / pipeline.vae.config.scaling_factor + pipeline.vae.config.shift_factor
+        if torch.is_grad_enabled() and latents.requires_grad:
+            decoded = checkpoint(
+                lambda value: pipeline.vae.decode(
+                    value.to(dtype=pipeline.vae.dtype), return_dict=False
+                )[0],
+                unpacked,
+                use_reentrant=False,
+            )
+        else:
+            decoded = pipeline.vae.decode(
+                unpacked.to(dtype=pipeline.vae.dtype), return_dict=False
+            )[0]
+        return pipeline.image_processor.postprocess(decoded, output_type="pt").float().clamp(0, 1)
