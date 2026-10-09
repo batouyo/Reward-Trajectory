@@ -18,11 +18,13 @@ sys.path.insert(0, str(ROOT / "src"))
 
 from rewardflow_calibration.diagnostics.backward_direction import (  # noqa: E402
     compare_directions,
+    scale_global_direction,
     temporal_energy,
 )
 from rewardflow_calibration.diagnostics.leapalign_proxy import (  # noqa: E402
     flow_matching_clean_prediction,
     leap_gradient,
+    mask_gradient_estimators,
     stop_gradient_connector,
 )
 from rewardflow_calibration.metrics.dreamsim import DreamSimDistance  # noqa: E402
@@ -43,6 +45,7 @@ DEFAULT_IMAGE = "/home/hyp/Code/VeloEdit/testdata/9.jpg"
 DEFAULT_MODEL = "/data15/hyp/weight/FLUX.1-Kontext-dev"
 DEFAULT_PROMPT = "Change the car to a modern sport car"
 DEFAULT_OUTPUT = ROOT / "outputs/leapalign_proxy_diagnostic_car_seed42"
+CONNECTOR_ATOL = 1e-6
 
 
 def parse_args() -> argparse.Namespace:
@@ -291,17 +294,25 @@ def main() -> None:
         "leap": leap_gradients,
         "full": full_gradients,
     }
+    masked_estimators = {
+        name: mask_gradient_estimators(gradients, hard_mask)
+        for name, gradients in estimators.items()
+    }
     gradient_comparison: dict[str, Any] = {}
     temporal: dict[str, Any] = {}
     for component in ("source", "total"):
-        full_gradient = full_gradients[component]
-        gradient_comparison[component] = {
-            f"{name}_vs_full": _gradient_stats(gradients[component], full_gradient)
-            for name, gradients in estimators.items() if name != "full"
-        }
-        temporal[component] = {
-            name: temporal_energy(gradients[component]) for name, gradients in estimators.items()
-        }
+        gradient_comparison[component] = {}
+        temporal[component] = {}
+        for variant, gradient_set in (("raw", estimators), ("masked", masked_estimators)):
+            full_gradient = gradient_set["full"][component]
+            gradient_comparison[component][variant] = {
+                f"{name}_vs_full": _gradient_stats(gradients[component], full_gradient)
+                for name, gradients in gradient_set.items() if name != "full"
+            }
+            temporal[component][variant] = {
+                name: temporal_energy(gradients[component])
+                for name, gradients in gradient_set.items()
+            }
     _write_json(output / "gradient_comparison.json", gradient_comparison)
     _write_json(output / "temporal_energy.json", temporal)
     _write_json(output / "leap_approximation.json", {
@@ -309,24 +320,36 @@ def main() -> None:
         "true_trajectory_anchors_detached": not true_final_latent.requires_grad
         and all(not state.requires_grad for state in true_states),
         "connector_forward_max_abs_error": connector_forward_error,
+        "connector_forward_tolerance": CONNECTOR_ATOL,
+        "connector_forward_matches_true_final": connector_forward_error <= CONNECTOR_ATOL,
         "per_component": leap_diagnostics,
     })
 
-    # Finite perturbations use matched global residual/native RMS ratios.
-    native_rms = torch.stack([
-        velocity.float() for velocity in true_trace["native_velocities"][:args.goal_steps]
-    ]).square().mean().sqrt()
+    # Main finite perturbations use frozen-mask directions and the same active
+    # mask residual/native RMS scaling used by the backward-direction diagnostic.
+    native_rows = []
+    for velocity in true_trace["native_velocities"][:args.goal_steps]:
+        value = velocity.detach().float()
+        if value.ndim == 3 and value.shape[0] == 1:
+            value = value.squeeze(0)
+        native_rows.append(value)
+    native_velocity = torch.stack(native_rows)
     baseline_source_loss = float(reward.evaluate(native_full, source, keep_mask).source_loss.detach().cpu())
     baseline_dreamsim = reward.dreamsim(source, native_full)
     finite_rows: list[dict[str, Any]] = []
     for estimator_name in estimators:
-        direction = -estimators[estimator_name]["source"].detach().float()
+        direction = -masked_estimators[estimator_name]["source"].detach().float()
         direction_rms = direction.square().mean().sqrt()
         for ratio in args.finite_difference_ratios:
             if float(direction_rms) <= 1e-12:
-                finite_rows.append({"estimator": estimator_name, "ratio": ratio, "status": "zero_gradient"})
+                finite_rows.append({
+                    "estimator": f"{estimator_name}_source_masked",
+                    "requested_ratio": float(ratio), "status": "zero_gradient",
+                })
                 continue
-            perturbation = direction * (float(ratio) * native_rms / direction_rms)
+            perturbation, scaling = scale_global_direction(
+                direction, native_velocity, float(ratio), active_mask=hard_mask
+            )
             with torch.no_grad():
                 candidate = rollout.rollout_native(
                     prepared, config=rollout_config, goal_residual=perturbation,
@@ -338,8 +361,11 @@ def main() -> None:
             predicted = float((full_gradient * perturbation).sum().cpu())
             observed = final_source_loss - baseline_source_loss
             finite_rows.append({
-                "estimator": estimator_name, "ratio": float(ratio),
-                "actual_global_ratio": float((perturbation.square().mean().sqrt() / native_rms).cpu()),
+                "estimator": f"{estimator_name}_source_masked",
+                "requested_ratio": float(ratio),
+                "actual_active_ratio": scaling["active_mask_ratio"],
+                "actual_global_ratio": scaling["actual_global_ratio"],
+                "scaling": scaling,
                 "predicted_directional_derivative": predicted,
                 "observed_final_source_loss_delta": observed,
                 "directional_sign_agreement": bool((predicted == 0.0 and observed == 0.0) or predicted * observed > 0),
@@ -353,13 +379,27 @@ def main() -> None:
     _write_json(output / "finite_difference.json", {
         "baseline_final_source_loss": baseline_source_loss,
         "baseline_dreamsim_to_source": baseline_dreamsim,
-        "global_residual_native_rms_ratios": args.finite_difference_ratios,
+        "scaling_definition": "scale_global_direction with active_mask=hard_mask; active ratio is primary",
+        "requested_ratios": args.finite_difference_ratios,
         "rows": finite_rows,
     })
 
+    current_step4_fraction = temporal["source"]["masked"]["current_proxy"][
+        "energy_fraction_per_step"
+    ][args.goal_steps - 1]
+    warnings = []
+    if current_step4_fraction < 0.95:
+        warnings.append(
+            "Masked current_proxy step-4 energy is far from the historical ~99.9% reference."
+        )
     summary = {
         "status": "complete", "base_reward_anchors": anchors,
-        "connector_forward_matches_true_final": connector_forward_error == 0.0,
+        "primary_comparison": "masked",
+        "connector_forward_matches_true_final": connector_forward_error <= CONNECTOR_ATOL,
+        "connector_forward_max_abs_error": connector_forward_error,
+        "connector_forward_tolerance": CONNECTOR_ATOL,
+        "masked_current_proxy_step4_energy_fraction": current_step4_fraction,
+        "warnings": warnings,
         "true_final_branch_detached": not true_final_latent.requires_grad,
         "final_gradient_status": "ok", "output_dir": str(output),
         "outputs": {

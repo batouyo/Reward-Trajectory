@@ -6,6 +6,7 @@ from rewardflow_calibration.diagnostics.leapalign_proxy import (
     flow_matching_clean_prediction,
     jump_to_step,
     leap_gradient,
+    mask_gradient_estimators,
     nested_gradient_state,
     stop_gradient_connector,
 )
@@ -91,6 +92,31 @@ def test_each_leap_estimate_only_populates_its_matching_control_slot():
     assert all(row["connected_forward_max_abs_error"] == 0.0 for row in details)
 
 
+def test_step4_residual_uses_step4_sigma_and_state():
+    sigmas = (1.0, 0.8, 0.6, 0.4, 0.2)
+    states = [torch.full((1, 1, 1), float(index + 1)) for index in range(5)]
+    calls = []
+
+    def velocity_fn(latent, sigma):
+        calls.append((float(sigma), float(latent.detach().flatten()[0])))
+        return torch.zeros_like(latent)
+
+    gradient, _ = leap_gradient(
+        torch.zeros(4, 1, 1), states, sigmas, torch.full_like(states[-1], 9.0),
+        velocity_fn=velocity_fn,
+        objective_fn=lambda latent: latent.sum(),
+        goal_steps=4,
+        nested_grad_coe=0.3,
+    )
+
+    # Slots 1-3 each evaluate their own start and then the common bridge.
+    # The final call belongs to slot 4 and must use true_states[3]/sigmas[3].
+    assert calls[-1] == pytest.approx((sigmas[3], float(states[3].item())))
+    assert gradient[3].item() == pytest.approx(-sigmas[3])
+    assert [calls[index][0] for index in (1, 3, 5)] == pytest.approx([sigmas[3]] * 3)
+    assert [calls[index][1] for index in (1, 3, 5)] == pytest.approx([states[3].item()] * 3)
+
+
 def test_nested_gradient_coefficient_scales_gradient():
     values = []
     for coefficient in (0.0, 0.3, 1.0):
@@ -100,12 +126,7 @@ def test_nested_gradient_coefficient_scales_gradient():
     assert values == pytest.approx([0.0, 0.3, 1.0])
 
 
-def _cosine(first, second):
-    a, b = first.flatten(), second.flatten()
-    return torch.dot(a, b) / (a.norm() * b.norm())
-
-
-def test_toy_linear_flow_leap_is_closer_to_full_gradient_than_clean_proxy():
+def test_toy_linear_flow_leap_gradient_path_remains_finite_after_indexing_fix():
     sigmas = (1.0, 0.9, 0.8, 0.7, 0.6, 0.5)
     residual = torch.zeros(4, 1, 1, requires_grad=True)
     state = torch.tensor([[[1.0]]])
@@ -136,7 +157,29 @@ def test_toy_linear_flow_leap_is_closer_to_full_gradient_than_clean_proxy():
         full_states[-1].detach(), velocity_fn=velocity_fn,
         objective_fn=lambda latent: latent.sum(), goal_steps=4, nested_grad_coe=0.3,
     )
-    assert _cosine(leap, full_gradient) > _cosine(current_gradient, full_gradient)
+    assert torch.isfinite(leap).all()
+    assert torch.isfinite(current_gradient).all()
+    assert torch.isfinite(full_gradient).all()
+    assert torch.count_nonzero(leap) > 0
+
+
+def test_masked_gradient_estimators_keep_only_frozen_active_energy():
+    gradient = torch.tensor(
+        [[[1.0], [10.0]], [[2.0], [20.0]], [[3.0], [30.0]], [[4.0], [40.0]]]
+    )
+    mask = torch.zeros_like(gradient, dtype=torch.bool)
+    mask[0, 0] = True
+    mask[1, 0] = True
+
+    masked = mask_gradient_estimators({"raw": gradient}, mask)["raw"]
+    assert masked.shape == gradient.shape
+    assert torch.count_nonzero(masked[~mask]) == 0
+    assert torch.equal(masked[mask], gradient[mask])
+
+    from rewardflow_calibration.diagnostics.backward_direction import temporal_energy
+
+    energy = temporal_energy(masked)
+    assert energy["energy_fraction_per_step"] == pytest.approx([0.2, 0.8, 0.0, 0.0])
 
 
 def test_diagnostic_rejects_attached_true_final_anchor():

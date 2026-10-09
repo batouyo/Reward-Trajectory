@@ -10,6 +10,8 @@ from collections.abc import Callable, Sequence
 
 import torch
 
+from ..optimization.backward_trajectory_optimizer import apply_frozen_edit_mask
+
 
 def flow_matching_clean_prediction(
     latent: torch.Tensor, velocity: torch.Tensor, sigma: torch.Tensor | float
@@ -59,6 +61,17 @@ def detached_true_trajectory(
     return detached_states, detached_final
 
 
+def mask_gradient_estimators(
+    estimators: dict[str, torch.Tensor], hard_mask: torch.Tensor
+) -> dict[str, torch.Tensor]:
+    """Apply the diagnostic's frozen edit support to each raw gradient."""
+    masked: dict[str, torch.Tensor] = {}
+    for name, gradient in estimators.items():
+        mask = hard_mask.to(device=gradient.device, dtype=gradient.dtype)
+        masked[name] = apply_frozen_edit_mask(gradient, mask)
+    return masked
+
+
 def _error_metrics(prediction: torch.Tensor, truth: torch.Tensor) -> dict[str, float]:
     difference = prediction.detach().float() - truth.detach().float()
     truth_value = truth.detach().float()
@@ -86,8 +99,8 @@ def leap_gradient(
 
     ``true_states[i]`` is the latent at sigma ``sigmas[i]``.  For slots before
     the last controlled slot, Leap 1 jumps from that step's true state to the
-    detached step-``goal_steps`` bridge.  The final slot starts at the bridge,
-    as specified for the step-4 boundary diagnostic.  Each loss is
+    detached last-controlled-step bridge. The last residual acts directly on
+    the velocity evaluated at that bridge (step ``goal_steps``). Each loss is
     differentiated only with respect to its own residual slot; the resulting
     gradients are stacked in the input residual's shape.
     """
@@ -95,14 +108,14 @@ def leap_gradient(
         raise ValueError("residual must have shape [steps, tokens, channels]")
     if not 1 <= goal_steps <= residual.shape[0]:
         raise ValueError("goal_steps must be within the residual step count")
-    if len(true_states) <= goal_steps or len(sigmas) <= goal_steps:
-        raise ValueError("true trajectory must include the step-4 bridge state")
+    bridge_index = goal_steps - 1
+    if len(true_states) <= bridge_index or len(sigmas) <= bridge_index:
+        raise ValueError("true trajectory must include the last controlled-step state")
     if not 0.0 <= nested_grad_coe <= 1.0:
         raise ValueError("nested_grad_coe must be one of 0.0, 0.3, or 1.0 (or any value in [0,1])")
     if any(state.requires_grad for state in true_states) or true_final.requires_grad:
         raise ValueError("true trajectory states and final latent must be detached")
 
-    bridge_index = goal_steps
     bridge_truth = true_states[bridge_index].detach()
     final_truth = true_final.detach()
     gradients: list[torch.Tensor] = []
@@ -110,9 +123,9 @@ def leap_gradient(
 
     for slot_index in range(goal_steps):
         slot = residual[slot_index].detach().clone().requires_grad_(True)
-        if slot_index < goal_steps - 1:
-            start = true_states[slot_index].detach()
-            sigma_start = sigmas[slot_index]
+        start = true_states[slot_index].detach()
+        sigma_start = sigmas[slot_index]
+        if slot_index < bridge_index:
             velocity = velocity_fn(start, sigma_start) + slot.unsqueeze(0).to(start.dtype)
             bridge_prediction = jump_to_step(
                 start, velocity, sigma_start, sigmas[bridge_index]
@@ -120,7 +133,9 @@ def leap_gradient(
             bridge_connected = stop_gradient_connector(bridge_prediction, bridge_truth)
             bridge_metrics = _error_metrics(bridge_prediction, bridge_truth)
         else:
-            # Step 4 is directly evaluated at the common bridge state.
+            # The final controlled residual is applied at its own state/sigma.
+            velocity = velocity_fn(start, sigma_start) + slot.unsqueeze(0).to(start.dtype)
+            final_prediction = flow_matching_clean_prediction(start, velocity, sigma_start)
             bridge_prediction = bridge_truth
             bridge_connected = bridge_truth
             bridge_metrics = {
@@ -129,13 +144,12 @@ def leap_gradient(
                 "relative_rms_error": 0.0,
             }
 
-        nested_state = nested_gradient_state(bridge_connected, nested_grad_coe)
-        bridge_velocity = velocity_fn(nested_state, sigmas[bridge_index])
-        if slot_index == goal_steps - 1:
-            bridge_velocity = bridge_velocity + slot.unsqueeze(0).to(bridge_velocity.dtype)
-        final_prediction = flow_matching_clean_prediction(
-            bridge_connected, bridge_velocity, sigmas[bridge_index]
-        )
+        if slot_index < bridge_index:
+            nested_state = nested_gradient_state(bridge_connected, nested_grad_coe)
+            bridge_velocity = velocity_fn(nested_state, sigmas[bridge_index])
+            final_prediction = flow_matching_clean_prediction(
+                bridge_connected, bridge_velocity, sigmas[bridge_index]
+            )
         final_connected = stop_gradient_connector(final_prediction, final_truth)
         loss = objective_fn(final_connected)
         if loss.numel() != 1:
@@ -146,6 +160,9 @@ def leap_gradient(
         gradients.append(gradient.detach())
         diagnostics.append({
             "step": slot_index + 1,
+            "bridge_index": bridge_index,
+            "bridge_sigma": float(torch.as_tensor(sigmas[bridge_index]).detach().cpu()),
+            "residual_velocity_sigma": float(torch.as_tensor(sigma_start).detach().cpu()),
             "bridge_prediction_error": bridge_metrics,
             "final_prediction_error": _error_metrics(final_prediction, final_truth),
             "trajectory_similarity_factor": (
@@ -171,6 +188,7 @@ __all__ = [
     "flow_matching_clean_prediction",
     "jump_to_step",
     "leap_gradient",
+    "mask_gradient_estimators",
     "nested_gradient_state",
     "stop_gradient_connector",
 ]
