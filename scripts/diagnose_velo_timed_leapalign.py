@@ -201,6 +201,7 @@ def main() -> None:
                 "model_path": "black-forest-labs/FLUX.1-Kontext-dev",
                 "dtype": "bfloat16",
                 "num_inference_steps": 30,
+                "first_step_align_steps": 4,
                 "guidance_scale": 2.5,
                 "defines_intervention_steps": False,
                 "defines_first_step_align_steps": True,
