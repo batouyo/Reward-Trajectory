@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable, Sequence
+import math
 
 import torch
 
@@ -13,6 +14,22 @@ from .leapalign_proxy import (
     nested_gradient_state,
     stop_gradient_connector,
 )
+
+CONNECTOR_ATOL = 1e-6
+
+
+def validate_connector_error(
+    error: float,
+    connector_name: str,
+    *,
+    atol: float = CONNECTOR_ATOL,
+) -> None:
+    """Fail the diagnostic if a straight-through connector misses its anchor."""
+    value = float(error)
+    if not math.isfinite(value) or value > float(atol):
+        raise RuntimeError(
+            f"{connector_name} connector forward error {value!r} exceeds tolerance {atol}"
+        )
 
 
 def _as_float(value: torch.Tensor | float) -> float:
@@ -79,11 +96,16 @@ def leap_gradient_for_control_step(
 
     # Reward sees only this one residual slot. No other timestep residuals are
     # allocated or introduced by this estimator.
-    control_velocity = velocity_fn(state, sigma_control) + slot_batched.to(state.dtype)
+    native_control = velocity_fn(state, sigma_control)
+    control_velocity = native_control.float() + slot_batched.float()
     bridge_prediction = jump_to_step(
         state, control_velocity, sigma_control, sigma_bridge
     )
     bridge_connected = stop_gradient_connector(bridge_prediction, bridge_truth)
+    bridge_connector_error = float(
+        (bridge_connected.detach().float() - bridge_truth.detach().float()).abs().max().cpu()
+    )
+    validate_connector_error(bridge_connector_error, "bridge")
 
     if control == bridge:
         final_prediction = flow_matching_clean_prediction(
@@ -99,6 +121,10 @@ def leap_gradient_for_control_step(
         prediction_mode = "bridge_then_clean_prediction"
 
     final_connected = stop_gradient_connector(final_prediction, final_truth)
+    final_connector_error = float(
+        (final_connected.detach().float() - final_truth.detach().float()).abs().max().cpu()
+    )
+    validate_connector_error(final_connector_error, "final")
     loss = objective_fn(final_connected)
     if loss.numel() != 1:
         raise ValueError("objective_fn must return a scalar tensor")
@@ -116,16 +142,16 @@ def leap_gradient_for_control_step(
         "state_index_definition": "step N is the latent immediately before velocity update N; state index N-1",
         "control_sigma": _as_float(sigma_control),
         "bridge_sigma": _as_float(sigma_bridge),
+        "native_control_dtype": str(native_control.dtype),
+        "residual_dtype": str(slot.dtype),
+        "control_velocity_dtype": str(control_velocity.dtype),
         "control_to_bridge": bridge_error,
         "bridge_to_final": final_error,
         "bridge_connected_dtype": str(bridge_connected.dtype),
         "final_connected_dtype": str(final_connected.dtype),
-        "bridge_connected_forward_max_abs_error": float(
-            (bridge_connected.detach().float() - bridge_truth.detach().float()).abs().max().cpu()
-        ),
-        "final_connected_forward_max_abs_error": float(
-            (final_connected.detach().float() - final_truth.detach().float()).abs().max().cpu()
-        ),
+        "bridge_connected_forward_max_abs_error": bridge_connector_error,
+        "final_connected_forward_max_abs_error": final_connector_error,
+        "connector_forward_tolerance": CONNECTOR_ATOL,
         "bridge_to_final_prediction_mode": prediction_mode,
         "nested_grad_coe": float(nested_grad_coe),
         "gradient_rms": float(gradient.detach().float().square().mean().sqrt().cpu()),
@@ -133,4 +159,9 @@ def leap_gradient_for_control_step(
     return gradient.detach(), diagnostics
 
 
-__all__ = ["extract_control_step_gradient", "leap_gradient_for_control_step"]
+__all__ = [
+    "CONNECTOR_ATOL",
+    "extract_control_step_gradient",
+    "leap_gradient_for_control_step",
+    "validate_connector_error",
+]

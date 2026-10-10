@@ -2,8 +2,10 @@ import pytest
 import torch
 
 from rewardflow_calibration.diagnostics.velo_timed_leap import (
+    CONNECTOR_ATOL,
     extract_control_step_gradient,
     leap_gradient_for_control_step,
+    validate_connector_error,
 )
 from rewardflow_calibration.diagnostics.leapalign_proxy import (
     flow_matching_clean_prediction,
@@ -177,6 +179,46 @@ def test_control_step_four_bridge_four_uses_one_step_clean_proxy():
     assert torch.equal(calls[0][1], states[3].float())
     assert diagnostics["bridge_to_final_prediction_mode"] == "single_step_clean_proxy"
     assert torch.count_nonzero(gradient) > 0
+
+
+def test_bf16_state_keeps_fp32_residual_when_injected_into_control_velocity(monkeypatch):
+    from rewardflow_calibration.diagnostics import velo_timed_leap as timed_leap
+
+    states = _distinct_states()
+    sigmas = tuple(1.0 - 0.05 * index for index in range(16))
+    residual = torch.tensor([[0.1234567], [-0.7654321]], dtype=torch.float32)
+    seen = {}
+    original_jump = timed_leap.jump_to_step
+
+    def inspect_jump(latent, velocity, sigma_current, sigma_target):
+        seen["velocity"] = velocity.detach().clone()
+        return original_jump(latent, velocity, sigma_current, sigma_target)
+
+    monkeypatch.setattr(timed_leap, "jump_to_step", inspect_jump)
+    _, diagnostics = leap_gradient_for_control_step(
+        residual,
+        control_step_index=0,
+        bridge_step_index=1,
+        true_states=states,
+        sigmas=sigmas,
+        true_final=torch.full_like(states[-1], 20.0),
+        velocity_fn=lambda latent, sigma: torch.zeros_like(latent),
+        objective_fn=lambda latent: latent.float().sum(),
+    )
+
+    assert states[0].dtype == torch.bfloat16
+    assert diagnostics["native_control_dtype"] == "torch.bfloat16"
+    assert diagnostics["residual_dtype"] == "torch.float32"
+    assert diagnostics["control_velocity_dtype"] == "torch.float32"
+    assert seen["velocity"].dtype == torch.float32
+    assert torch.equal(seen["velocity"].squeeze(0), residual)
+
+
+def test_connector_error_validator_enforces_fixed_tolerance():
+    validate_connector_error(0.5e-6, "bridge")
+    validate_connector_error(CONNECTOR_ATOL, "final")
+    with pytest.raises(RuntimeError, match="connector forward error"):
+        validate_connector_error(CONNECTOR_ATOL + 1e-7, "bridge")
 
 
 def test_full_gradient_extraction_selects_exactly_one_control_slot():
