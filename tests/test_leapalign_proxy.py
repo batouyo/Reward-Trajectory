@@ -47,6 +47,56 @@ def test_bridge_connector_preserves_forward_anchor_and_surrogate_gradient():
     assert anchor_gradient is None or torch.equal(anchor_gradient, torch.zeros_like(true_bridge))
 
 
+@pytest.mark.parametrize("truth_dtype", [torch.bfloat16, torch.float32])
+def test_bf16_connector_uses_fp32_forward_and_surrogate_only_gradient(
+    truth_dtype
+):
+    # Both dtype combinations matter: mixed precision is explicitly supported,
+    # and BF16/BF16 reproduces the low-precision cancellation from the run.
+    surrogate = torch.tensor(
+        [1.00390625, -2.1171875], dtype=torch.bfloat16, requires_grad=True
+    )
+    truth = torch.tensor(
+        [1.234567, -2.345678], dtype=truth_dtype, requires_grad=True
+    )
+
+    connected = stop_gradient_connector(surrogate, truth)
+    assert connected.dtype == torch.float32
+    assert torch.max(torch.abs(connected.detach() - truth.detach().float())) <= 1e-7
+
+    surrogate_gradient, truth_gradient = torch.autograd.grad(
+        connected.sum(), (surrogate, truth), allow_unused=True
+    )
+    assert torch.equal(surrogate_gradient, torch.ones_like(surrogate))
+    assert truth_gradient is None or torch.equal(truth_gradient, torch.zeros_like(truth))
+
+
+def test_bf16_bridge_and_final_connectors_use_fp32_forward():
+    sigmas = (1.0, 0.8, 0.6, 0.4, 0.2)
+    states = [
+        torch.full((1, 1, 1), 1.0 + index * 0.125, dtype=torch.bfloat16)
+        for index in range(5)
+    ]
+    true_final = torch.full((1, 1, 1), 1.75, dtype=torch.bfloat16)
+
+    gradient, steps = leap_gradient(
+        torch.zeros(4, 1, 1), states, sigmas, true_final,
+        velocity_fn=lambda latent, sigma: torch.zeros_like(latent),
+        objective_fn=lambda latent: latent.float().sum(),
+        goal_steps=4,
+        nested_grad_coe=0.3,
+    )
+
+    first_step = steps[0]
+    assert first_step["bridge_prediction_dtype"] == "torch.float32"
+    assert first_step["bridge_truth_dtype"] == "torch.bfloat16"
+    assert first_step["bridge_connected_dtype"] == "torch.float32"
+    assert first_step["final_prediction_dtype"] == "torch.float32"
+    assert first_step["true_final_dtype"] == "torch.bfloat16"
+    assert first_step["final_connected_dtype"] == "torch.float32"
+    assert torch.isfinite(gradient).all()
+
+
 def test_true_trajectory_anchors_are_detached():
     state = torch.ones(1, requires_grad=True)
     final = 2 * state

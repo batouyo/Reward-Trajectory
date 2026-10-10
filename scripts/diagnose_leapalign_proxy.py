@@ -243,12 +243,19 @@ def main() -> None:
         proxy_graph_trace["latent_states_graph"][boundary_index],
         proxy_graph_trace["actual_velocities_graph"][boundary_index],
         proxy_trace["sigmas"][boundary_index],
-    ).to(dtype=rollout.pipeline.transformer.dtype)
+    )
     connected_latent = stop_gradient_connector(proxy_latent, true_final_latent)
     connector_image = rollout.decode_latents(prepared, connected_latent)
     connector_losses = _component_losses(reward, connector_image, source, keep_mask)
     connector_gradients = _gradients(connector_losses, residual)
-    connector_forward_error = float((connected_latent.detach() - true_final_latent).abs().max().cpu())
+    connector_forward_error = float((
+        connected_latent.detach().float() - true_final_latent.detach().float()
+    ).abs().max().cpu())
+    connector_dtype_info = {
+        "proxy_latent_dtype": str(proxy_latent.dtype),
+        "true_final_latent_dtype": str(true_final_latent.dtype),
+        "connector_dtype": str(connected_latent.dtype),
+    }
 
     del (
         proxy_image, connector_image, current_losses, connector_losses,
@@ -315,10 +322,18 @@ def main() -> None:
             }
     _write_json(output / "gradient_comparison.json", gradient_comparison)
     _write_json(output / "temporal_energy.json", temporal)
+    bridge_dtype_info = {
+        key: leap_diagnostics["source"][0][key]
+        for key in (
+            "bridge_prediction_dtype", "bridge_truth_dtype", "bridge_connected_dtype"
+        )
+    }
     _write_json(output / "leap_approximation.json", {
         "nested_grad_coe": args.nested_grad_coe,
         "true_trajectory_anchors_detached": not true_final_latent.requires_grad
         and all(not state.requires_grad for state in true_states),
+        **connector_dtype_info,
+        **bridge_dtype_info,
         "connector_forward_max_abs_error": connector_forward_error,
         "connector_forward_tolerance": CONNECTOR_ATOL,
         "connector_forward_matches_true_final": connector_forward_error <= CONNECTOR_ATOL,

@@ -36,10 +36,12 @@ def jump_to_step(
 def stop_gradient_connector(
     surrogate: torch.Tensor, truth: torch.Tensor
 ) -> torch.Tensor:
-    """Keep ``truth`` as the exact forward value and ``surrogate`` as its Jacobian."""
+    """Keep FP32 ``truth`` as the forward value and ``surrogate`` as its Jacobian."""
     if surrogate.shape != truth.shape:
         raise ValueError("surrogate and truth must have matching shapes")
-    return surrogate + (truth.detach() - surrogate).detach()
+    surrogate_fp32 = surrogate.float()
+    truth_fp32 = truth.detach().float()
+    return surrogate_fp32 + (truth_fp32 - surrogate_fp32).detach()
 
 
 def nested_gradient_state(state: torch.Tensor, coefficient: float) -> torch.Tensor:
@@ -163,6 +165,12 @@ def leap_gradient(
             "bridge_index": bridge_index,
             "bridge_sigma": float(torch.as_tensor(sigmas[bridge_index]).detach().cpu()),
             "residual_velocity_sigma": float(torch.as_tensor(sigma_start).detach().cpu()),
+            "bridge_prediction_dtype": str(bridge_prediction.dtype),
+            "bridge_truth_dtype": str(bridge_truth.dtype),
+            "bridge_connected_dtype": str(bridge_connected.dtype),
+            "final_prediction_dtype": str(final_prediction.dtype),
+            "true_final_dtype": str(final_truth.dtype),
+            "final_connected_dtype": str(final_connected.dtype),
             "bridge_prediction_error": bridge_metrics,
             "final_prediction_error": _error_metrics(final_prediction, final_truth),
             "trajectory_similarity_factor": (
